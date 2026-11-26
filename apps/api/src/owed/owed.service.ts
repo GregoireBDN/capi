@@ -24,6 +24,7 @@ import * as schema from '#/database/schema'
 import {
   categoriesTable,
   contactsTable,
+  receivableOffsetsTable,
   receivablePaymentsTable,
   receivablesTable,
   recurringItemsTable,
@@ -42,11 +43,14 @@ import {
   type ContactRefDto,
   type CreateContactDto,
   type CreateDebtDto,
+  type CreateOffsetDto,
   type CreateSharesDto,
   type ExpectedRepaymentDto,
   type ForgiveReceivableDto,
   type LinkRepaymentDto,
   type LinkRepaymentResultDto,
+  type OffsetDto,
+  type OffsetProposalDto,
   type OwedContactRowDto,
   type OwedListDto,
   type OwedSummaryDto,
@@ -66,6 +70,7 @@ import {
   expectedRepayments,
   type SharedRecurringItem,
 } from './expected'
+import { planOffset } from './offset'
 import { applyRecurringShares } from './recurring-shares'
 import { SETTLED_SHARE_MESSAGE } from './settled'
 import { leftCents, receivableState } from './state'
@@ -168,6 +173,7 @@ export class OwedService {
         set.matchLabels = cleanLabels(dto.matchLabels)
       }
       if (dto.repaymentDay !== undefined) set.repaymentDay = dto.repaymentDay
+      if (dto.alwaysOffset !== undefined) set.alwaysOffset = dto.alwaysOffset
       if (dto.archived !== undefined) {
         set.archivedAt = dto.archived
           ? (current.archivedAt ?? new Date())
@@ -181,6 +187,10 @@ export class OwedService {
               .set(set)
               .where(eq(contactsTable.id, id))
               .returning()
+      // Turned on: what is open both ways now is offset at once.
+      if (dto.alwaysOffset && !current.alwaysOffset) {
+        await this.autoOffset(tx, [id])
+      }
       return this.toContact(row, await this.balances(tx))
     })
   }
@@ -241,6 +251,10 @@ export class OwedService {
           amountCents: share.amountCents,
           note: dto.note ?? null,
         })),
+      )
+      await this.autoOffset(
+        tx,
+        contacts.map((c) => c.contactId),
       )
     })
     return this.transactions.findOne(dto.transactionId)
@@ -316,6 +330,10 @@ export class OwedService {
           })),
         )
       }
+      await this.autoOffset(
+        tx,
+        contacts.map((c) => c.contactId),
+      )
     })
     return this.transactions.findOne(transactionId)
   }
@@ -378,6 +396,7 @@ export class OwedService {
         amountCents: dto.partCents,
         billCents: dto.billCents,
       })
+      await this.autoOffset(tx, [contactId], now)
       return row.id
     })
     return this.transactions.findOne(id)
@@ -619,6 +638,7 @@ export class OwedService {
           paidOn: p.paidOn,
           note: p.note,
           label: line?.label ?? null,
+          offsetId: null,
         })),
         linkedCents: linked,
         restCents,
@@ -627,13 +647,189 @@ export class OwedService {
     return result
   }
 
-  /** Unlinks a repayment (undo). */
+  /**
+   * Unlinks a repayment (undo). One side of an offset is undone with the
+   * offset only (409, `deleteOffset`).
+   */
   async deletePayment(id: string): Promise<void> {
-    const deleted = await this.db
+    const [payment] = await this.db
+      .select({ offsetId: receivablePaymentsTable.offsetId })
+      .from(receivablePaymentsTable)
+      .where(eq(receivablePaymentsTable.id, id))
+    if (!payment) throw new NotFoundException('Payment not found')
+    if (payment.offsetId !== null) {
+      throw new ConflictException(OFFSET_PAYMENT_MESSAGE)
+    }
+    await this.db
       .delete(receivablePaymentsTable)
       .where(eq(receivablePaymentsTable.id, id))
-      .returning({ id: receivablePaymentsTable.id })
-    if (deleted.length === 0) throw new NotFoundException('Payment not found')
+  }
+
+  // --- Offsets (« Compenser », #484) ----------------------------------------
+
+  /**
+   * The offset to propose for one contact: the smaller of what they owe and
+   * what the owner owes them, oldest items first; `amountCents` 0 when one
+   * side is empty.
+   */
+  async offsetProposal(contactId: string): Promise<OffsetProposalDto> {
+    const contact = await this.requireContact(this.db, contactId)
+    const rows = await this.receivableRows(
+      this.db,
+      eq(receivablesTable.contactId, contactId),
+    )
+    return this.toProposal(contact, rows)
+  }
+
+  /**
+   * « Compenser »: settles the same amount on each side of one contact, as
+   * repayments without a transfer tied to one offset. With `items`, the ones
+   * the owner ticked (both directions, the same total on each side, never
+   * past what is left); without, the proposal. Changes no statistic.
+   */
+  async createOffset(
+    contactId: string,
+    dto: CreateOffsetDto,
+    now: Date = new Date(),
+  ): Promise<OffsetDto> {
+    return this.db.transaction(async (tx) => {
+      await this.requireContact(tx, contactId)
+      const made = await this.offset(tx, contactId, dto.items, now, false)
+      if (!made) throw new BadRequestException('Nothing to offset')
+      return made
+    })
+  }
+
+  /**
+   * « Annuler la compensation »: removes the offset and its repayments on
+   * both sides together; each item is owed again as before.
+   */
+  async deleteOffset(id: string): Promise<void> {
+    const deleted = await this.db
+      .delete(receivableOffsetsTable)
+      .where(eq(receivableOffsetsTable.id, id))
+      .returning({ id: receivableOffsetsTable.id })
+    if (deleted.length === 0) throw new NotFoundException('Offset not found')
+  }
+
+  /**
+   * « Toujours compenser »: offsets what is open both ways for those of
+   * `contactIds` who asked for it, after a new item (in the same database
+   * transaction).
+   */
+  private async autoOffset(
+    tx: Tx,
+    contactIds: string[],
+    now: Date = new Date(),
+  ): Promise<void> {
+    if (contactIds.length === 0) return
+    const automatic = await tx
+      .select({ id: contactsTable.id })
+      .from(contactsTable)
+      .where(
+        and(
+          inArray(contactsTable.id, [...new Set(contactIds)]),
+          eq(contactsTable.alwaysOffset, true),
+        ),
+      )
+    for (const { id } of automatic) {
+      await this.offset(tx, id, undefined, now, true)
+    }
+  }
+
+  /** Writes one offset; null when there is nothing to offset. */
+  private async offset(
+    tx: Tx,
+    contactId: string,
+    ticked: { receivableId: string; amountCents: number }[] | undefined,
+    now: Date,
+    automatic: boolean,
+  ): Promise<OffsetDto | null> {
+    const rows = await this.receivableRows(
+      tx,
+      eq(receivablesTable.contactId, contactId),
+      { lock: true },
+    )
+    let items: { receivableId: string; amountCents: number }[]
+    let amountCents: number
+    if (ticked === undefined) {
+      const plan = planOffset(
+        rows.map((row) => ({
+          id: row.id,
+          direction: row.direction,
+          date: row.bookingDate,
+          leftCents: leftCents(row),
+        })),
+      )
+      if (plan.amountCents === 0) return null
+      items = plan.items
+      amountCents = plan.amountCents
+    } else {
+      const ids = ticked.map((item) => item.receivableId)
+      if (new Set(ids).size !== ids.length) {
+        throw new BadRequestException('An item is listed twice')
+      }
+      const byId = new Map(rows.map((row) => [row.id, row]))
+      const sides = { owed_to_me: 0, i_owe: 0 }
+      for (const item of ticked) {
+        const row = byId.get(item.receivableId)
+        if (!row) {
+          throw new BadRequestException(
+            'An offset settles items of this contact only',
+          )
+        }
+        if (item.amountCents > leftCents(row)) {
+          throw new BadRequestException(
+            'The offset exceeds what is left on an item',
+          )
+        }
+        sides[row.direction] += item.amountCents
+      }
+      if (sides.owed_to_me !== sides.i_owe || sides.owed_to_me === 0) {
+        throw new BadRequestException(
+          'An offset settles the same amount on each side',
+        )
+      }
+      items = ticked
+      amountCents = sides.owed_to_me
+    }
+    const offsetOn = todayInParis(now)
+    const [made] = await tx
+      .insert(receivableOffsetsTable)
+      .values({ contactId, amountCents, offsetOn, automatic })
+      .returning()
+    await tx.insert(receivablePaymentsTable).values(
+      items.map((item) => ({
+        receivableId: item.receivableId,
+        amountCents: item.amountCents,
+        paidOn: offsetOn,
+        offsetId: made.id,
+      })),
+    )
+    return toOffset(made)
+  }
+
+  private toProposal(
+    contact: { id: string; name: string; alwaysOffset: boolean },
+    rows: ReceivableRow[],
+  ): OffsetProposalDto {
+    const plan = planOffset(
+      rows.map((row) => ({
+        id: row.id,
+        direction: row.direction,
+        date: row.bookingDate,
+        leftCents: leftCents(row),
+      })),
+    )
+    return {
+      contactId: contact.id,
+      contactName: contact.name,
+      alwaysOffset: contact.alwaysOffset,
+      owedToMeCents: plan.owedToMeCents,
+      iOweCents: plan.iOweCents,
+      amountCents: plan.amountCents,
+      items: plan.items,
+    }
   }
 
   /**
@@ -909,12 +1105,34 @@ export class OwedService {
       this.expected(month, today),
     ])
     const names = new Map(contacts.map((c) => [c.id, c.name]))
+    const net = new Map<string, number>()
+    for (const row of rows) {
+      const sign = row.direction === 'owed_to_me' ? 1 : -1
+      net.set(
+        row.contactId,
+        (net.get(row.contactId) ?? 0) + sign * leftCents(row),
+      )
+    }
+    const offers = contacts
+      .map((contact) =>
+        this.toProposal(
+          contact,
+          rows.filter((row) => row.contactId === contact.id),
+        ),
+      )
+      .filter((offer) => offer.amountCents > 0)
+      .sort(
+        (a, b) =>
+          b.amountCents - a.amountCents ||
+          a.contactName.localeCompare(b.contactName, 'fr'),
+      )
     return {
       today,
       month,
-      owedToMe: this.list(rows, 'owed_to_me', names, today),
-      iOwe: this.list(rows, 'i_owe', names, today),
+      owedToMe: this.list(rows, 'owed_to_me', names, today, net),
+      iOwe: this.list(rows, 'i_owe', names, today, net),
       expected,
+      offers,
     }
   }
 
@@ -982,8 +1200,20 @@ export class OwedService {
         },
       ],
     ])
+    const offsets = await this.db
+      .select()
+      .from(receivableOffsetsTable)
+      .where(eq(receivableOffsetsTable.contactId, id))
+      .orderBy(
+        desc(receivableOffsetsTable.offsetOn),
+        desc(receivableOffsetsTable.createdAt),
+        desc(receivableOffsetsTable.id),
+      )
+    const offer = this.toProposal(contact, rows)
     return {
       contact: this.toContact(contact, balances),
+      offsets: offsets.map(toOffset),
+      offer: offer.amountCents > 0 ? offer : null,
       owedToMe: direction('owed_to_me'),
       iOwe: direction('i_owe'),
       expected: (await this.expected(today.slice(0, 7), today)).filter(
@@ -1181,6 +1411,7 @@ export class OwedService {
     direction: ReceivableDirection,
     names: Map<string, string>,
     today: string,
+    net: Map<string, number>,
   ): OwedListDto {
     const byContact = new Map<string, ReceivableRow[]>()
     for (const row of rows) {
@@ -1201,6 +1432,7 @@ export class OwedService {
         openCount: open.length,
         oldestOpenDate: oldest,
         oldestOpenDays: oldest === null ? null : daysBetween(oldest, today),
+        netCents: net.get(contactId) ?? 0,
       }
       ;(entry.owedCents > 0 ? contacts : settled).push(entry)
     }
@@ -1243,6 +1475,7 @@ export class OwedService {
       archivedAt: row.archivedAt,
       owedToMeCents: balance?.owedToMe ?? 0,
       iOweCents: balance?.iOwe ?? 0,
+      alwaysOffset: row.alwaysOffset,
     }
   }
 
@@ -1337,6 +1570,7 @@ export class OwedService {
         paidOn: p.paidOn,
         note: p.note,
         label: sql<string | null>`coalesce(${t.merchant}, ${t.rawLabel})`,
+        offsetId: p.offsetId,
       })
       .from(p)
       .leftJoin(t, eq(t.id, p.transactionId))
@@ -1613,6 +1847,20 @@ type ReceivableRow = {
   forgivenNote: string | null
   repaidCents: number
   bookingDate: string
+}
+
+/** Answered (409) when one side of an offset would be unlinked alone. */
+export const OFFSET_PAYMENT_MESSAGE =
+  'This repayment is one side of an offset: undo the offset instead'
+
+function toOffset(row: typeof receivableOffsetsTable.$inferSelect): OffsetDto {
+  return {
+    id: row.id,
+    contactId: row.contactId,
+    amountCents: row.amountCents,
+    offsetOn: row.offsetOn,
+    automatic: row.automatic,
+  }
 }
 
 function sum(values: number[]): number {

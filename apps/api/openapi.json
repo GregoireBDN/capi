@@ -4635,7 +4635,7 @@
     },
     "/api/contacts/{id}/owed": {
       "get": {
-        "description": "Totals, open items and history both ways (« Il vous doit », « Vous lui devez », never netted), this month’s expected repayments and the recurring items shared with them.",
+        "description": "Totals, open items and history both ways (« Il vous doit », « Vous lui devez »), the offsets made with them and the one to propose (#484), this month’s expected repayments and the recurring items shared with them.",
         "operationId": "ContactsController_contactOwed",
         "parameters": [
           {
@@ -4677,9 +4677,108 @@
         ]
       }
     },
+    "/api/contacts/{id}/offset": {
+      "get": {
+        "description": "« Compenser » (#484): what they owe the owner against what he owes them, the smaller settled on each side, oldest items first. `amountCents` is 0 when one side is empty.",
+        "operationId": "ContactsController_offsetProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffsetProposalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "The offset to propose",
+        "tags": [
+          "Contacts"
+        ]
+      },
+      "post": {
+        "description": "« Compenser » (#484): settles the same amount on each side as repayments without a transfer, tied together (undone as one). The items ticked, or the proposal. Neither income nor spending: no statistic moves. Session only.",
+        "operationId": "ContactsController_createOffset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOffsetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffsetDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nothing to offset, two different amounts, another contact’s item, or past what is left."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Offset what is owed both ways",
+        "tags": [
+          "Contacts"
+        ]
+      }
+    },
     "/api/contacts/{id}": {
       "patch": {
-        "description": "Name, bank words, usual repayment day, archive. Session only.",
+        "description": "Name, bank words, usual repayment day, « Toujours compenser », archive. Session only.",
         "operationId": "ContactsController_update",
         "parameters": [
           {
@@ -4774,7 +4873,7 @@
     },
     "/api/owed": {
       "get": {
-        "description": "« Dépenses partagées »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.",
+        "description": "« Dépenses partagées »: « On me doit » and « Je dois » as two lists, one row per person (the oldest open item’s age, the net position both ways), the people all settled apart, this month’s repayments expected from shared recurring items, and the offsets to propose (#484). Outside the net worth.",
         "operationId": "OwedController_summary",
         "parameters": [],
         "responses": {
@@ -5045,6 +5144,43 @@
         ]
       }
     },
+    "/api/receivables/offsets/{id}": {
+      "delete": {
+        "description": "« Annuler la compensation » (#484): both sides’ repayments go together. Session only.",
+        "operationId": "ReceivablesController_undoOffset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown offset."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Undo an offset",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
     "/api/receivables/payments/{id}": {
       "delete": {
         "description": "Session only.",
@@ -5069,6 +5205,9 @@
           },
           "404": {
             "description": "Unknown payment."
+          },
+          "409": {
+            "description": "One side of an offset: undo the offset instead."
           }
         },
         "security": [
@@ -15486,6 +15625,10 @@
           "iOweCents": {
             "type": "integer",
             "description": "What the owner owes them now (open items)."
+          },
+          "alwaysOffset": {
+            "type": "boolean",
+            "description": "« Toujours compenser » (#484)."
           }
         },
         "required": [
@@ -15495,7 +15638,8 @@
           "repaymentDay",
           "archivedAt",
           "owedToMeCents",
-          "iOweCents"
+          "iOweCents",
+          "alwaysOffset"
         ]
       },
       "CreateContactDto": {
@@ -15624,6 +15768,12 @@
             "type": "string",
             "nullable": true,
             "description": "Label of the transfer."
+          },
+          "offsetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The offset (« Compensé ») this repayment is one side of (#484): no transfer then, undone with the offset only."
           }
         },
         "required": [
@@ -15633,7 +15783,8 @@
           "amountCents",
           "paidOn",
           "note",
-          "label"
+          "label",
+          "offsetId"
         ]
       },
       "ReceivableDto": {
@@ -15896,6 +16047,83 @@
           "share"
         ]
       },
+      "OffsetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Settled on each side."
+          },
+          "offsetOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          },
+          "automatic": {
+            "type": "boolean",
+            "description": "Made by « Toujours compenser », not by a tap."
+          }
+        },
+        "required": [
+          "id",
+          "contactId",
+          "amountCents",
+          "offsetOn",
+          "automatic"
+        ]
+      },
+      "OffsetProposalDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "owedToMeCents": {
+            "type": "integer",
+            "description": "What they owe the owner now."
+          },
+          "iOweCents": {
+            "type": "integer",
+            "description": "What the owner owes them now."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Settled on each side by the offset: the smaller of the two, 0 when one side is empty."
+          },
+          "alwaysOffset": {
+            "type": "boolean",
+            "description": "« Toujours compenser »."
+          },
+          "items": {
+            "description": "The items it settles, both directions, oldest first on each side.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkItemDto"
+            }
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "owedToMeCents",
+          "iOweCents",
+          "amountCents",
+          "alwaysOffset",
+          "items"
+        ]
+      },
       "ContactOwedDto": {
         "type": "object",
         "properties": {
@@ -15929,6 +16157,23 @@
             "items": {
               "$ref": "#/components/schemas/ContactSharedItemDto"
             }
+          },
+          "offsets": {
+            "description": "Offsets made with them, newest first (#484).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OffsetDto"
+            }
+          },
+          "offer": {
+            "nullable": true,
+            "description": "The offset to propose when both sides are open, else null (#484).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OffsetProposalDto"
+              }
+            ]
           }
         },
         "required": [
@@ -15936,8 +16181,22 @@
           "owedToMe",
           "iOwe",
           "expected",
-          "sharedItems"
+          "sharedItems",
+          "offsets",
+          "offer"
         ]
+      },
+      "CreateOffsetDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "The items to settle (the ones the owner ticked), both directions, adding up to the same amount on each side. Omitted: the oldest open items first, for the smaller of the two totals.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkItemDto"
+            }
+          }
+        }
       },
       "UpdateContactDto": {
         "type": "object",
@@ -15957,6 +16216,10 @@
             "nullable": true,
             "minimum": 1,
             "maximum": 31
+          },
+          "alwaysOffset": {
+            "type": "boolean",
+            "description": "« Toujours compenser » (#484): offset what they owe and what the owner owes them as soon as both are open, without asking. Turning it on offsets what is open now."
           },
           "archived": {
             "type": "boolean",
@@ -15992,6 +16255,10 @@
             "type": "integer",
             "nullable": true,
             "description": "Days since the oldest open item (Europe/Paris)."
+          },
+          "netCents": {
+            "type": "integer",
+            "description": "Net position with this person, both directions (#484): what they owe the owner minus what he owes them, signed cents."
           }
         },
         "required": [
@@ -16000,7 +16267,8 @@
           "owedCents",
           "openCount",
           "oldestOpenDate",
-          "oldestOpenDays"
+          "oldestOpenDays",
+          "netCents"
         ]
       },
       "OwedListDto": {
@@ -16065,6 +16333,13 @@
             "items": {
               "$ref": "#/components/schemas/ExpectedRepaymentDto"
             }
+          },
+          "offers": {
+            "description": "People who owe the owner and whom he owes too: the offset to propose (« Compenser »), most settled first (#484).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OffsetProposalDto"
+            }
           }
         },
         "required": [
@@ -16072,7 +16347,8 @@
           "month",
           "owedToMe",
           "iOwe",
-          "expected"
+          "expected",
+          "offers"
         ]
       },
       "CreateSharesDto": {

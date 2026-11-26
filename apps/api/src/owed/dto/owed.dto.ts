@@ -178,6 +178,15 @@ export class UpdateContactDto {
 
   @ApiPropertyOptional({
     type: Boolean,
+    description:
+      '« Toujours compenser » (#484): offset what they owe and what the owner owes them as soon as both are open, without asking. Turning it on offsets what is open now.',
+  })
+  @ValidateIf((_o: object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  alwaysOffset?: boolean
+
+  @ApiPropertyOptional({
+    type: Boolean,
     description: 'Archive (left out of the pickers) or bring back.',
   })
   @ValidateIf((_o: object, value: unknown) => value !== undefined)
@@ -473,6 +482,12 @@ export class ContactDto {
 
   @ApiProperty(CENTS('What the owner owes them now (open items).'))
   iOweCents!: number
+
+  @ApiProperty({
+    type: Boolean,
+    description: '« Toujours compenser » (#484).',
+  })
+  alwaysOffset!: boolean
 }
 
 export class OwedCategoryDto {
@@ -519,6 +534,15 @@ export class ReceivablePaymentDto {
     description: 'Label of the transfer.',
   })
   label!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'The offset (« Compensé ») this repayment is one side of (#484): no transfer then, undone with the offset only.',
+  })
+  offsetId!: string | null
 }
 
 export class ReceivableDto {
@@ -628,6 +652,13 @@ export class OwedContactRowDto {
     description: 'Days since the oldest open item (Europe/Paris).',
   })
   oldestOpenDays!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Net position with this person, both directions (#484): what they owe the owner minus what he owes them, signed cents.',
+  })
+  netCents!: number
 }
 
 export class OwedListDto {
@@ -699,6 +730,72 @@ export class ExpectedRepaymentDto {
   receivableId!: string | null
 }
 
+export class OffsetProposalDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  contactId!: string
+
+  @ApiProperty({ type: String })
+  contactName!: string
+
+  @ApiProperty(CENTS('What they owe the owner now.'))
+  owedToMeCents!: number
+
+  @ApiProperty(CENTS('What the owner owes them now.'))
+  iOweCents!: number
+
+  @ApiProperty(
+    CENTS(
+      'Settled on each side by the offset: the smaller of the two, 0 when one side is empty.',
+    ),
+  )
+  amountCents!: number
+
+  @ApiProperty({ type: Boolean, description: '« Toujours compenser ».' })
+  alwaysOffset!: boolean
+
+  @ApiProperty({
+    type: [LinkItemDto],
+    description:
+      'The items it settles, both directions, oldest first on each side.',
+  })
+  items!: LinkItemDto[]
+}
+
+export class OffsetDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  contactId!: string
+
+  @ApiProperty(CENTS('Settled on each side.'))
+  amountCents!: number
+
+  @ApiProperty(DATE_DOC)
+  offsetOn!: string
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Made by « Toujours compenser », not by a tap.',
+  })
+  automatic!: boolean
+}
+
+export class CreateOffsetDto {
+  @ApiPropertyOptional({
+    type: [LinkItemDto],
+    description:
+      'The items to settle (the ones the owner ticked), both directions, adding up to the same amount on each side. Omitted: the oldest open items first, for the smaller of the two totals.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(LINKS_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => LinkItemDto)
+  items?: LinkItemDto[]
+}
+
 export class OwedSummaryDto {
   @ApiProperty(DATE_DOC)
   today!: string
@@ -718,6 +815,13 @@ export class OwedSummaryDto {
       'This month’s repayments expected from shared recurring items.',
   })
   expected!: ExpectedRepaymentDto[]
+
+  @ApiProperty({
+    type: [OffsetProposalDto],
+    description:
+      'People who owe the owner and whom he owes too: the offset to propose (« Compenser »), most settled first (#484).',
+  })
+  offers!: OffsetProposalDto[]
 }
 
 export class OwedTotalsDto {
@@ -797,6 +901,20 @@ export class ContactOwedDto {
 
   @ApiProperty({ type: [ContactSharedItemDto] })
   sharedItems!: ContactSharedItemDto[]
+
+  @ApiProperty({
+    type: [OffsetDto],
+    description: 'Offsets made with them, newest first (#484).',
+  })
+  offsets!: OffsetDto[]
+
+  @ApiProperty({
+    type: OffsetProposalDto,
+    nullable: true,
+    description:
+      'The offset to propose when both sides are open, else null (#484).',
+  })
+  offer!: OffsetProposalDto | null
 }
 
 export class SuggestedLinkDto {

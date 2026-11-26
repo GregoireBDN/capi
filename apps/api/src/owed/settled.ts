@@ -1,8 +1,12 @@
 import { ConflictException } from '@nestjs/common'
-import { and, inArray, or, type SQLWrapper, sql } from 'drizzle-orm'
+import { and, inArray, isNotNull, or, type SQLWrapper, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
-import { receivablePaymentsTable, receivablesTable } from '#/database/schema'
+import {
+  receivableOffsetsTable,
+  receivablePaymentsTable,
+  receivablesTable,
+} from '#/database/schema'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -49,22 +53,35 @@ export async function assertNoSettledShare(
  * `transactionIds` selects (a subquery), for
  * the deliberate wholesale deletes that remove them with their expense:
  * undoing an import (#371, counted in its warning) and deleting an account
- * (#297). Every other path is refused by the database
+ * (#297), with the offsets touching them, both sides (#484). Every other
+ * path is refused by the database
  * (`ON DELETE RESTRICT`).
  */
 export async function deletePaymentsOfShares(
   executor: Executor,
   transactionIds: SQLWrapper,
 ): Promise<void> {
+  const shares = executor
+    .select({ id: receivablesTable.id })
+    .from(receivablesTable)
+    .where(inArray(receivablesTable.transactionId, transactionIds))
+  // An offset touching one of them is undone whole (#484): the other side
+  // is owed again, as before the offset.
+  await executor.delete(receivableOffsetsTable).where(
+    inArray(
+      receivableOffsetsTable.id,
+      executor
+        .select({ id: receivablePaymentsTable.offsetId })
+        .from(receivablePaymentsTable)
+        .where(
+          and(
+            isNotNull(receivablePaymentsTable.offsetId),
+            inArray(receivablePaymentsTable.receivableId, shares),
+          ),
+        ),
+    ),
+  )
   await executor
     .delete(receivablePaymentsTable)
-    .where(
-      inArray(
-        receivablePaymentsTable.receivableId,
-        executor
-          .select({ id: receivablesTable.id })
-          .from(receivablesTable)
-          .where(inArray(receivablesTable.transactionId, transactionIds)),
-      ),
-    )
+    .where(inArray(receivablePaymentsTable.receivableId, shares))
 }

@@ -49,13 +49,18 @@ import { formatCalendarDate, formatCents } from '#/lib/money'
 import { categoriesQuery } from '#/lib/queries'
 import { PeoplePicker, personRef } from './PeoplePicker'
 import type { Person } from './PeoplePicker'
+import { offsetOutcome } from './OffsetOffer'
 import {
   afterOwedChanged,
   contactsQuery,
   createDebt,
+  createOffset,
+  findReceivable,
+  offsetProposalQuery,
   owedErrorMessage,
   removeReceivable,
   UNDO_TOAST_MS,
+  undoOffset,
 } from './queries'
 import { myPartOf } from './shares'
 
@@ -257,21 +262,81 @@ function PaidForMeForm({
       onDone()
       await afterOwedChanged(queryClient)
       const debt = transaction.shares.find((s) => s.direction === 'i_owe')
+      const name = person!.name
+      // « Toujours compenser » settled it at once (#484): undoing removes
+      // the offset first, then the debt.
+      const offsetId =
+        debt && debt.repaidCents > 0
+          ? await findReceivable(debt.id)
+              .then((item) => item.payments.find((p) => p.offsetId)?.offsetId)
+              .catch(() => undefined)
+          : undefined
       let undone = false
-      toast.success(
-        `Vous devez ${formatCents(mine)} à ${person!.name}`,
-        debt && {
-          duration: UNDO_TOAST_MS,
+      const undo = () => {
+        if (undone || !debt) return
+        undone = true
+        void (offsetId ? undoOffset(offsetId) : Promise.resolve())
+          .then(() => removeReceivable(debt.id))
+          .then(() => afterOwedChanged(queryClient))
+          .catch((error: unknown) => toast.error(owedErrorMessage(error)))
+      }
+      if (offsetId) {
+        toast.success(
+          `Vous devez ${formatCents(mine)} à ${name} : compensé avec ce que ${name} vous doit`,
+          {
+            duration: UNDO_TOAST_MS,
+            action: { label: 'Annuler', onClick: undo },
+          },
+        )
+        return
+      }
+      // They owe the owner too: the offset is proposed here (#484).
+      const offer =
+        debt &&
+        (await queryClient
+          .fetchQuery({ ...offsetProposalQuery(debt.contactId), staleTime: 0 })
+          .catch(() => null))
+      if (offer && offer.amountCents > 0) {
+        toast.success(`Vous devez ${formatCents(mine)} à ${name}`, {
+          description: `${name} vous doit aussi ${formatCents(offer.owedToMeCents)}. Après compensation : ${offsetOutcome(offer)}.`,
+          duration: UNDO_TOAST_MS * 2,
           action: {
-            label: 'Annuler',
+            label: `Compenser`,
             onClick: () => {
               if (undone) return
               undone = true
-              void removeReceivable(debt.id)
-                .then(() => afterOwedChanged(queryClient))
+              void createOffset(offer.contactId)
+                .then(async (made) => {
+                  await afterOwedChanged(queryClient)
+                  toast.success(
+                    `${formatCents(made.amountCents)} compensés avec ${name}`,
+                    {
+                      duration: UNDO_TOAST_MS,
+                      action: {
+                        label: 'Annuler',
+                        onClick: () => {
+                          void undoOffset(made.id)
+                            .then(() => afterOwedChanged(queryClient))
+                            .catch((error: unknown) =>
+                              toast.error(owedErrorMessage(error)),
+                            )
+                        },
+                      },
+                    },
+                  )
+                })
                 .catch((error: unknown) => toast.error(owedErrorMessage(error)))
             },
           },
+          cancel: { label: 'Annuler', onClick: undo },
+        })
+        return
+      }
+      toast.success(
+        `Vous devez ${formatCents(mine)} à ${name}`,
+        debt && {
+          duration: UNDO_TOAST_MS,
+          action: { label: 'Annuler', onClick: undo },
         },
       )
     },

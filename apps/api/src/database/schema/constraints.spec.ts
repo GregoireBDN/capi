@@ -16,6 +16,7 @@ import {
   type InsertRecurringItem,
   type InsertTransaction,
   monthClosesTable,
+  receivableOffsetsTable,
   receivablePaymentsTable,
   receivablesTable,
   recurringItemsTable,
@@ -1169,6 +1170,149 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
           amountCents: 100,
           paidOn: '2026-10-22',
         })
+      })
+    })
+
+    it('keeps an offset balanced: one contact, both sides, the same amount, undone as one (#484)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const lea = await contact(tx, 'Autre contact fictif')
+        const [paid] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [debt, debtLea] = await tx
+          .insert(transactionsTable)
+          .values([
+            manualRow(null as never, {
+              paidByContactId: sam.id,
+              amountCents: -500,
+              dedupeHash: 'manual:00000000-0000-4000-8000-000000000002',
+            }),
+            manualRow(null as never, {
+              paidByContactId: lea.id,
+              amountCents: -500,
+              dedupeHash: 'manual:00000000-0000-4000-8000-000000000003',
+            }),
+          ])
+          .returning()
+        const [owed, owe, oweLea] = await tx
+          .insert(receivablesTable)
+          .values([
+            {
+              direction: 'owed_to_me',
+              transactionId: paid.id,
+              contactId: sam.id,
+              amountCents: 400,
+            },
+            {
+              direction: 'i_owe',
+              transactionId: debt.id,
+              contactId: sam.id,
+              amountCents: 500,
+            },
+            {
+              direction: 'i_owe',
+              transactionId: debtLea.id,
+              contactId: lea.id,
+              amountCents: 500,
+            },
+          ])
+          .returning()
+        /** Writes an offset of `amount` with these sides, checked at once. */
+        const offset = async (
+          n: Tx,
+          amount: number,
+          sides: { receivableId: string; amountCents: number }[],
+        ) => {
+          const [made] = await n
+            .insert(receivableOffsetsTable)
+            .values({
+              contactId: sam.id,
+              amountCents: amount,
+              offsetOn: '2026-10-20',
+            })
+            .returning()
+          await n.insert(receivablePaymentsTable).values(
+            sides.map((side) => ({
+              ...side,
+              paidOn: '2026-10-20',
+              offsetId: made.id,
+            })),
+          )
+          await n.execute(sql`set constraints all immediate`)
+          return made
+        }
+        const offsetRefused = async (
+          constraint: string,
+          amount: number,
+          sides: { receivableId: string; amountCents: number }[],
+        ) => {
+          await refused(tx, constraint, (n) => offset(n, amount, sides))
+          await tx.execute(sql`set constraints all deferred`)
+        }
+
+        await refused(tx, 'receivable_offsets_amount_positive', (n) =>
+          n.insert(receivableOffsetsTable).values({
+            contactId: sam.id,
+            amountCents: 0,
+            offsetOn: '2026-10-20',
+          }),
+        )
+        // One side only, two amounts, or another contact's item.
+        await offsetRefused('receivable_offsets_balanced', 300, [
+          { receivableId: owed.id, amountCents: 300 },
+        ])
+        await offsetRefused('receivable_offsets_balanced', 300, [
+          { receivableId: owed.id, amountCents: 300 },
+          { receivableId: owe.id, amountCents: 200 },
+        ])
+        await offsetRefused('receivable_offsets_balanced', 300, [
+          { receivableId: owed.id, amountCents: 300 },
+          { receivableId: oweLea.id, amountCents: 300 },
+        ])
+        // Never past what is left: 400 owed to the owner.
+        await offsetRefused('receivables_settled_within_share', 450, [
+          { receivableId: owed.id, amountCents: 450 },
+          { receivableId: owe.id, amountCents: 450 },
+        ])
+        // An offset's repayment has no transfer.
+        await refused(
+          tx,
+          'receivable_payments_offset_without_transaction',
+          (n) =>
+            n.insert(receivablePaymentsTable).values({
+              receivableId: owed.id,
+              transactionId: paid.id,
+              amountCents: 100,
+              paidOn: '2026-10-20',
+              offsetId: '00000000-0000-4000-8000-000000000099',
+            }),
+        )
+
+        const made = await offset(tx, 400, [
+          { receivableId: owed.id, amountCents: 400 },
+          { receivableId: owe.id, amountCents: 400 },
+        ])
+        // One side can't be unlinked alone.
+        await refused(tx, 'receivable_offsets_balanced', async (n) => {
+          await n
+            .delete(receivablePaymentsTable)
+            .where(eq(receivablePaymentsTable.receivableId, owe.id))
+          await n.execute(sql`set constraints all immediate`)
+        })
+        await tx.execute(sql`set constraints all deferred`)
+        // Undone as one: both sides go with it.
+        await tx
+          .delete(receivableOffsetsTable)
+          .where(eq(receivableOffsetsTable.id, made.id))
+        await tx.execute(sql`set constraints all immediate`)
+        const left = await tx
+          .select()
+          .from(receivablePaymentsTable)
+          .where(eq(receivablePaymentsTable.offsetId, made.id))
+        expect(left).toEqual([])
       })
     })
 

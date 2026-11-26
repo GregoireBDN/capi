@@ -33,6 +33,7 @@ const SAM: ContactDto = {
   archivedAt: null,
   owedToMeCents: 0,
   iOweCents: 0,
+  alwaysOffset: false,
 }
 const category = (id: string, name: string): CategoryDto => ({
   id,
