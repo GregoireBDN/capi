@@ -184,7 +184,7 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
 
           <div
             data-sticky-bottom-bar
-            className="bg-card short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border p-3 shadow-lg"
+            className="glass-panel short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-card p-3"
           >
             <p className="text-muted-foreground min-w-18 flex-1 text-sm">
               {data.status === 'closed'

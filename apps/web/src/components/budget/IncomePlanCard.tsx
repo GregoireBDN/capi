@@ -152,7 +152,7 @@ export function IncomePlanCard({
           />
         ) : (
           <>
-            <ul className="divide-y" aria-label="Revenus prévus par catégorie">
+            <ul className="space-y-1" aria-label="Revenus prévus par catégorie">
               {items.map((line) => {
                 const state = incomeLineState(line)
                 return (

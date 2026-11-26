@@ -118,11 +118,13 @@ function ReviewButton({
       aria-pressed={on}
       onClick={onToggle}
       className={cn(
-        'border-warning/70 inline-flex h-[44px] shrink-0 items-center justify-center gap-2 rounded-full border pr-2 pl-3 text-[15px] font-semibold whitespace-nowrap transition-colors outline-none @[672px]:rounded-lg @[672px]:pr-3',
-        'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        // In glass (#506): no border; on, the solid warning button with its
+        // sheen and shadow, off, its tint
+        'inline-flex h-[44px] shrink-0 items-center justify-center gap-2 rounded-full pr-2 pl-3 text-[15px] font-semibold whitespace-nowrap transition-colors outline-none active:translate-y-px @[672px]:rounded-control @[672px]:pr-3',
+        'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
         on
-          ? 'bg-warning text-warning-foreground'
-          : 'bg-[color-mix(in_srgb,var(--warning)_18%,var(--card))] hover:bg-[color-mix(in_srgb,var(--warning)_28%,var(--card))]',
+          ? 'bg-warning text-warning-foreground glass-solid [--glass-tint:var(--warning)]'
+          : 'text-warning-foreground bg-[color-mix(in_srgb,var(--warning)_20%,var(--card))] hover:bg-[color-mix(in_srgb,var(--warning)_30%,var(--card))] dark:text-foreground',
       )}
     >
       <InboxIcon aria-hidden className="hidden size-[18px] @[672px]:block" />À
@@ -163,7 +165,7 @@ function SheetFilters({
   const oneOffId = useId()
   return (
     <>
-      <div className="divide-y border-b">
+      <div className="space-y-1">
         <div className="flex min-h-[56px] items-center gap-3 px-4">
           <FilterBadge icon={ZapIcon} />
           <label htmlFor={oneOffId} className="flex-1 text-[16px]">

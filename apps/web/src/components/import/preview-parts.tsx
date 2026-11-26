@@ -263,7 +263,9 @@ export function ConflictChoice({ row, value, onChange }: ConflictChoiceProps) {
             className={cn(
               'touch-hitbox relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl border-2 px-3 py-2 text-left transition-colors',
               'focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
-              selected ? cn(tint, ring) : 'border-border hover:bg-muted/50',
+              selected
+                ? cn(tint, ring)
+                : 'glass-well border-transparent hover:bg-muted/50',
             )}
             onClick={() => onChange(action)}
           >

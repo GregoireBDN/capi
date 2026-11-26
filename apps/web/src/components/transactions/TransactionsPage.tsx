@@ -77,7 +77,7 @@ interface TransactionsPageProps {
 /** Rows being loaded, inside the list's card. */
 function ListSkeleton() {
   return (
-    <div className="divide-y" aria-busy="true" aria-label="Chargement">
+    <div className="space-y-1" aria-busy="true" aria-label="Chargement">
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="flex items-center gap-3 px-3 py-2.5">
           <Skeleton className="size-8 shrink-0 rounded-full" />
@@ -469,7 +469,7 @@ export function TransactionsPage({
                 the rows' icons, the count, then the sort filling the rest of
                 the row (a row of its own on phones when it doesn't fit);
                 « Tout sélectionner » is spelled out from 672px. */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 @[672px]:gap-x-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1 @[672px]:gap-x-3">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="flex size-8 shrink-0 items-center justify-center">
                   <Checkbox

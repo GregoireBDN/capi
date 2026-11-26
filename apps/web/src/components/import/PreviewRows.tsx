@@ -111,7 +111,7 @@ export function PreviewRows(props: PreviewRowsProps) {
       title: `Vérifier ${plural(news.length, 'nouvelle opération', 'nouvelles opérations')}`,
       body: (
         <Card size="sm" className="py-0">
-          <ul className="divide-y">
+          <ul className="space-y-1">
             {news.map((row) => (
               <NewRow key={row.lineNumber} {...lineProps} row={row} />
             ))}
@@ -180,7 +180,10 @@ function IssueCard({
 }: LineProps & { issue: ParseIssueDto }) {
   return (
     <li data-testid={`line-${issue.lineNumber}`} className="min-w-0">
-      <Card size="sm" className="border-destructive/30">
+      <Card
+        size="sm"
+        className="bg-[color-mix(in_oklch,var(--destructive)_5%,var(--card))]"
+      >
         <CardContent className="space-y-3">
           <div className="flex items-start justify-between gap-2 text-sm">
             <span className="text-destructive flex min-w-0 items-start gap-1.5 font-medium">
@@ -247,7 +250,10 @@ function ConflictCard(props: LineProps & { row: ImportPreviewRowDto }) {
   const reason = conflictReasonFr(row.conflictReason)
   return (
     <li data-testid={`line-${row.lineNumber}`}>
-      <Card size="sm" className="border-warning/40">
+      <Card
+        size="sm"
+        className="bg-[color-mix(in_oklch,var(--warning)_7%,var(--card))]"
+      >
         <CardContent className="@container space-y-3">
           <div className="text-muted-foreground flex justify-between gap-2 text-xs">
             <span>{reason ?? 'Doublon probable'}</span>
@@ -418,7 +424,7 @@ function AlreadyStored(props: LineProps & { rows: ImportPreviewRowDto[] }) {
         />
       </button>
       {open && (
-        <ul id={listId} className="divide-y border-t px-3">
+        <ul id={listId} className="space-y-1 px-3">
           {rows.map((row) => (
             <li
               key={row.lineNumber}

@@ -10,20 +10,22 @@ import { formatCents } from '#/lib/money'
  * through.
  */
 
-/** A rounded, tappable chip (44px high: the 22px root makes h-8 44px). */
+/**
+ * A rounded, tappable chip (44px high: the 22px root makes h-8 44px), in
+ * glass (#506): the glass fill, no border, like `Toggle`.
+ */
 export const CHIP_CLASS = cn(
-  'h-8 shrink-0 rounded-full border border-input px-3',
+  'h-8 shrink-0 rounded-full bg-glass-fill px-3',
   'text-sm font-medium whitespace-nowrap',
-  'transition-colors outline-none',
-  'hover:bg-muted',
-  'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+  'transition-colors outline-none active:translate-y-px',
+  'hover:bg-foreground/10',
+  'focus-visible:ring-3 focus-visible:ring-ring/85',
 )
 
-/** Chip look when chosen. */
+/** Chip look when chosen: tinted in the primary colour (#506). */
 export const CHIP_ON = cn(
-  'data-[state=on]:border-primary data-[state=on]:bg-primary/10',
-  'data-[state=on]:text-primary',
-  'dark:data-[state=on]:bg-primary/20',
+  'data-[state=on]:bg-primary/12 data-[state=on]:text-primary',
+  'data-[state=on]:hover:bg-primary/15',
 )
 
 /** `YYYY-MM-DD` one calendar day before `day`, without time zones. */
@@ -53,8 +55,8 @@ export function AccountRows({
   children?: ReactNode
 }) {
   return (
-    <div className="bg-muted/40 divide-y overflow-hidden rounded-md">
-      <div role="radiogroup" aria-labelledby={labelId} className="divide-y">
+    <div className="bg-muted/40 overflow-hidden rounded-control py-1">
+      <div role="radiogroup" aria-labelledby={labelId} className="space-y-1">
         {accounts.map((account) => {
           const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[account.type]
           return (

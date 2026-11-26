@@ -1,25 +1,21 @@
-"use client";
+'use client'
 
-import { Popover as PopoverPrimitive } from "radix-ui";
-import * as React from "react";
+import { Popover as PopoverPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type PopoverProps = React.ComponentProps<typeof PopoverPrimitive.Root>;
-type PopoverTriggerProps = React.ComponentProps<
-  typeof PopoverPrimitive.Trigger
->;
-type PopoverContentProps = React.ComponentProps<
-  typeof PopoverPrimitive.Content
->;
-type PopoverAnchorProps = React.ComponentProps<typeof PopoverPrimitive.Anchor>;
-type PopoverHeaderProps = React.ComponentProps<"div">;
-type PopoverTitleProps = React.ComponentProps<"h2">;
-type PopoverDescriptionProps = React.ComponentProps<"p">;
+type PopoverProps = React.ComponentProps<typeof PopoverPrimitive.Root>
+type PopoverTriggerProps = React.ComponentProps<typeof PopoverPrimitive.Trigger>
+type PopoverContentProps = React.ComponentProps<typeof PopoverPrimitive.Content>
+type PopoverAnchorProps = React.ComponentProps<typeof PopoverPrimitive.Anchor>
+type PopoverHeaderProps = React.ComponentProps<'div'>
+type PopoverTitleProps = React.ComponentProps<'h2'>
+type PopoverDescriptionProps = React.ComponentProps<'p'>
 
 /* ============================================================================
  * COMPONENTS
@@ -31,7 +27,7 @@ type PopoverDescriptionProps = React.ComponentProps<"p">;
  * Built on Radix UI Popover primitive
  */
 function Popover({ ...props }: PopoverProps) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />;
+  return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 
 /**
@@ -39,7 +35,7 @@ function Popover({ ...props }: PopoverProps) {
  * Button or element that opens the popover on click
  */
 function PopoverTrigger({ ...props }: PopoverTriggerProps) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
 /**
@@ -49,7 +45,7 @@ function PopoverTrigger({ ...props }: PopoverTriggerProps) {
  */
 function PopoverContent({
   className,
-  align = "center",
+  align = 'center',
   sideOffset = 4,
   ...props
 }: PopoverContentProps) {
@@ -62,44 +58,41 @@ function PopoverContent({
         className={cn(
           [
             // Layout & Positioning
-            "z-50 flex w-72 flex-col",
-            "origin-(--radix-popover-content-transform-origin)",
+            'z-50 flex w-72 flex-col',
+            'origin-(--radix-popover-content-transform-origin)',
 
             // Spacing & Styling
-            "gap-2.5 p-2.5",
-            "rounded-lg bg-popover text-popover-foreground",
-
-            // Shadows & Borders
-            "shadow-md ring-1 ring-foreground/10",
+            'gap-2.5 p-2.5',
+            'glass-panel rounded-card text-popover-foreground',
 
             // Typography
-            "text-sm",
+            'text-sm',
 
             // Transitions
-            "outline-hidden duration-100",
+            'outline-hidden duration-100',
 
             // Slide-in animations based on side
-            "data-[side=bottom]:slide-in-from-top-2",
-            "data-[side=left]:slide-in-from-right-2",
-            "data-[side=right]:slide-in-from-left-2",
-            "data-[side=top]:slide-in-from-bottom-2",
+            'data-[side=bottom]:slide-in-from-top-2',
+            'data-[side=left]:slide-in-from-right-2',
+            'data-[side=right]:slide-in-from-left-2',
+            'data-[side=top]:slide-in-from-bottom-2',
 
             // Open animations
-            "data-open:animate-in",
-            "data-open:fade-in-0",
-            "data-open:zoom-in-95",
+            'data-open:animate-in',
+            'data-open:fade-in-0',
+            'data-open:zoom-in-95',
 
             // Close animations
-            "data-closed:animate-out",
-            "data-closed:fade-out-0",
-            "data-closed:zoom-out-95",
-          ].join(" "),
+            'data-closed:animate-out',
+            'data-closed:fade-out-0',
+            'data-closed:zoom-out-95',
+          ].join(' '),
           className,
         )}
         {...props}
       />
     </PopoverPrimitive.Portal>
-  );
+  )
 }
 
 /**
@@ -108,7 +101,7 @@ function PopoverContent({
  * Alternative to using the trigger as the anchor point
  */
 function PopoverAnchor({ ...props }: PopoverAnchorProps) {
-  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
 }
 
 /**
@@ -122,16 +115,16 @@ function PopoverHeader({ className, ...props }: PopoverHeaderProps) {
       className={cn(
         [
           // Layout
-          "flex flex-col gap-0.5",
+          'flex flex-col gap-0.5',
 
           // Typography
-          "text-sm",
-        ].join(" "),
+          'text-sm',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -142,10 +135,10 @@ function PopoverTitle({ className, ...props }: PopoverTitleProps) {
   return (
     <div
       data-slot="popover-title"
-      className={cn("font-medium", className)}
+      className={cn('font-medium', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -156,10 +149,10 @@ function PopoverDescription({ className, ...props }: PopoverDescriptionProps) {
   return (
     <p
       data-slot="popover-description"
-      className={cn("text-muted-foreground", className)}
+      className={cn('text-glass-muted-foreground', className)}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -181,4 +174,4 @@ export {
   type PopoverProps,
   type PopoverTitleProps,
   type PopoverTriggerProps,
-};
+}

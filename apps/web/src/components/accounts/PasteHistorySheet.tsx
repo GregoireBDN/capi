@@ -171,7 +171,7 @@ export function PasteHistoryForm({
           <h3 className="text-sm font-medium">
             Aperçu · {plural(rows.length, 'valeur')}
           </h3>
-          <ul className="max-h-72 divide-y overflow-y-auto rounded-md border px-3">
+          <ul className="bg-muted/40 rounded-control max-h-72 space-y-1 overflow-y-auto px-3 py-1">
             {rows.map((row) => (
               <li
                 key={row.date}

@@ -265,7 +265,7 @@ export function PasskeysCard({ email }: { email: string }) {
         ) : list.length === 0 ? (
           <p className="text-muted-foreground text-sm">Aucune passkey.</p>
         ) : (
-          <ul className="divide-y" aria-label="Passkeys">
+          <ul className="space-y-1" aria-label="Passkeys">
             {list.map((passkey) => (
               <PasskeyRow
                 key={passkey.id}

@@ -240,7 +240,7 @@ export function FilterOptionsList({
       <div
         role="radiogroup"
         aria-label={`Choix : ${meta.label}`}
-        className="divide-y"
+        className="space-y-1"
       >
         {all}
         {accounts.map((account) => (
@@ -259,7 +259,7 @@ export function FilterOptionsList({
       <div
         role="radiogroup"
         aria-label={`Choix : ${meta.label}`}
-        className="divide-y"
+        className="space-y-1"
       >
         {all}
         {TRANSACTION_KINDS.map((kind) => (
@@ -295,7 +295,7 @@ export function FilterOptionsList({
           autoComplete="off"
         />
       </div>
-      <div className="divide-y">
+      <div className="space-y-1">
         {needle === '' && all}
         {uncategorizedShown && (
           <OptionRow

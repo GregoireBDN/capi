@@ -227,7 +227,7 @@ export function Preview({
           <p className="text-muted-foreground text-sm">
             Associez-les à un actif pour les ajouter aux avoirs.
           </p>
-          <ul className="divide-y">
+          <ul className="space-y-1">
             {detail.unmappedTickers.map((ticker) => (
               <UnmappedTicker
                 key={ticker}
@@ -255,7 +255,7 @@ export function Preview({
           {holdings.length === 0 ? (
             <p className="text-muted-foreground text-sm">Aucun avoir.</p>
           ) : (
-            <ul className="divide-y" aria-label="Avoirs après l’import">
+            <ul className="space-y-1" aria-label="Avoirs après l’import">
               {holdings.map((holding) => (
                 <HoldingRow
                   key={holding.assetId ?? holding.symbol}
@@ -276,7 +276,7 @@ export function Preview({
           <summary className="cursor-pointer py-2 font-medium">
             Lignes du fichier ({detail.rows.length.toLocaleString('fr-FR')})
           </summary>
-          <ul className="divide-y">
+          <ul className="space-y-1">
             {shownRows.map((row) => (
               <li
                 key={row.index}

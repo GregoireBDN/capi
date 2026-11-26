@@ -286,7 +286,7 @@ export function ProfileMappingForm({
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-md border">
+      <div className="bg-muted/40 rounded-control overflow-hidden">
         <Table aria-label="Premières lignes du fichier">
           <TableHeader>
             <TableRow>

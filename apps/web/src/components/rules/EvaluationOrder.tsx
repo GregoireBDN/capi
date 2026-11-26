@@ -58,12 +58,12 @@ export function EvaluationOrder({
           />
         </summary>
 
-        <div className="border-t">
+        <div>
           <p id={hintId} className="sr-only">
             Glissez la poignée pour changer l’ordre, ou utilisez les flèches
             haut et bas.
           </p>
-          <ol aria-label="Ordre d’évaluation" className="divide-y">
+          <ol aria-label="Ordre d’évaluation" className="space-y-1">
             {rules.map((rule) => {
               const category = categories.find((c) => c.id === rule.categoryId)
               const row = order.rowProps(rule.id)
@@ -74,8 +74,7 @@ export function EvaluationOrder({
                   style={row.style}
                   className={cn(
                     'bg-card flex items-center',
-                    row.dragging &&
-                      'relative z-10 rounded-lg shadow-lg ring-1 ring-foreground/10',
+                    row.dragging && 'relative z-10 rounded-lg shadow-glass-lg',
                     row.moving &&
                       'transition-transform duration-150 motion-reduce:transition-none',
                   )}
@@ -150,7 +149,7 @@ export function EvaluationOrder({
               )
             })}
           </ol>
-          <div className="border-t p-4">
+          <div className="p-4">
             <Button
               variant="secondary"
               outline

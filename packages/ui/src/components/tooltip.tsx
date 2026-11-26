@@ -1,9 +1,9 @@
-"use client";
+'use client'
 
-import { Tooltip as TooltipPrimitive } from "radix-ui";
-import * as React from "react";
+import { Tooltip as TooltipPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
@@ -11,14 +11,10 @@ import { cn } from "../lib/utils";
 
 type TooltipProviderProps = React.ComponentProps<
   typeof TooltipPrimitive.Provider
->;
-type TooltipProps = React.ComponentProps<typeof TooltipPrimitive.Root>;
-type TooltipTriggerProps = React.ComponentProps<
-  typeof TooltipPrimitive.Trigger
->;
-type TooltipContentProps = React.ComponentProps<
-  typeof TooltipPrimitive.Content
->;
+>
+type TooltipProps = React.ComponentProps<typeof TooltipPrimitive.Root>
+type TooltipTriggerProps = React.ComponentProps<typeof TooltipPrimitive.Trigger>
+type TooltipContentProps = React.ComponentProps<typeof TooltipPrimitive.Content>
 
 /* ============================================================================
  * COMPONENTS
@@ -39,7 +35,7 @@ function TooltipProvider({
       delayDuration={delayDuration}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -48,7 +44,7 @@ function TooltipProvider({
  * Built on Radix UI Tooltip primitive
  */
 function Tooltip({ ...props }: TooltipProps) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
 /**
@@ -56,7 +52,7 @@ function Tooltip({ ...props }: TooltipProps) {
  * Element that triggers the tooltip on hover/focus
  */
 function TooltipTrigger({ ...props }: TooltipTriggerProps) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
 }
 
 /**
@@ -78,58 +74,58 @@ function TooltipContent({
         className={cn(
           [
             // Positioning
-            "z-50",
-            "origin-(--radix-tooltip-content-transform-origin)",
+            'z-50',
+            'origin-(--radix-tooltip-content-transform-origin)',
 
             // Layout
-            "inline-flex w-fit max-w-xs items-center gap-1.5",
+            'inline-flex w-fit max-w-xs items-center gap-1.5',
 
             // Styling
-            "rounded-md border bg-popover text-popover-foreground shadow-md",
+            'glass-panel rounded-control text-popover-foreground',
 
             // Spacing
-            "px-3 py-1.5",
+            'px-3 py-1.5',
 
             // Typography
-            "text-xs",
+            'text-xs',
 
             // Kbd Integration
-            "has-data-[slot=kbd]:pr-1.5",
-            "**:data-[slot=kbd]:relative",
-            "**:data-[slot=kbd]:isolate",
-            "**:data-[slot=kbd]:z-50",
-            "**:data-[slot=kbd]:rounded-sm",
+            'has-data-[slot=kbd]:pr-1.5',
+            '**:data-[slot=kbd]:relative',
+            '**:data-[slot=kbd]:isolate',
+            '**:data-[slot=kbd]:z-50',
+            '**:data-[slot=kbd]:rounded-sm',
 
             // Slide-in animations based on side
-            "data-[side=bottom]:slide-in-from-top-2",
-            "data-[side=left]:slide-in-from-right-2",
-            "data-[side=right]:slide-in-from-left-2",
-            "data-[side=top]:slide-in-from-bottom-2",
+            'data-[side=bottom]:slide-in-from-top-2',
+            'data-[side=left]:slide-in-from-right-2',
+            'data-[side=right]:slide-in-from-left-2',
+            'data-[side=top]:slide-in-from-bottom-2',
 
             // Delayed open animations
-            "data-[state=delayed-open]:animate-in",
-            "data-[state=delayed-open]:fade-in-0",
-            "data-[state=delayed-open]:zoom-in-95",
+            'data-[state=delayed-open]:animate-in',
+            'data-[state=delayed-open]:fade-in-0',
+            'data-[state=delayed-open]:zoom-in-95',
 
             // Open animations
-            "data-open:animate-in",
-            "data-open:fade-in-0",
-            "data-open:zoom-in-95",
+            'data-open:animate-in',
+            'data-open:fade-in-0',
+            'data-open:zoom-in-95',
 
             // Close animations
-            "data-closed:animate-out",
-            "data-closed:fade-out-0",
-            "data-closed:zoom-out-95",
-          ].join(" "),
+            'data-closed:animate-out',
+            'data-closed:fade-out-0',
+            'data-closed:zoom-out-95',
+          ].join(' '),
           className,
         )}
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] border bg-popover fill-popover" />
+        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-popover fill-popover" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
-  );
+  )
 }
 
 /* ============================================================================
@@ -145,4 +141,4 @@ export {
   type TooltipProps,
   type TooltipProviderProps,
   type TooltipTriggerProps,
-};
+}

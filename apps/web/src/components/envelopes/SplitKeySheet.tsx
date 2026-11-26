@@ -85,7 +85,10 @@ export function SplitKeySheet({
       loading={save.isPending}
       onSubmit={() => save.mutate()}
     >
-      <ul className="divide-y rounded-xl border" aria-label="Parts">
+      <ul
+        className="bg-muted/40 rounded-control space-y-1 py-1"
+        aria-label="Parts"
+      >
         {envelopes.map((envelope) => {
           const bp = key.get(envelope.id) ?? 0
           return (

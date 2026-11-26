@@ -282,14 +282,14 @@ function Setup({ target, token }: { target: TokenTarget; token: string }) {
           <details
             open={pathOpen}
             onToggle={(event) => setPathOpen(event.currentTarget.open)}
-            className="rounded-lg border"
+            className="bg-muted/40 rounded-control"
           >
             <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-medium">
               {serverPath.trim()
                 ? 'Chemin du serveur sur ce Mac'
                 : 'Où est le serveur sur ce Mac ?'}
             </summary>
-            <div className="border-t p-3">
+            <div className="p-3">
               <Field>
                 <FieldLabel htmlFor={`${id}-path`}>
                   Chemin de apps/mcp/dist/index.js

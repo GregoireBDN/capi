@@ -52,6 +52,7 @@
  * lines between or around surfaces: depth comes from the shadow. Without
  * `backdrop-filter`, or with `prefers-reduced-transparency`, the chrome and
  * the panels turn opaque (same colours, see the end of the themes).
+ * Solid buttons: `glass-solid` (#506).
  * Tokens: `--glass-*` in the themes; Tailwind also gets `bg-glass-fill`,
  * `text-glass-muted-foreground`, `shadow-glass-{chrome,sm,md,lg,primary}`,
  * `rounded-card`, `rounded-sheet`, `rounded-control`.
@@ -109,6 +110,19 @@
 @utility glass-field-invalid {
   background-color: color-mix(in srgb, var(--destructive) 10%, var(--card));
   box-shadow: var(--glass-edge), var(--glass-invalid);
+}
+
+/* A solid button (#506): the sheen on top, a soft shadow in its own colour
+   (`--glass-tint`, the primary colour unless the button sets another).
+   Written as Tailwind's shadow, so a focus ring and `shadow-none` (pressed)
+   compose with it. */
+@utility glass-solid {
+  --tw-shadow:
+    var(--glass-solid-edge),
+    0 6px 14px -8px oklch(from var(--glass-tint, var(--primary)) l c h / 70%);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 }
 
 /* Behind a sheet or a dialog. */
@@ -357,6 +371,7 @@
   --glass-chrome: oklch(0.975 0.007 260 / var(--glass-chrome-alpha));
   --glass-panel: oklch(from var(--popover) l c h / var(--glass-panel-alpha));
   --glass-edge: inset 0 1px 0 rgb(255 255 255 / 70%);
+  --glass-solid-edge: inset 0 1px 0 rgb(255 255 255 / 25%);
   --glass-shadow: rgb(15 23 42 / 35%);
   --glass-shadow-chrome: 0 10px 24px -14px var(--glass-shadow);
   --glass-shadow-sm:
@@ -486,10 +501,12 @@
 
   --glass-chrome: oklch(0.16 0.03 272 / var(--glass-chrome-alpha));
   --glass-edge: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --glass-solid-edge: inset 0 1px 0 rgb(255 255 255 / 20%);
   --glass-shadow: rgb(0 0 0 / 60%);
   --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
   --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
-  --glass-shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 70%);
+  --glass-shadow-lg:
+    0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
   --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
   --glass-overlay: rgb(0 0 0 / 40%);
   --line: var(--border);
@@ -579,10 +596,12 @@
 
     --glass-chrome: oklch(0.16 0.03 272 / var(--glass-chrome-alpha));
     --glass-edge: inset 0 1px 0 rgb(255 255 255 / 6%);
+    --glass-solid-edge: inset 0 1px 0 rgb(255 255 255 / 20%);
     --glass-shadow: rgb(0 0 0 / 60%);
     --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
     --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
-    --glass-shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 70%);
+    --glass-shadow-lg:
+      0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
     --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
     --glass-overlay: rgb(0 0 0 / 40%);
     --line: var(--border);

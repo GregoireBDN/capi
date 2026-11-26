@@ -129,7 +129,7 @@ export function StockCard({
             </div>
           </>
         )}
-        <div className="space-y-1 border-t pt-2">
+        <div className="space-y-1 pt-2">
           {wide && <AccountsTable accounts={accounts} />}
           {/* On a computer only its add buttons, which go to « ⋮ ». */}
           <AccountList
@@ -186,7 +186,7 @@ function AccountsTable({ accounts }: { accounts: AccountListItem[] }) {
       <div
         aria-hidden
         className={cn(
-          'text-muted-foreground grid gap-x-4 border-b px-2 pb-1.5 text-xs',
+          'text-muted-foreground grid gap-x-4 px-2 pb-1.5 text-xs',
           ACCOUNT_COLUMNS,
         )}
       >
@@ -195,7 +195,7 @@ function AccountsTable({ accounts }: { accounts: AccountListItem[] }) {
         <span className="text-right">Valeur</span>
         <span className="text-right">Résultat</span>
       </div>
-      <ul className="divide-y">
+      <ul className="space-y-1">
         {accounts.map((account) => {
           const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[account.type]
           const rate = account.returnRate ?? null

@@ -52,7 +52,7 @@ function OptionGroup({
       >
         {title}
       </p>
-      <div className="divide-y">{children}</div>
+      <div>{children}</div>
     </div>
   )
 }
