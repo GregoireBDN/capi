@@ -17,14 +17,31 @@ const WARNING_THRESHOLD = 0.8
 
 /**
  * « Budgets suivis » (#262, #321, compact since #405; « Enveloppes » until #430): the current month's
- * envelopes (budget lines flagged « suivre pendant le mois »), one line
- * each: its category, what's left, a bar with the mark where an even pace
- * would be today and a « + »; a tap on the line notes an expense in it
- * (owner's « Appuyer = ajouter »). « Ajouter une dépense » is an item of
+ * envelopes (budget lines flagged « suivre pendant le mois »), a tile
+ * each (#495): its category in a ring of what's left, the amount, its name
+ * and a « + »; a tap on the tile notes an expense in it (owner's « Appuyer =
+ * ajouter »). « Ajouter une dépense » is an item of
  * the page's « ⋮ » (#386). The detail and past months are on Budget.
  */
-export function MonthEnvelopes() {
-  const envelopes = useQuery(envelopesQuery())
+export function MonthEnvelopes({
+  categoryIds = null,
+}: {
+  /**
+   * The budgets chosen in the element's settings, in their order (#495);
+   * null = the lines flagged « suivre pendant le mois ».
+   */
+  categoryIds?: string[] | null
+} = {}) {
+  const query = useQuery(
+    envelopesQuery(undefined, { all: categoryIds !== null }),
+  )
+  const envelopes = {
+    ...query,
+    data:
+      query.data && categoryIds !== null
+        ? { ...query.data, items: pickLines(query.data.items, categoryIds) }
+        : query.data,
+  }
   const [sheet, setSheet] = useState<{ open: boolean; categoryId?: string }>({
     open: false,
   })
@@ -92,6 +109,14 @@ export function MonthEnvelopes() {
   )
 }
 
+/** The chosen categories' lines in the chosen order; one without a budget this month is left out. */
+export function pickLines<T extends { categoryId: string }>(
+  items: T[],
+  ids: string[],
+): T[] {
+  return ids.flatMap((id) => items.find((item) => item.categoryId === id) ?? [])
+}
+
 function EnvelopeList({
   data,
   onAdd,
@@ -115,9 +140,12 @@ function EnvelopeList({
     )
   }
   return (
-    <ul className="space-y-0.5" aria-label="Budgets suivis du mois">
+    <ul
+      className="grid grid-cols-3 gap-2 px-1 pt-1"
+      aria-label="Budgets suivis du mois"
+    >
       {data.items.map((item) => (
-        <EnvelopeRow
+        <EnvelopeTile
           key={item.categoryId}
           item={item}
           live={data.current}
@@ -129,88 +157,115 @@ function EnvelopeList({
 }
 
 /**
- * One envelope on one line: its category icon, its name over the bar (the
- * pace mark across it), what's left (« −12 € » once over, in the warning
- * tone when ahead of the pace), then a « + » that says what a tap does.
+ * One tracked budget as a tile (#495, the owner's « B. Tuiles « + » »): its
+ * category icon in a ring of what's left (red once over), what's left under
+ * it (« −12 € » once over, in the warning tone when ahead of the pace), its
+ * name, and a filled « + » on the corner: the whole tile is the button that
+ * notes an expense in it, and says so.
  */
-function EnvelopeRow({
+function EnvelopeTile({
   item,
   live,
   onAdd,
 }: {
   item: EnvelopeDto
-  /** The month runs: the pace mark is today's. */
+  /** The month runs: the pace is today's. */
   live: boolean
   onAdd: () => void
 }) {
   const over = item.remainingCents < 0
+  const left =
+    item.targetCents > 0
+      ? Math.max(item.remainingCents, 0) / item.targetCents
+      : 0
   const ratio = item.targetCents > 0 ? item.spentCents / item.targetCents : 0
-  const pace =
-    item.targetCents > 0 ? Math.min(item.paceCents / item.targetCents, 1) : 0
   const ahead = !over && item.aheadOfPace
+  const ringColor = over
+    ? 'var(--chart-over)'
+    : ratio >= WARNING_THRESHOLD
+      ? 'var(--chart-warning)'
+      : (item.color ?? 'var(--primary)')
   return (
-    <li data-ahead={item.aheadOfPace || undefined}>
+    <li data-ahead={item.aheadOfPace || undefined} className="min-w-0">
       <button
         type="button"
         aria-label={`Ajouter une dépense ${item.name}`}
         onClick={onAdd}
-        className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-[3px]"
+        className="bg-muted/50 hover:bg-muted focus-visible:ring-ring/50 relative flex h-full w-full min-w-0 flex-col items-center gap-1 rounded-2xl px-1.5 pt-2.5 pb-2 text-center outline-none focus-visible:ring-[3px]"
       >
-        <CategoryIcon icon={item.icon} color={item.color} />
-        <span className="min-w-0 flex-1 space-y-1.5">
-          <span className="flex items-baseline justify-between gap-2">
-            <span className="min-w-0 truncate font-medium">{item.name}</span>
-            <span
-              className={cn(
-                'text-xs font-medium whitespace-nowrap tabular-nums',
-                over && 'text-chart-delta-bad',
-                ahead && 'text-amber-700 dark:text-amber-300',
-              )}
-            >
-              {over
-                ? `−${formatWholeEuros(-item.remainingCents)}`
-                : formatWholeEuros(item.remainingCents)}
-            </span>
-          </span>
-          <span
-            role="meter"
-            aria-label={item.name}
-            aria-valuemin={0}
-            aria-valuemax={item.targetCents}
-            aria-valuenow={item.spentCents}
-            aria-valuetext={`${formatBudgetAmount(item.spentCents)} sur ${formatBudgetAmount(item.targetCents)}, ${over ? `dépassé de ${formatBudgetAmount(-item.remainingCents)}` : `reste ${formatBudgetAmount(item.remainingCents)}`}${live ? `, rythme du mois : ${formatBudgetAmount(item.paceCents)}` : ''}${ahead ? ', en avance sur le rythme' : ''}`}
-            className="bg-muted relative block h-1.5 rounded-full"
-          >
-            <span
-              className={cn(
-                'absolute inset-y-0 left-0 rounded-full',
-                ratio > 1
-                  ? 'bg-chart-over'
-                  : ratio >= WARNING_THRESHOLD
-                    ? 'bg-chart-warning'
-                    : 'bg-primary',
-              )}
-              style={{ width: `${Math.min(ratio, 1) * 100}%` }}
-            />
-            {/* Where an even pace through the month would be today. */}
-            {live && (
-              <span
-                aria-hidden
-                className="bg-foreground absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded"
-                style={{ left: `${pace * 100}%` }}
-              />
-            )}
-          </span>
+        <span
+          role="meter"
+          aria-label={item.name}
+          aria-valuemin={0}
+          aria-valuemax={item.targetCents}
+          aria-valuenow={item.spentCents}
+          aria-valuetext={`${formatBudgetAmount(item.spentCents)} sur ${formatBudgetAmount(item.targetCents)}, ${over ? `dépassé de ${formatBudgetAmount(-item.remainingCents)}` : `reste ${formatBudgetAmount(item.remainingCents)}`}${live ? `, rythme du mois : ${formatBudgetAmount(item.paceCents)}` : ''}${ahead ? ', en avance sur le rythme' : ''}`}
+          className="relative grid size-[56px] place-items-center"
+        >
+          <Ring ratio={over ? 1 : left} color={ringColor} />
+          <CategoryIcon
+            icon={item.icon}
+            color={item.color}
+            className="size-[40px] rounded-full [&_svg]:size-[20px]"
+          />
         </span>
-        {/* Quiet (the owner, #405): a light tint like the icon badges, the
-            whole line being the button anyway. */}
+        <span
+          className={cn(
+            'text-sm font-bold whitespace-nowrap tabular-nums',
+            over && 'text-chart-delta-bad',
+            ahead && 'text-amber-700 dark:text-amber-300',
+          )}
+        >
+          {over
+            ? `−${formatWholeEuros(-item.remainingCents)}`
+            : formatWholeEuros(item.remainingCents)}
+        </span>
+        <span className="text-muted-foreground line-clamp-2 text-xs leading-tight break-normal">
+          {item.name}
+        </span>
         <span
           aria-hidden
-          className="bg-primary/10 text-primary flex size-[32px] shrink-0 items-center justify-center rounded-full"
+          className="bg-primary text-primary-foreground absolute top-1.5 right-1.5 grid size-[24px] place-items-center rounded-full shadow-sm"
         >
-          <PlusIcon className="size-[18px]" strokeWidth={2.5} />
+          <PlusIcon className="size-[14px]" strokeWidth={3} />
         </span>
       </button>
     </li>
+  )
+}
+
+/** A ring filled to `ratio` from the top, clockwise, on the muted track. */
+function Ring({ ratio, color }: { ratio: number; color: string }) {
+  const size = 56
+  const stroke = 5
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  return (
+    <svg
+      aria-hidden
+      viewBox={`0 0 ${size} ${size}`}
+      className="absolute inset-0 size-full -rotate-90"
+    >
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="var(--muted)"
+        strokeWidth={stroke}
+      />
+      {ratio > 0 && (
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${c * Math.min(ratio, 1)} ${c}`}
+        />
+      )}
+    </svg>
   )
 }

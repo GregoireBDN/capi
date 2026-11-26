@@ -301,3 +301,31 @@ export const ENVELOPE_MOVEMENT_REASONS = [
   'spend',
 ] as const
 export type EnvelopeMovementReason = (typeof ENVELOPE_MOVEMENT_REASONS)[number]
+
+/**
+ * The dashboard's elements (#495), each answering one question in one card.
+ * The default layout is `DEFAULT_DASHBOARD_LAYOUT` (`dashboard/layout`).
+ */
+export const DASHBOARD_WIDGET_TYPES = [
+  'todo',
+  'left_to_spend',
+  'forecast',
+  'net_worth',
+  'tracked_budgets',
+  'balances',
+  'owed',
+  'upcoming_debits',
+  'month_flows',
+  'envelopes',
+  'investments',
+] as const
+export type DashboardWidgetType = (typeof DASHBOARD_WIDGET_TYPES)[number]
+
+/** The elements that show accounts, all of them or the ones chosen. */
+export const DASHBOARD_ACCOUNT_WIDGET_TYPES = [
+  'forecast',
+  'net_worth',
+  'balances',
+  'upcoming_debits',
+  'investments',
+] as const satisfies readonly DashboardWidgetType[]
