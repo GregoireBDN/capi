@@ -28,6 +28,7 @@ import { InvestmentsModule } from '#/investments/investments.module'
 import { PositionsModule } from '#/positions/positions.module'
 import { RecurringModule } from '#/recurring/recurring.module'
 import { SavingsModule } from '#/savings/savings.module'
+import { EnvelopesModule } from '#/envelopes/envelopes.module'
 import { SpendingModule } from '#/spending/spending.module'
 import { TransactionsModule } from '#/transactions/transactions.module'
 import { TransactionEditModule } from '#/transactions/edit/transaction-edit.module'
@@ -69,6 +70,7 @@ import { UserModule } from '#/user/user.module'
     CryptoImportsModule,
     ForecastModule,
     SavingsModule,
+    EnvelopesModule,
     MonthCloseModule,
     IntegrityModule,
     CoverageModule,

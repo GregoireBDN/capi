@@ -36,6 +36,7 @@ import {
   type SelectImport,
   receivablePaymentsTable,
   receivablesTable,
+  envelopeMovementsTable,
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
@@ -328,6 +329,11 @@ export class ImportsService {
             .update(receivablePaymentsTable)
             .set({ transactionId: row.id })
             .where(eq(receivablePaymentsTable.transactionId, manualId))
+          // And what an envelope paid of it or carried with it (ADR 0008).
+          await tx
+            .update(envelopeMovementsTable)
+            .set({ transactionId: row.id })
+            .where(eq(envelopeMovementsTable.transactionId, manualId))
         }
       }
 

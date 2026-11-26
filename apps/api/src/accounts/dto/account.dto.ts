@@ -369,6 +369,11 @@ export class AccountDeletionPreviewDto {
   savingsGoals!: number
 
   @count(
+    'Envelope movements on this account (the envelopes stay; their money here goes).',
+  )
+  envelopeMovements!: number
+
+  @count(
     'Closed months with data of this account: their frozen report keeps its figures.',
   )
   closedMonths!: number

@@ -263,6 +263,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         recurringItems: 1,
         rules: 1,
         savingsGoals: 1,
+        envelopeMovements: 0,
         closedMonths: 1,
       })
     })
