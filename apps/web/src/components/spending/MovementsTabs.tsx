@@ -43,7 +43,7 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      className="grid grid-cols-2 gap-1 pt-2"
+      className="grid grid-cols-2 gap-[6px] pt-[12px]"
     >
       {TABS.map(({ key, to, label }) => {
         const active = key === current
@@ -55,7 +55,7 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              'relative flex h-11 min-w-0 items-center justify-center gap-2 rounded-t-2xl text-sm font-medium whitespace-nowrap transition-colors outline-none',
+              'relative flex h-[60px] min-w-0 items-center justify-center gap-2 rounded-t-2xl text-sm font-medium whitespace-nowrap transition-colors outline-none',
               'focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset',
               active
                 ? 'bg-primary/9 text-foreground font-semibold'
@@ -68,7 +68,7 @@ export function MovementsTabs({
               reviewCount > 0 && (
                 <CountPill
                   // A round disc, not a tag (the owner, #434).
-                  className="h-[24px] min-w-[24px] px-0 text-[12px]"
+                  className="h-[24px] min-w-[24px] px-0 text-[12px] normal-nums [&>span]:[text-box:trim-both_cap_alphabetic]"
                   value={reviewCount}
                   label={plural(
                     reviewCount,
