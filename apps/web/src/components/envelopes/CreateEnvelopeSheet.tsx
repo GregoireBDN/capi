@@ -46,7 +46,7 @@ import { currentDay } from '#/lib/calendar'
 import { formatCalendarDate, formatCents, formatWholeEuros } from '#/lib/money'
 import { accountsQuery, categoriesQuery, isBankAccount } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
-import { AccountChips } from './AccountChips'
+import { AccountChoice } from './AccountChoice'
 import { ChoiceList } from './ChoiceList'
 import { EnvelopeAvatar } from './EnvelopeAvatar'
 import { addMonthsTo, ENVELOPE_TEMPLATES, monthsUntil } from './format'
@@ -441,10 +441,11 @@ export function CreateEnvelopeSheet({
     case 'start':
       body = (
         <div className="space-y-3">
-          <AccountChips
+          <AccountChoice
             accounts={banks.map((a) => ({
               accountId: a.id,
               name: a.name,
+              type: a.type,
               cents: freeOf.get(a.id) ?? 0,
             }))}
             value={startOn?.id ?? null}

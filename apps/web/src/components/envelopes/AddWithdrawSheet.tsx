@@ -12,7 +12,7 @@ import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
 import { accountsQuery, isBankAccount } from '#/lib/queries'
-import { AccountChips } from './AccountChips'
+import { AccountChoice } from './AccountChoice'
 import { EnvelopeSheet } from './EnvelopeSheet'
 import {
   accountEnvelopesQuery,
@@ -47,7 +47,7 @@ export function AddWithdrawSheet({
   const [amount, setAmount] = useState('')
   const [tried, setTried] = useState(false)
 
-  const accounts = useQuery({ ...accountsQuery, enabled: open && adding })
+  const accounts = useQuery({ ...accountsQuery, enabled: open })
   const banks = (accounts.data ?? []).filter(
     (a) => isBankAccount(a) && a.archivedAt === null,
   )
@@ -61,6 +61,7 @@ export function AddWithdrawSheet({
     ? banks.map((a, i) => ({
         accountId: a.id,
         name: a.name,
+        type: a.type,
         cents: Math.max(0, splits[i]?.data?.freeCents ?? 0),
       }))
     : envelope.accounts
@@ -68,6 +69,7 @@ export function AddWithdrawSheet({
         .map((a) => ({
           accountId: a.accountId,
           name: a.accountName,
+          type: accounts.data?.find((b) => b.id === a.accountId)?.type,
           cents: a.amountCents,
         }))
   const best = [...options].sort((a, b) => b.cents - a.cents).at(0)
@@ -133,7 +135,7 @@ export function AddWithdrawSheet({
         if (!error) move.mutate()
       }}
     >
-      <AccountChips
+      <AccountChoice
         accounts={options}
         value={accountId}
         onChange={(next) => {
