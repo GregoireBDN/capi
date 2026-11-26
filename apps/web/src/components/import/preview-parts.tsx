@@ -4,7 +4,6 @@ import {
   ArrowDownIcon,
   ArrowRightIcon,
   CheckIcon,
-  CircleAlertIcon,
   CopyCheckIcon,
   CopyPlusIcon,
   FileWarningIcon,
@@ -16,12 +15,11 @@ import type {
   ConflictAction,
   ExistingTransactionDto,
   ImportPreviewRowDto,
-  ParseIssueDto,
 } from '#/api'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
 import { CategoryField } from '#/components/categories/CategoryPicker'
-import { formatDate, issueFields, monthOf } from './format'
+import { formatDate, monthOf } from './format'
 
 /** The four kinds of lines of a preview (#433), each with its colours. */
 export type LineKind = 'invalid' | 'conflict' | 'new' | 'duplicate'
@@ -332,66 +330,5 @@ export function ExistingMatch({
         Voir l’opération
       </Link>
     </p>
-  )
-}
-
-/**
- * What an unreadable line holds (#433): its cells as chips, the ones the
- * error blames in red, so it can be typed from them.
- */
-export function IssueCells({ issue }: { issue: ParseIssueDto }) {
-  if (!issue.cells) {
-    return (
-      <p className="text-muted-foreground text-xs">
-        La ligne n’a pas pu être découpée en colonnes : saisissez-la d’après le
-        fichier.
-      </p>
-    )
-  }
-  const blamed = issueFields(issue.message)
-  return (
-    <ul
-      aria-label={`Contenu de la ligne ${issue.lineNumber}`}
-      className="bg-border flex flex-wrap gap-px overflow-hidden rounded-xl border"
-    >
-      {issue.cells.map((cell, index) => {
-        const bad = cell.field !== null && blamed.has(cell.field)
-        const value = cell.value.trim()
-        // Empty cells the error does not blame add nothing.
-        if (value === '' && !bad) return null
-        return (
-          <li
-            key={index}
-            data-bad={bad || undefined}
-            className={cn(
-              'min-w-0 flex-auto px-3 py-1.5',
-              bad
-                ? 'bg-[color-mix(in_oklab,var(--destructive)_10%,var(--card))]'
-                : 'bg-card',
-            )}
-          >
-            <p
-              className={cn(
-                'flex items-center gap-1 text-xs',
-                bad ? 'text-destructive' : 'text-muted-foreground',
-              )}
-            >
-              {bad && (
-                <CircleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-              )}
-              {cell.column || `Colonne ${index + 1}`}
-            </p>
-            <p
-              className={cn(
-                'truncate font-mono text-sm',
-                bad && 'text-destructive font-medium',
-              )}
-            >
-              {value || '—'}
-            </p>
-          </li>
-        )
-      })}
-    </ul>
   )
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button, Field, FieldError, FieldLabel, Input } from '@capi/ui'
+import { Button, Field, FieldError, FieldLabel, Input, cn } from '@capi/ui'
 import { CheckIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import { importsControllerFixLine } from '#/api'
@@ -13,6 +13,7 @@ import {
 import type { AmountSign } from '#/components/amount/signed-amount'
 import { importKeys, unwrap } from './api'
 import { fixLineErrorMessage } from './errors'
+import type { FileValues, FixField } from './format'
 
 /** The values a line starts from: what the file gave, or what was typed. */
 export interface LineValues {
@@ -30,6 +31,31 @@ interface LineFixFormProps {
   onFixed: (detail: ImportDetailDto) => void
   /** Without it, the form has no « Annuler » (it is always open). */
   onCancel?: () => void
+  /**
+   * What the file holds for each field of an unreadable line, shown under
+   * it; the blamed ones in red until changed (#433).
+   */
+  fileValues?: FileValues | null
+}
+
+/** « Fichier : … » under a field, « Dans le fichier : … » in red when blamed. */
+function FileHint({ value, bad }: { value: string | undefined; bad: boolean }) {
+  if (value === undefined && !bad) return null
+  return (
+    <p
+      className={cn(
+        'truncate text-xs',
+        bad ? 'text-destructive' : 'text-muted-foreground',
+      )}
+    >
+      {bad ? 'Dans le fichier : ' : 'Fichier : '}
+      {value === undefined ? (
+        'vide'
+      ) : (
+        <span className="font-mono">{value}</span>
+      )}
+    </p>
+  )
 }
 
 /** Longest label (mirrors `FIXED_LABEL_MAX`). */
@@ -56,6 +82,7 @@ export function LineFixForm({
   initial,
   onFixed,
   onCancel,
+  fileValues,
 }: LineFixFormProps) {
   const id = useId()
   const queryClient = useQueryClient()
@@ -68,6 +95,18 @@ export function LineFixForm({
     signedText(initial?.balanceAfterCents ?? null, 'in'),
   )
   const [submitted, setSubmitted] = useState(false)
+  // Blamed fields stay red until the owner changes them.
+  const [changed, setChanged] = useState<Set<FixField>>(() => new Set())
+  const touch = (field: FixField) =>
+    setChanged((current) =>
+      current.has(field) ? current : new Set(current).add(field),
+    )
+  const blamed = (field: FixField) =>
+    (fileValues?.bad.has(field) ?? false) && !changed.has(field)
+  const hint = (field: FixField) =>
+    fileValues && (
+      <FileHint value={fileValues.values[field]} bad={blamed(field)} />
+    )
 
   const amountCents = signedCents(amount.amount, amount.sign)
   const balanceCents =
@@ -104,6 +143,8 @@ export function LineFixForm({
   })
 
   const shown = (error: string | null) => (submitted ? error : null)
+  const red = (field: FixField, error: string | null) =>
+    shown(error) !== null || blamed(field)
 
   return (
     <form
@@ -115,42 +156,49 @@ export function LineFixForm({
         if (!invalid) fix.mutate()
       }}
     >
-      <div className="grid gap-3 @min-[17rem]:grid-cols-2">
-        <Field data-invalid={shown(errors.date) !== null}>
+      <div className="grid grid-cols-1 gap-3 @min-[17rem]:grid-cols-2">
+        <Field data-invalid={red('date', errors.date)}>
           <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
           <Input
             id={`${id}-date`}
             type="date"
             value={date}
-            aria-invalid={shown(errors.date) !== null}
+            aria-invalid={red('date', errors.date)}
             disabled={fix.isPending}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={(event) => {
+              setDate(event.target.value)
+              touch('date')
+            }}
           />
+          {hint('date')}
           {shown(errors.date) && <FieldError>{errors.date}</FieldError>}
         </Field>
-        <Field data-invalid={shown(errors.amount) !== null}>
+        <Field data-invalid={red('amount', errors.amount)}>
           <FieldLabel htmlFor={`${id}-amount`}>Montant</FieldLabel>
           <AmountField
             id={`${id}-amount`}
             value={amount.amount}
             sign={amount.sign}
             maxCents={LARGE_AMOUNT_CENTS}
-            aria-invalid={shown(errors.amount) !== null}
+            aria-invalid={red('amount', errors.amount)}
             disabled={fix.isPending}
-            onValueChange={(typed, typedSign) =>
+            onValueChange={(typed, typedSign) => {
               setAmount((current) => ({
                 amount: typed,
                 sign: typedSign ?? current.sign,
               }))
-            }
-            onSignChange={(sign) =>
+              touch('amount')
+            }}
+            onSignChange={(sign) => {
               setAmount((current) => ({ ...current, sign }))
-            }
+              touch('amount')
+            }}
           />
+          {hint('amount')}
           {shown(errors.amount) && <FieldError>{errors.amount}</FieldError>}
         </Field>
         <Field
-          data-invalid={shown(errors.label) !== null}
+          data-invalid={red('label', errors.label)}
           className="@min-[17rem]:col-span-2"
         >
           <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
@@ -158,30 +206,38 @@ export function LineFixForm({
             id={`${id}-label`}
             value={label}
             maxLength={LABEL_MAX}
-            aria-invalid={shown(errors.label) !== null}
+            aria-invalid={red('label', errors.label)}
             disabled={fix.isPending}
-            onChange={(event) => setLabel(event.target.value)}
+            onChange={(event) => {
+              setLabel(event.target.value)
+              touch('label')
+            }}
           />
+          {hint('label')}
           {shown(errors.label) && <FieldError>{errors.label}</FieldError>}
         </Field>
-        <Field>
+        <Field data-invalid={blamed('balance')}>
           <FieldLabel htmlFor={`${id}-balance`}>Solde (facultatif)</FieldLabel>
           <AmountField
             id={`${id}-balance`}
             value={balance.amount}
             sign={balance.sign}
             maxCents={LARGE_AMOUNT_CENTS}
+            aria-invalid={blamed('balance')}
             disabled={fix.isPending}
-            onValueChange={(typed, typedSign) =>
+            onValueChange={(typed, typedSign) => {
               setBalance((current) => ({
                 amount: typed,
                 sign: typedSign ?? current.sign,
               }))
-            }
-            onSignChange={(sign) =>
+              touch('balance')
+            }}
+            onSignChange={(sign) => {
               setBalance((current) => ({ ...current, sign }))
-            }
+              touch('balance')
+            }}
           />
+          {hint('balance')}
         </Field>
       </div>
       {fix.isError && <FieldError>{fixLineErrorMessage(fix.error)}</FieldError>}

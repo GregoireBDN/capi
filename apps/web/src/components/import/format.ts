@@ -1,4 +1,4 @@
-import type { ImportSummaryDto } from '#/api'
+import type { ImportSummaryDto, ParseIssueDto } from '#/api'
 import { format, parseISO } from 'date-fns'
 import { plural } from '#/lib/plural'
 
@@ -170,4 +170,152 @@ export function issueFields(message: string): Set<string> {
 /** `2026-03-02` → `2026-03`, the month of the Opérations page to open. */
 export function monthOf(date: string): string {
   return date.slice(0, 7)
+}
+
+/** A piece of an issue sentence: text, or a value from the file (mono). */
+export type SentencePart = string | { value: string }
+
+type Cells = NonNullable<ParseIssueDto['cells']>
+
+function cellOf(cells: Cells, field: string): string {
+  return cells.find((cell) => cell.field === field)?.value.trim() ?? ''
+}
+
+function sentenceFor(part: string, cells: Cells): SentencePart[] | null {
+  const value = (field: string) => cellOf(cells, field)
+  const withValue = (
+    field: string,
+    before: string,
+    after: string,
+    missing: string,
+  ): SentencePart[] => {
+    const v = value(field)
+    return v ? [before, { value: v }, after] : [missing]
+  }
+  if (/^Invalid or missing date$/i.test(part)) {
+    return withValue(
+      'date',
+      'La date ',
+      ' n’existe pas.',
+      'La date est manquante.',
+    )
+  }
+  if (/^Invalid value date$/i.test(part)) {
+    return withValue(
+      'valueDate',
+      'La date de valeur ',
+      ' n’est pas valide.',
+      'La date de valeur est manquante.',
+    )
+  }
+  if (/^Invalid balance$/i.test(part)) {
+    return withValue(
+      'balance',
+      'Le solde ',
+      ' n’est pas un montant.',
+      'Le solde est illisible.',
+    )
+  }
+  if (/^Missing label$/i.test(part)) return ['Le libellé est vide.']
+  if (/^Both debit and credit are filled$/i.test(part)) {
+    return [
+      'Débit ',
+      { value: value('debit') },
+      ' et crédit ',
+      { value: value('credit') },
+      ' sont remplis tous les deux : lequel garder ?',
+    ]
+  }
+  if (/^Neither debit nor credit is filled$/i.test(part)) {
+    return ['Ni débit ni crédit : indiquez le montant.']
+  }
+  if (/^Negative credit amount$/i.test(part)) {
+    return withValue(
+      'credit',
+      'Le crédit ',
+      ' est négatif.',
+      'Le montant est manquant.',
+    )
+  }
+  const amountField = /^Invalid debit amount$/i.test(part)
+    ? 'debit'
+    : /^Invalid credit amount$/i.test(part)
+      ? 'credit'
+      : /^(Invalid|Missing) amount$/i.test(part)
+        ? 'amount'
+        : null
+  if (amountField) {
+    return withValue(
+      amountField,
+      'Le montant ',
+      ' n’est pas lisible.',
+      'Le montant est manquant.',
+    )
+  }
+  return null
+}
+
+/**
+ * The title of an unreadable line (#433): one plain sentence per problem,
+ * naming the value the file holds (« La date 31/11/2026 n’existe pas. »).
+ * A line not split into columns, or a problem without a sentence, falls back
+ * to the translated message.
+ */
+export function issueSentence(
+  issue: Pick<ParseIssueDto, 'message' | 'cells'>,
+): SentencePart[] {
+  const fallback = [`${parseIssueFr(issue.message)}.`]
+  if (!issue.cells) return fallback
+  const parts: SentencePart[] = []
+  for (const part of issue.message.split(';').map((p) => p.trim())) {
+    const sentence = sentenceFor(part, issue.cells)
+    if (!sentence) return fallback
+    if (parts.length > 0) parts.push(' ')
+    parts.push(...sentence)
+  }
+  return parts.length > 0 ? parts : fallback
+}
+
+/** The form fields an unreadable line's file values go under (#433). */
+export type FixField = 'date' | 'amount' | 'label' | 'balance'
+
+export interface FileValues {
+  values: Partial<Record<FixField, string>>
+  /** The fields the error blames, shown in red. */
+  bad: Set<FixField>
+}
+
+const FIX_FIELD: Record<string, FixField | undefined> = {
+  date: 'date',
+  amount: 'amount',
+  debit: 'amount',
+  credit: 'amount',
+  label: 'label',
+  balance: 'balance',
+}
+
+/**
+ * What the file holds for each field of the fix form (#433): the date, the
+ * amount (debit, credit or amount; « -5,00 / 5,00 » when both are filled),
+ * the label and the balance. Null when the line was not split into columns.
+ */
+export function fileValuesOf(
+  issue: Pick<ParseIssueDto, 'message' | 'cells'>,
+): FileValues | null {
+  if (!issue.cells) return null
+  const cell = (field: string) => cellOf(issue.cells!, field)
+  const amounts = [cell('debit'), cell('credit'), cell('amount')].filter(
+    (v) => v !== '',
+  )
+  const values: FileValues['values'] = {}
+  if (cell('date')) values.date = cell('date')
+  if (amounts.length > 0) values.amount = amounts.join(' / ')
+  if (cell('label')) values.label = cell('label')
+  if (cell('balance')) values.balance = cell('balance')
+  const bad = new Set<FixField>()
+  for (const field of issueFields(issue.message)) {
+    const fix = FIX_FIELD[field]
+    if (fix) bad.add(fix)
+  }
+  return { values, bad }
 }

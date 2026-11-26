@@ -413,22 +413,30 @@ describe('ImportPage — preview', () => {
         .getAllByTestId(/^line-/)
         .map((el) => el.dataset.testid),
     ).toEqual(['line-7', 'line-4', 'line-2', 'line-3'])
+    // One sentence names the faulty value; the form shows the file's values.
     expect(
-      within(lineEl(7)).getByText('Date invalide ou manquante'),
-    ).toBeInTheDocument()
-    // The raw cells, the one the error blames in red, empty ones left out.
-    const cells = within(lineEl(7)).getByRole('list', {
-      name: 'Contenu de la ligne 7',
+      lineEl(7).querySelector('[data-slot="issue-sentence"]'),
+    ).toHaveTextContent('La date 32/03/2026 n’existe pas.')
+    const form7 = within(lineEl(7)).getByRole('form', {
+      name: 'Corriger la ligne 7',
     })
+    expect(within(form7).getByText(/Dans le fichier :/)).toHaveTextContent(
+      'Dans le fichier : 32/03/2026',
+    )
+    expect(within(form7).getByLabelText('Date')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
     expect(
-      within(cells)
-        .getAllByRole('listitem')
-        .map((cell) => [cell.textContent, cell.dataset.bad ?? null]),
-    ).toEqual([
-      ['Date32/03/2026', 'true'],
-      ['Débit-8,00', null],
-      ['LibelléCB FAKE KIOSK', null],
-    ])
+      within(form7).getByText(
+        (_, el) =>
+          el?.textContent === 'Fichier : CB FAKE KIOSK' && el.tagName === 'P',
+      ),
+    ).toBeInTheDocument()
+    expect(within(form7).getByLabelText('Libellé')).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
     // Its form is open from the start.
     expect(
       within(lineEl(7)).getByRole('form', { name: 'Corriger la ligne 7' }),

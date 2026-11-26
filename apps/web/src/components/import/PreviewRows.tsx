@@ -19,7 +19,13 @@ import {
 } from './commit-payload'
 import type { PreviewChoices } from './commit-payload'
 import { fixLineErrorMessage } from './errors'
-import { conflictReasonFr, formatDate, parseIssueFr, plural } from './format'
+import {
+  conflictReasonFr,
+  fileValuesOf,
+  formatDate,
+  issueSentence,
+  plural,
+} from './format'
 import { LineFixForm } from './LineFixForm'
 import type { LineValues } from './LineFixForm'
 import {
@@ -29,7 +35,6 @@ import {
   ConflictCompare,
   ExistingMatch,
   FixedBadge,
-  IssueCells,
   KindIcon,
   LINE_KIND,
   ManualMatchNote,
@@ -167,7 +172,7 @@ function Step({
   )
 }
 
-/** Step 1: an unreadable line, its cells and its form, always open. */
+/** Step 1: an unreadable line, said in one sentence, and its form, always open. */
 function IssueCard({
   issue,
   detail,
@@ -180,17 +185,33 @@ function IssueCard({
           <div className="flex items-start justify-between gap-2 text-sm">
             <span className="text-destructive flex min-w-0 items-start gap-1.5 font-medium">
               <CircleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {parseIssueFr(issue.message)}
+              <span data-slot="issue-sentence">
+                {issueSentence(issue).map((part, index) =>
+                  typeof part === 'string' ? (
+                    part
+                  ) : (
+                    <span key={index} className="font-mono">
+                      {part.value}
+                    </span>
+                  ),
+                )}
+              </span>
             </span>
             <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
               Ligne {issue.lineNumber}
             </span>
           </div>
-          <IssueCells issue={issue} />
+          {!issue.cells && (
+            <p className="text-muted-foreground text-xs">
+              La ligne n’a pas pu être découpée en colonnes : saisissez-la
+              d’après le fichier.
+            </p>
+          )}
           <LineFixForm
             importId={detail.id}
             lineNumber={issue.lineNumber}
             initial={issue.draft}
+            fileValues={fileValuesOf(issue)}
             onFixed={onDetail}
           />
           <p className="text-muted-foreground text-xs">
