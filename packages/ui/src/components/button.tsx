@@ -53,8 +53,9 @@ const buttonBase = cva(
     // Touch screens: at least a 44×44 px hit area, whatever the size
     'pointer-coarse:touch-hitbox',
 
-    // Spacing & Sizing
-    'rounded-lg border border-transparent bg-clip-padding',
+    // Shape: the glass controls' radius (#506); no border, depth comes from
+    // a fill and a shadow (recipe « A · Givré », #503)
+    'rounded-control border border-transparent bg-clip-padding',
 
     // Typography: one line, but a label wider than its container wraps
     // (centred) instead of overflowing it (narrow phones, 22px root)
@@ -63,11 +64,11 @@ const buttonBase = cva(
     // Transitions & Interactivity
     'transition-all outline-none select-none',
 
-    // Focus States
-    'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+    // Focus States: a soft glow, still ≥ 3:1 against the page
+    'focus-visible:ring-3 focus-visible:ring-ring/85',
 
-    // Active States
-    'active:not-aria-[haspopup]:translate-y-px',
+    // Active States: pressed in, the glass shadow drops
+    'active:not-aria-[haspopup]:translate-y-px active:not-aria-[haspopup]:shadow-none',
 
     // Disabled States
     'disabled:pointer-events-none disabled:opacity-50',
@@ -86,15 +87,15 @@ const buttonBase = cva(
       size: {
         xs: [
           'min-h-6 gap-1 px-2 py-0.5 text-xs',
-          'rounded-[min(var(--radius-md),10px)]',
-          'in-data-[slot=button-group]:rounded-lg',
+          'rounded-[min(var(--radius-control),10px)]',
+          'in-data-[slot=button-group]:rounded-control',
           '[&_svg]:size-3',
         ].join(' '),
 
         sm: [
           'min-h-7 gap-1 px-2.5 py-0.5 text-[0.8rem]',
-          'rounded-[min(var(--radius-md),12px)]',
-          'in-data-[slot=button-group]:rounded-lg',
+          'rounded-[min(var(--radius-control),12px)]',
+          'in-data-[slot=button-group]:rounded-control',
           '[&_svg]:size-3.5',
         ].join(' '),
 
@@ -120,89 +121,98 @@ const buttonBase = cva(
  * semantic variant (primary, secondary, success, warning, danger, info)
  * ========================================================================= */
 
-// Solid (filled background)
+// Solid: a sheen on top and a soft shadow in the button's own colour (#506)
 const solidStyles: Record<SemanticVariant, string> = {
   primary: [
-    'bg-primary text-primary-foreground',
+    'bg-primary text-primary-foreground glass-solid [--glass-tint:var(--primary)]',
     'hover:bg-primary/90',
     'aria-expanded:bg-primary/90',
   ].join(' '),
 
+  // A glass fill, no border, no shadow: the same as `outline` (#506)
   secondary: [
-    'bg-secondary text-secondary-foreground',
-    'hover:bg-secondary/80',
-    'aria-expanded:bg-secondary/80',
+    'bg-glass-fill text-foreground',
+    'hover:bg-foreground/10',
+    'aria-expanded:bg-foreground/10',
+    'active:bg-foreground/12',
   ].join(' '),
 
   success: [
-    'bg-success text-success-foreground',
+    'bg-success text-success-foreground glass-solid [--glass-tint:var(--success)]',
     'hover:bg-success/90',
     'aria-expanded:bg-success/90',
   ].join(' '),
 
   warning: [
-    'bg-warning text-warning-foreground',
+    'bg-warning text-warning-foreground glass-solid [--glass-tint:var(--warning)]',
     'hover:bg-warning/90',
     'aria-expanded:bg-warning/90',
   ].join(' '),
 
   danger: [
-    'bg-destructive text-destructive-foreground',
+    'bg-destructive text-destructive-foreground glass-solid [--glass-tint:var(--destructive)]',
     'hover:bg-destructive/90',
     'aria-expanded:bg-destructive/90',
   ].join(' '),
 
   info: [
-    'bg-info text-info-foreground',
+    'bg-info text-info-foreground glass-solid [--glass-tint:var(--info)]',
     'hover:bg-info/90',
     'aria-expanded:bg-info/90',
   ].join(' '),
 }
 
-// Outline (border with transparent background)
+// Outline, in glass (#506, « Voile »): no border any more, a faint fill of
+// the intent's colour (secondary: the glass fill), the label in that colour.
 const outlineStyles: Record<SemanticVariant, string> = {
   primary: [
-    'border-primary text-primary bg-background',
-    'hover:bg-primary/10',
-    'aria-expanded:bg-primary/10',
+    'bg-primary/8 text-[oklch(from_var(--primary)_calc(l-0.06)_c_h)] dark:text-primary',
+    'hover:bg-primary/12',
+    'aria-expanded:bg-primary/15',
+    'active:bg-primary/20',
   ].join(' '),
 
   secondary: [
-    'border-secondary-foreground/40 text-secondary-foreground bg-background',
-    'hover:bg-secondary',
-    'aria-expanded:bg-secondary',
+    'bg-glass-fill text-foreground',
+    'hover:bg-foreground/10',
+    'aria-expanded:bg-foreground/10',
+    'active:bg-foreground/12',
   ].join(' '),
 
   success: [
-    'border-success/60 text-success-foreground bg-background',
-    'hover:bg-success/10',
-    'aria-expanded:bg-success/10',
-    'dark:border-success/50 dark:text-success',
+    'bg-success/15 text-success-foreground',
+    'hover:bg-success/20',
+    'aria-expanded:bg-success/20',
+    'active:bg-success/25',
+    'dark:text-success',
   ].join(' '),
 
   warning: [
-    'border-warning/60 text-warning-foreground bg-background',
-    'hover:bg-warning/10',
-    'aria-expanded:bg-warning/10',
-    'dark:border-warning/50 dark:text-warning',
+    'bg-warning/15 text-warning-foreground',
+    'hover:bg-warning/20',
+    'aria-expanded:bg-warning/20',
+    'active:bg-warning/25',
+    'dark:text-warning',
   ].join(' '),
 
   danger: [
-    'border-destructive/60 text-destructive bg-background',
-    'hover:bg-destructive/10',
-    'aria-expanded:bg-destructive/10',
-    'dark:border-destructive/50',
+    'bg-destructive/8 text-destructive',
+    'hover:bg-destructive/12',
+    'aria-expanded:bg-destructive/15',
+    'active:bg-destructive/20',
   ].join(' '),
 
   info: [
-    'border-info/60 text-info-foreground bg-background',
-    'hover:bg-info/10',
-    'aria-expanded:bg-info/10',
-    'dark:border-info/50 dark:text-info',
+    'bg-info/15 text-info-foreground',
+    'hover:bg-info/20',
+    'aria-expanded:bg-info/20',
+    'active:bg-info/25',
+    'dark:text-info',
   ].join(' '),
 }
 
-// Ghost (text only, subtle background on hover)
+// Ghost (text only, the glass fill on hover). Light intents (success,
+// warning, info) use their dark shade on a light page, to stay ≥ 4.5:1.
 const ghostStyles: Record<SemanticVariant, string> = {
   primary: [
     'text-primary',
@@ -212,20 +222,21 @@ const ghostStyles: Record<SemanticVariant, string> = {
 
   secondary: [
     'text-muted-foreground',
-    'hover:bg-secondary hover:text-foreground',
-    'aria-expanded:bg-secondary aria-expanded:text-foreground',
+    'hover:bg-glass-fill hover:text-foreground',
+    'aria-expanded:bg-glass-fill aria-expanded:text-foreground',
+    'active:bg-foreground/10',
   ].join(' '),
 
   success: [
-    'text-success',
-    'hover:bg-success/10',
-    'aria-expanded:bg-success/10',
+    'text-success-foreground dark:text-success',
+    'hover:bg-success/15',
+    'aria-expanded:bg-success/15',
   ].join(' '),
 
   warning: [
-    'text-warning',
-    'hover:bg-warning/10',
-    'aria-expanded:bg-warning/10',
+    'text-warning-foreground dark:text-warning',
+    'hover:bg-warning/15',
+    'aria-expanded:bg-warning/15',
   ].join(' '),
 
   danger: [
@@ -234,7 +245,11 @@ const ghostStyles: Record<SemanticVariant, string> = {
     'aria-expanded:bg-destructive/10',
   ].join(' '),
 
-  info: ['text-info', 'hover:bg-info/10', 'aria-expanded:bg-info/10'].join(' '),
+  info: [
+    'text-info-foreground dark:text-info',
+    'hover:bg-info/15',
+    'aria-expanded:bg-info/15',
+  ].join(' '),
 }
 
 // Link (text with underline on hover)
@@ -242,10 +257,10 @@ const linkStyles: Record<SemanticVariant, string> = {
   primary: 'text-primary underline-offset-4 hover:underline',
   secondary:
     'text-muted-foreground underline-offset-4 hover:underline hover:text-foreground',
-  success: 'text-success underline-offset-4 hover:underline',
-  warning: 'text-warning underline-offset-4 hover:underline',
+  success: 'text-success-foreground dark:text-success underline-offset-4 hover:underline',
+  warning: 'text-warning-foreground dark:text-warning underline-offset-4 hover:underline',
   danger: 'text-destructive underline-offset-4 hover:underline',
-  info: 'text-info underline-offset-4 hover:underline',
+  info: 'text-info-foreground dark:text-info underline-offset-4 hover:underline',
 }
 
 /* ============================================================================
@@ -285,14 +300,14 @@ function getIconPaddingClasses(
 ): string {
   const currentSize = size || 'default'
 
-  // Icon-only: make button square
+  // Icon-only: a round button (#506)
   if (iconOnly) {
     const sizes: Record<ButtonSize, string> = {
-      xs: 'size-6 p-0',
-      sm: 'size-7 p-0',
-      default: 'size-8 p-0',
-      lg: 'size-9 p-0',
-      xl: 'size-12 p-0',
+      xs: 'size-6 p-0 rounded-full',
+      sm: 'size-7 p-0 rounded-full',
+      default: 'size-8 p-0 rounded-full',
+      lg: 'size-9 p-0 rounded-full',
+      xl: 'size-12 p-0 rounded-full',
     }
     return sizes[currentSize]
   }

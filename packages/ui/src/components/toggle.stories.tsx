@@ -67,6 +67,25 @@ export const Variants: Story = {
   ),
 }
 
+/** On: tinted in the primary colour; outline: the glass fill (#506). */
+export const Chips: Story = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Toggle defaultPressed variant="outline">
+        Tous
+      </Toggle>
+      <Toggle variant="outline">Confirmés</Toggle>
+      <Toggle variant="outline">Suggérés</Toggle>
+    </div>
+  ),
+}
+
+export const ChipsDark: Story = {
+  name: 'Chips (dark)',
+  globals: { theme: 'dark' },
+  render: Chips.render,
+}
+
 export const ToggleInteraction: Story = {
   render: (args) => (
     <Toggle aria-label="Press me" {...args}>

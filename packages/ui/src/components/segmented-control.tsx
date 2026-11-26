@@ -61,8 +61,8 @@ const NAVIGATION_KEYS = new Set([
 
 /**
  * Segmented Control
- * One choice among a few, always set: a rounded track with the selected
- * segment raised. Built on Radix `ToggleGroup type="single"` (radio
+ * One choice among a few, always set: a glass track with the selected
+ * segment raised on it (#506). Built on Radix `ToggleGroup type="single"` (radio
  * semantics, roving focus); an arrow key moves to the next segment and
  * selects it, like a radio group, and pressing the selected segment again
  * keeps it selected. 44px high (2rem at the app's 22px root), so every
@@ -116,10 +116,9 @@ function SegmentedControl<T extends string>({
           'grid max-w-full auto-cols-[minmax(max-content,1fr)] grid-flow-col items-stretch gap-0.5',
           fullWidth ? 'w-full' : 'w-fit',
 
-          // Track: 44px high with the padding, which also leaves room for
+          // Track: the glass fill (#506), 44px high with the padding, which also leaves room for
           // the focus ring and the touch hit areas inside the scroll box
-          'bg-muted rounded-full p-[3px]',
-          'dark:bg-black/25',
+          'bg-glass-fill rounded-control p-[3px]',
 
           // Too many segments for the row: scroll sideways, no scrollbar
           'overflow-x-auto overscroll-x-contain',
@@ -174,7 +173,7 @@ function SegmentedControlItem({
           'pointer-coarse:touch-hitbox',
 
           // Styling
-          'rounded-full',
+          'rounded-[calc(var(--radius-control)-3px)]',
 
           // Typography
           'text-muted-foreground text-sm font-medium whitespace-nowrap',
@@ -186,12 +185,13 @@ function SegmentedControlItem({
           'hover:text-foreground',
 
           // Focus States
-          'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+          'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
 
-          // Selected: raised above the track
+          // Selected: a raised glass thumb, opaque with the sheen and a
+          // small shadow (#506); a little lighter than a card in dark
           'data-[state=on]:bg-card data-[state=on]:text-foreground',
-          'data-[state=on]:shadow-sm',
-          'dark:data-[state=on]:bg-foreground/15',
+          'data-[state=on]:shadow-[var(--glass-edge),var(--glass-shadow-sm)]',
+          'dark:data-[state=on]:bg-[oklch(from_var(--card)_calc(l+0.06)_c_h)]',
 
           // Disabled States
           'disabled:pointer-events-none disabled:opacity-50',

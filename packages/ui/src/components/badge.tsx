@@ -49,7 +49,7 @@ const badgeBase = cva(
     "transition-all",
 
     // Focus States
-    "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+    "focus-visible:ring-[3px] focus-visible:ring-ring/85",
 
     // Icon padding adjustments
     "has-data-[icon=inline-end]:pr-1.5",
@@ -102,40 +102,32 @@ const solidStyles: Record<SemanticVariant, string> = {
   info: ["bg-info text-info-foreground", "[a]:hover:bg-info/80"].join(" "),
 };
 
-// Outline (border with transparent background)
+// Outline, in glass (#506): no border, a faint fill of the intent's colour,
+// the label in that colour (secondary: the glass fill)
 const outlineStyles: Record<SemanticVariant, string> = {
-  primary: [
-    "border-primary text-primary bg-background",
-    "[a]:hover:bg-primary/10",
-  ].join(" "),
-
+  primary: ["bg-primary/8 text-[oklch(from_var(--primary)_calc(l-0.06)_c_h)] dark:text-primary", "[a]:hover:bg-primary/12"].join(" "),
   secondary: [
-    "border-secondary-foreground/40 text-secondary-foreground bg-background",
-    "[a]:hover:bg-secondary",
+    "bg-glass-fill text-foreground",
+    "[a]:hover:bg-foreground/10",
   ].join(" "),
-
   success: [
-    "border-success/60 text-success-foreground bg-background",
-    "[a]:hover:bg-success/10",
-    "dark:border-success/50 dark:text-success",
+    "bg-success/15 text-success-foreground",
+    "[a]:hover:bg-success/20",
+    "dark:text-success",
   ].join(" "),
-
   warning: [
-    "border-warning/60 text-warning-foreground bg-background",
-    "[a]:hover:bg-warning/10",
-    "dark:border-warning/50 dark:text-warning",
+    "bg-warning/15 text-warning-foreground",
+    "[a]:hover:bg-warning/20",
+    "dark:text-warning",
   ].join(" "),
-
   danger: [
-    "border-destructive/60 text-destructive bg-background",
-    "[a]:hover:bg-destructive/10",
-    "dark:border-destructive/50",
+    "bg-destructive/8 text-destructive",
+    "[a]:hover:bg-destructive/15",
   ].join(" "),
-
   info: [
-    "border-info/60 text-info-foreground bg-background",
-    "[a]:hover:bg-info/10",
-    "dark:border-info/50 dark:text-info",
+    "bg-info/15 text-info-foreground",
+    "[a]:hover:bg-info/20",
+    "dark:text-info",
   ].join(" "),
 };
 

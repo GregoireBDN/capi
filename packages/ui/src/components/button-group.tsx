@@ -40,7 +40,7 @@ const buttonGroupVariants = cva(
     "has-[>[data-slot=button-group]]:gap-2",
 
     // Select trigger handling
-    "has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-lg",
+    "has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-control",
     "[&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit",
 
     // Input handling
@@ -58,7 +58,7 @@ const buttonGroupVariants = cva(
           "[&>*:not(:last-child)]:rounded-r-none",
 
           // Ensure last data-slot has rounded right
-          "[&>[data-slot]:not(:has(~[data-slot]))]:rounded-r-lg!",
+          "[&>[data-slot]:not(:has(~[data-slot]))]:rounded-r-control!",
         ].join(" "),
 
         vertical: [
@@ -73,7 +73,7 @@ const buttonGroupVariants = cva(
           "[&>*:not(:last-child)]:rounded-b-none",
 
           // Ensure last data-slot has rounded bottom
-          "[&>[data-slot]:not(:has(~[data-slot]))]:rounded-b-lg!",
+          "[&>[data-slot]:not(:has(~[data-slot]))]:rounded-b-control!",
         ].join(" "),
       },
     },
@@ -121,7 +121,7 @@ function ButtonGroupText({
           "gap-2 px-2.5",
 
           // Styling
-          "rounded-lg border bg-muted",
+          "rounded-control bg-glass-fill",
 
           // Typography
           "text-sm font-medium",

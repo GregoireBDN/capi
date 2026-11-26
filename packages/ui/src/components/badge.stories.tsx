@@ -60,7 +60,7 @@ export const Solid: Story = {
 }
 
 export const Outline: Story = {
-  parameters: { docs: { description: { story: 'Outline visual style — border with transparent background.' } } },
+  parameters: { docs: { description: { story: 'Outline visual style, in glass (#506): no border, a faint fill of the intent’s colour.' } } },
   render: () => (
     <div className="flex flex-wrap gap-2">
       <Badge variant="primary" outline>Primary</Badge>
@@ -71,4 +71,10 @@ export const Outline: Story = {
       <Badge variant="info" outline>Info</Badge>
     </div>
   ),
+}
+
+export const OutlineDark: Story = {
+  name: 'Outline (dark)',
+  globals: { theme: 'dark' },
+  render: Outline.render,
 }

@@ -83,10 +83,10 @@ function ToggleGroup({
           "gap-[--spacing(var(--gap))]",
 
           // Styling
-          "rounded-lg",
+          "rounded-control",
 
           // Size Variants
-          "data-[size=sm]:rounded-[min(var(--radius-md),10px)]",
+          "data-[size=sm]:rounded-[min(var(--radius-control),10px)]",
 
           // Vertical Orientation
           "data-vertical:flex-col",
@@ -144,20 +144,13 @@ function ToggleGroupItem({
           "group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-1.5",
 
           // Spacing=0: First/Last Border Radius (Horizontal)
-          "group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-lg",
-          "group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-lg",
+          "group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-control",
+          "group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-control",
 
           // Spacing=0: First/Last Border Radius (Vertical)
-          "group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-lg",
-          "group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-lg",
+          "group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-control",
+          "group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-control",
 
-          // Spacing=0: Border Removal (Horizontal Outline)
-          "group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0",
-          "group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l",
-
-          // Spacing=0: Border Removal (Vertical Outline)
-          "group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0",
-          "group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t",
         ].join(" "),
         toggleVariants({
           variant: context.variant || variant,
