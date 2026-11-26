@@ -1,6 +1,6 @@
 ---
 name: capi
-description: Methods for the MCP tools of Capi, the owner's personal finance app (accounts, transactions, budget, month-end review, bank statement import, investments, shared expenses). Read it as soon as a request touches their money and the Capi tools (accounts_overview, search_transactions, month_close_status…) are available, whatever the language, e.g. « fais le bilan du mois », « importe ce relevé », « combien j'ai dépensé en restaurants », « où en est mon budget », « mets à jour mon PEA ».
+description: Methods for the MCP tools of Capi, the owner's personal finance app (accounts, transactions, budget, month-end review, bank statement import, investments, crypto, shared expenses, a finance review and project budgets). Read it as soon as a request touches their money and the Capi tools (accounts_overview, search_transactions, month_close_status…) are available, whatever the language, e.g. « fais le bilan du mois », « importe ce relevé », « combien j'ai dépensé en restaurants », « où en est mon budget », « mets à jour mon PEA », « fais un point sur mes finances », « budgétise mon voyage ».
 ---
 
 # Capi
@@ -65,9 +65,13 @@ Answer in a few lines: the figure, its period and how far the data goes, and the
 
 Read the task's file before starting:
 
-| Task                                                                                | File                                                       |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Month-end review (« Bilan du mois »: guided review, then closing the month)         | [references/bilan-du-mois.md](references/bilan-du-mois.md) |
-| Importing a bank statement (CIC CSV, another bank, a PDF, a pasted table)           | [references/import-releve.md](references/import-releve.md) |
-| Updating investments (PEA, compte-titres, life insurance, employee savings, crypto) | [references/placements.md](references/placements.md)       |
-| Entering, filing, splitting a transaction; rules; shared expenses and repayments    | [references/operations.md](references/operations.md)       |
+| Task                                                                                  | File                                                         |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Month-end review (« Bilan du mois »: guided review, then closing the month)           | [references/bilan-du-mois.md](references/bilan-du-mois.md)   |
+| Importing a bank statement (CIC CSV, another bank, a PDF, a pasted table)             | [references/import-releve.md](references/import-releve.md)   |
+| Updating investments (PEA, compte-titres, life insurance, employee savings, crypto)   | [references/placements.md](references/placements.md)         |
+| Entering, filing, splitting a transaction; rules; shared expenses and repayments      | [references/operations.md](references/operations.md)         |
+| A full review and plan (« point sur mes finances »), emergency fund, investor profile | [references/point-finances.md](references/point-finances.md) |
+| Budgeting a project (a trip, a purchase), then its envelope                           | [references/projet.md](references/projet.md)                 |
+| Guiding a bank export (« je suis chez … »), before an import                          | [references/export-banque.md](references/export-banque.md)   |
+| Bringing in all the crypto (exchanges, a Ledger) so quantities and gains match        | [references/crypto.md](references/crypto.md)                 |

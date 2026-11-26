@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { connect } from './test/mock-api.js'
-import { SKILL_FILES, skillBundle } from './skill.js'
+import { PROMPT_FILES, SKILL_FILES, skillBundle } from './skill.js'
 import { tools } from './tools/index.js'
 
 const SKILL_DIR = join(
@@ -97,6 +97,22 @@ describe('Capi skill', () => {
     for (const file of SKILL_FILES)
       expect(bundle.split(`=== Fichier ${file} ===`)).toHaveLength(2)
     expect(bundle).not.toMatch(/^description: /m)
+  })
+
+  it('gives each prompt its method and every file that method links to', () => {
+    for (const files of Object.values(PROMPT_FILES)) {
+      const sent = new Set<string>(files)
+      expect(sent).toContain('SKILL.md')
+      for (const file of files) {
+        if (file === 'SKILL.md') continue
+        const text = readFileSync(join(SKILL_DIR, file), 'utf8')
+        for (const [, target] of text.matchAll(/\]\(([a-z-]+\.md)\)/g))
+          expect(sent, `${file} → ${target}`).toContain(`references/${target}`)
+      }
+    }
+    expect(skillBundle(PROMPT_FILES.monthReview)).not.toContain(
+      'point-finances.md ===',
+    )
   })
 
   it('carries no token, URL or address', () => {

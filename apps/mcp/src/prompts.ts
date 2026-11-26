@@ -6,7 +6,7 @@
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { addMonths, ofMonth, parisToday } from './format.js'
-import { skillBundle } from './skill.js'
+import { PROMPT_FILES, skillBundle } from './skill.js'
 import { MONTH_PATTERN } from './tools/lookup.js'
 
 export const monthReviewPromptArgs = {
@@ -29,7 +29,7 @@ export function monthReviewPrompt(
 
 Suis la méthode « Month-end review » du Skill Capi (fichier references/bilan-du-mois.md) et ses règles permanentes (SKILL.md), reproduits ci-dessous.
 
-${skillBundle()}`
+${skillBundle(PROMPT_FILES.monthReview)}`
   return {
     description: `Bilan du mois ${ofMonth(reviewed)}`,
     messages: [{ role: 'user', content: { type: 'text', text } }],

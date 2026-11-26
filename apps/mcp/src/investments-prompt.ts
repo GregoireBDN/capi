@@ -7,7 +7,7 @@
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { frenchDate, parisToday } from './format.js'
-import { skillBundle } from './skill.js'
+import { PROMPT_FILES, skillBundle } from './skill.js'
 
 export const investmentsImportPromptArgs = {
   folder: z
@@ -29,7 +29,7 @@ export function investmentsImportPrompt(
 
 Suis la méthode « Updating investments » du Skill Capi (fichier references/placements.md) et ses règles permanentes (SKILL.md), reproduits ci-dessous ; le dossier est « ${root} ».
 
-${skillBundle()}`
+${skillBundle(PROMPT_FILES.investments)}`
   return {
     description: `Importer mes investissements depuis « ${root} »`,
     messages: [{ role: 'user', content: { type: 'text', text } }],

@@ -1,6 +1,6 @@
 # Importing a bank statement
 
-For a checking or savings account (the bank accounts). Two steps, like the app's « Relevés » page: `preview_bank_import` (writes no transaction), then `commit_bank_import` with `confirm: true` once the owner agrees.
+For a checking or savings account (the bank accounts). Two steps, like the app's « Relevés » page: `preview_bank_import` (writes no transaction), then `commit_bank_import` with `confirm: true` once the owner agrees. If the owner does not have the file yet, guide the export first: [export-banque.md](export-banque.md).
 
 ## 1. What is missing
 

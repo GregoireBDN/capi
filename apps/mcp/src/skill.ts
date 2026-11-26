@@ -1,7 +1,8 @@
 /**
  * The « Capi » Skill (`skills/capi/`, #497) is the one source of the methods:
- * the prompts (`revue_du_mois`, `importer_mes_investissements`) send it whole,
- * for clients without Skills, instead of keeping their own copy.
+ * the prompts (`revue_du_mois`, `importer_mes_investissements`) send
+ * `SKILL.md` and the files their task needs, for clients without Skills,
+ * instead of keeping their own copy.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -20,9 +21,13 @@ const SKILL_DIRS = [
 export const SKILL_FILES = [
   'SKILL.md',
   'references/bilan-du-mois.md',
+  'references/crypto.md',
+  'references/export-banque.md',
   'references/import-releve.md',
   'references/operations.md',
   'references/placements.md',
+  'references/point-finances.md',
+  'references/projet.md',
 ] as const
 
 export type SkillFile = (typeof SKILL_FILES)[number]
@@ -33,20 +38,41 @@ export function skillDir(): string {
   return dir
 }
 
-let bundle: string | undefined
+/** What each prompt sends: its method and the files it links to, never the
+ * advice sheets (finance review, projects), so a prompt stays light. */
+export const PROMPT_FILES = {
+  monthReview: [
+    'SKILL.md',
+    'references/bilan-du-mois.md',
+    'references/import-releve.md',
+    'references/export-banque.md',
+    'references/operations.md',
+    'references/placements.md',
+    'references/crypto.md',
+  ],
+  investments: ['SKILL.md', 'references/placements.md', 'references/crypto.md'],
+} as const satisfies Record<string, readonly SkillFile[]>
+
+const bundles = new Map<string, string>()
 
 /**
- * Every file of the Skill, `SKILL.md` without its frontmatter first, each
- * under a line naming it, so the links between them still say where to look.
+ * The given files of the Skill (all by default), `SKILL.md` without its
+ * frontmatter, each under a line naming it, so the links between them still
+ * say where to look.
  */
-export function skillBundle(): string {
-  if (bundle !== undefined) return bundle
+export function skillBundle(files: readonly SkillFile[] = SKILL_FILES): string {
+  const key = files.join('|')
+  const cached = bundles.get(key)
+  if (cached !== undefined) return cached
   const dir = skillDir()
-  bundle = SKILL_FILES.map((file) => {
-    const text = readFileSync(join(dir, file), 'utf8')
-      .replace(/^---\n[\s\S]*?\n---\n/, '')
-      .trim()
-    return `=== Fichier ${file} ===\n\n${text}`
-  }).join('\n\n')
+  const bundle = files
+    .map((file) => {
+      const text = readFileSync(join(dir, file), 'utf8')
+        .replace(/^---\n[\s\S]*?\n---\n/, '')
+        .trim()
+      return `=== Fichier ${file} ===\n\n${text}`
+    })
+    .join('\n\n')
+  bundles.set(key, bundle)
   return bundle
 }
