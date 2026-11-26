@@ -1,6 +1,6 @@
 # Runbook — releasing and deploying Capi
 
-How a version reaches the server, how to set the pipeline up once, and how to roll back. Decisions: [ADR 0001](../adr/0001-multi-app-hosting.md) §5–6. The production stack itself (`docker-compose.prod.yml`, `/srv/finances/.env`, first start) is described in the production stack runbook (#28). Every merge to `main` also deploys to **staging** (demo data only, no approval, `deploy.sh --staging`): see the [staging runbook](staging.md) (#421).
+How a version reaches the server, how to set the pipeline up once, and how to roll back. Decisions: [ADR 0001](../adr/0001-multi-app-hosting.md) §5–6. The production stack itself (`docker-compose.prod.yml`, `/srv/capi/.env`, first start) is described in the production stack runbook (#28). Every merge to `main` also deploys to **staging** (demo data only, no approval, `deploy.sh --staging`): see the [staging runbook](staging.md) (#421).
 
 ## How it works
 
@@ -12,21 +12,22 @@ git push tag vX.Y.Z
        ├─ images    build, Trivy, push ghcr.io/gregoirebdn/capi-{api,web,mcp}:{vX.Y.Z, sha-<short>}
        └─ deploy    environment `production`
             ├─ join the tailnet as an ephemeral `tag:ci` node (Tailscale OAuth client)
-            ├─ upload deploy/deploy.sh + docker-compose.prod.yml of the tag to /srv/finances/releases/vX.Y.Z/
+            ├─ upload deploy/deploy.sh + docker-compose.prod.yml of the tag to /srv/capi/releases/vX.Y.Z/
             └─ ssh deploy@vps → deploy.sh vX.Y.Z <compose file>
 ```
 
-`deploy/deploy.sh` (also copied to `/srv/finances/deploy.sh` for manual use), under a `flock` so two deploys never overlap:
+`deploy/deploy.sh` (also copied to `/srv/capi/deploy.sh` for manual use), under a `flock` so two deploys never overlap:
 
 1. installs the release's `docker-compose.prod.yml` (the previous one is kept until the deploy succeeds);
-2. records the current version from `/srv/finances/.env` and sets the new one, as `CAPI_VERSION` and `FINANCES_VERSION` with the same value (a release before #464 reads `FINANCES_VERSION`; see the [rename runbook](rename.md));
+2. records the current version from `/srv/capi/.env` and sets the new one, as `CAPI_VERSION` and `FINANCES_VERSION` with the same value (a release before #464 reads `FINANCES_VERSION`; see the [rename runbook](rename.md));
 3. `docker compose pull api web`, plus `capi-mcp` when the release's compose file has it and its profile is on (`COMPOSE_PROFILES=remote-mcp` in `.env`, #328; with the profile on and `REMOTE_MCP_ENABLED` not `true` the deploy stops here, since the adapter would refuse to start);
+   - when the release's compose file names another project than the running one (`name:`; `finances` → `capi` at #464's step B, or back on a rollback), it first checks that the volume `DB_VOLUME` (`.env`) exists, and just before the migrations stops the old project (`docker compose -p <old> down`, never `-v`): two Postgres must never run on one volume. A failure after that stops the new project before the old one starts again. Production refuses a project named `*-staging`;
 4. runs the migrations, then the seed (idempotent), from the **new** API image (`docker compose run --rm api node dist/database/{migrate,seed}.js`);
 5. `docker compose up -d --remove-orphans`;
 6. polls `http://localhost:3000/api/health` from inside the `web` container (web → API → database and SMTP), and with the adapter on `http://localhost:4100/.well-known/oauth-protected-resource` from inside `capi-mcp`, every 5 s for 3 minutes;
 7. on any failure: puts back the previous compose file and `CAPI_VERSION`, runs `up -d --remove-orphans` again if containers were already restarted (the adapter goes back to the previous image too, or is removed when the previous compose file has no `capi-mcp`), waits for health, and exits non-zero, so the workflow run fails.
 
-Every run is appended to `/srv/finances/deploy.log`. A dropped SSH connection (e.g. a cancelled workflow run) doesn't interrupt the script.
+Every run is appended to `/srv/capi/deploy.log`. A dropped SSH connection (e.g. a cancelled workflow run) doesn't interrupt the script.
 
 The previous version stays up while the images are pulled and the migrations run; containers are only recreated at step 5. If the pull or the migrations fail, nothing that was running is touched. Drizzle applies pending migrations in one transaction, so a failed migration leaves the schema unchanged.
 
@@ -41,13 +42,13 @@ As `ops`:
 ```bash
 sudo useradd --create-home --shell /bin/bash deploy
 sudo usermod -aG docker deploy
-sudo install -d -o deploy -g deploy -m 750 /srv/finances
-# If /srv/finances already exists (stack runbook, #28):
-sudo chown -R deploy:deploy /srv/finances
-sudo chmod 600 /srv/finances/.env
+sudo install -d -o deploy -g deploy -m 750 /srv/capi
+# If /srv/capi already exists (stack runbook, #28):
+sudo chown -R deploy:deploy /srv/capi
+sudo chmod 600 /srv/capi/.env
 ```
 
-- `deploy` must own `/srv/finances` and be able to read and rewrite `.env` (only the `CAPI_VERSION` and `FINANCES_VERSION` lines are changed; the file stays mode `600`).
+- `deploy` must own `/srv/capi` and be able to read and rewrite `.env` (only the `CAPI_VERSION` and `FINANCES_VERSION` lines are changed; the file stays mode `600`).
 - No password and no `authorized_keys` are needed with Tailscale SSH.
 - Membership of the `docker` group is root-equivalent on the host: what keeps this account restricted is that only the `tag:ci` node can reach it (ACLs below), and only from this workflow.
 - `flock` (util-linux), `timeout` and `tee` (coreutils) ship with Ubuntu.
@@ -132,7 +133,7 @@ After a successful deploy, open the installed PWA on the phone: the service work
 
 ### Automatic
 
-If the health check fails (or the pull, migrations or seed fail), `deploy.sh` restores the previous version itself and the run fails. Read the run log or `/srv/finances/deploy.log` to see which step failed.
+If the health check fails (or the pull, migrations or seed fail), `deploy.sh` restores the previous version itself and the run fails. Read the run log or `/srv/capi/deploy.log` to see which step failed.
 
 ### Redeploy an earlier version
 
@@ -142,7 +143,9 @@ GitHub › Actions › **Release** › **Run workflow** (branch `main`), `versio
 gh workflow run release.yml -f version=v1.2.2
 ```
 
-Without GitHub (as `deploy` on the server, over Tailscale): `/srv/finances/releases/v1.2.2/deploy/deploy.sh v1.2.2 /srv/finances/releases/v1.2.2/docker-compose.prod.yml` (each deployed version's files stay under `releases/`).
+Without GitHub (as `deploy` on the server, over Tailscale): `/srv/capi/releases/v1.2.2/deploy/deploy.sh v1.2.2 /srv/capi/releases/v1.2.2/docker-compose.prod.yml` (each deployed version's files stay under `releases/`).
+
+**A tag from before the project rename** (#464's step B, compose file `name: finances`): the workflow refuses it, because that tag's `deploy.sh` knows neither `/srv/capi` nor the project change, and with `FINANCES_DIR=/srv/capi` it would start a second Postgres on the volume. Run the **current** script with the old tag's compose file instead, which stops `capi` before `finances` starts: `/srv/capi/deploy.sh v0.2.19 /srv/capi/releases/v0.2.19/docker-compose.prod.yml` (the release files of the tag must be under `releases/`, uploaded by its own deploy).
 
 ### When a migration must be undone
 
@@ -150,8 +153,8 @@ Rolling back the images does **not** roll back the database: the previous versio
 
 ## Troubleshooting
 
-- **`another deploy is already running`**: a deploy holds `/srv/finances/.deploy.lock`. Wait for it; the lock is released when its process exits.
+- **`another deploy is already running`**: a deploy holds `/srv/capi/.deploy.lock`. Wait for it; the lock is released when its process exits.
 - **Tailscale step fails**: check the OAuth client (scope, tag `tag:ci`) and that `tag:ci` is in `tagOwners`.
 - **SSH: `Permission denied` / `tailscale: tailnet policy does not permit you to SSH`**: the `ssh` rule or the `tcp:22` grant is missing, or Tailscale SSH isn't enabled on the server.
 - **Pull fails (`denied` / `unauthorized`)**: the server's GHCR token expired or lacks `read:packages`; log in again as `deploy`.
-- **Health check never passes**: `docker compose -f docker-compose.prod.yml logs --tail=100 api web` in `/srv/finances`; `/api/health` also fails when SMTP is unreachable.
+- **Health check never passes**: `docker compose -f docker-compose.prod.yml logs --tail=100 api web` in `/srv/capi`; `/api/health` also fails when SMTP is unreachable.

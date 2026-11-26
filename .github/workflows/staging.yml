@@ -2,7 +2,7 @@
 #
 # Every push to main: CI, then build, scan and push the API, web and MCP
 # adapter images to GHCR as sha-<short> (the tag a release of this commit
-# also gets), then deploy them to the `finances-staging` project on the
+# also gets), then deploy them to the `capi-staging` project on the
 # server (deploy/deploy.sh --staging), which resets the demo data and checks
 # the health. The `staging` environment has no required reviewer: nothing
 # waits for the owner. Production is untouched (release.yml, vX.Y.Z tags).
@@ -114,7 +114,7 @@ jobs:
       contents: read
     env:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'vps' }}
-      STAGING_DIR: /srv/finances-staging
+      STAGING_DIR: /srv/capi-staging
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

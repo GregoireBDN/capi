@@ -1,18 +1,18 @@
 # Staging (#421, runbook: docs/runbooks/staging.md): an override of
-# docker-compose.prod.yml for the `finances-staging` project, deployed from
-# every merge to main by .github/workflows/staging.yml and deploy/deploy.sh
-# --staging, in /srv/finances-staging with its own `.env` (template:
-# .env.staging.example).
+# docker-compose.prod.yml for the `capi-staging` project (`finances-staging`
+# before #464's step B), deployed from every merge to main by
+# .github/workflows/staging.yml and deploy/deploy.sh --staging, in
+# /srv/capi-staging with its own `.env` (template: .env.staging.example).
 #
-#   docker compose -p finances-staging -f docker-compose.prod.yml -f docker-compose.staging.yml ...
+#   docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml ...
 #
 # Same images as production (CAPI_VERSION=sha-<commit>), own database
-# volume (finances-staging_db_data), own secrets and host name, no published
+# volume (DB_VOLUME=finances-staging_db_data, its name before step B), own secrets and host name, no published
 # port. It only ever holds the demo data: each deploy wipes the database and
 # seeds it again (seed-demo.js --reset). What must never differ from that is
 # fixed here rather than in `.env`: the database name, the switches below,
 # web's `APP_ENVIRONMENT` (#454) and its alias on the `proxy` network.
-name: finances-staging
+name: capi-staging
 
 services:
   db:
@@ -42,8 +42,8 @@ services:
       proxy:
         # Replaces production's `capi-web` and `finances-web` (a plain list
         # would be merged with them, and Caddy would send production traffic
-        # here too). Caddy (infra repo) targets capi-staging-web:3000, and
-        # finances-staging-web:3000 until #464's step B.
+        # here too). Caddy (infra repo) targets capi-staging-web:3000;
+        # finances-staging-web serves older releases until #464's cleanup.
         aliases: !override
           - capi-staging-web
           - finances-staging-web

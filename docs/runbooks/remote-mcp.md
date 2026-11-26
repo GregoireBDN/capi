@@ -55,7 +55,7 @@ Done in the `infra` repo (GregoireBDN/infra#7, its `docs/runbooks/caddy-portal.m
 
 Anthropic publishes its ranges at [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses) (« Outbound IP addresses »; checked 2026-11-19, no outbound IPv6). If the connector's calls time out or get 403, check that page first and update the three layers together rather than dropping the filter.
 
-### 4. Turn it on (`/srv/finances/.env`)
+### 4. Turn it on (`/srv/capi/.env`)
 
 ```bash
 COMPOSE_PROFILES=remote-mcp
@@ -67,7 +67,7 @@ REMOTE_MCP_PUBLIC_URL=https://finances-mcp.gbodin.cloud
 # MCP_MEM_LIMIT=256m
 ```
 
-`APP_URL` must stay the tailnet URL of the web app: the consent page is `${APP_URL}/oauth/authorize`. The API refuses to boot with `REMOTE_MCP_ENABLED=true` and no https `REMOTE_MCP_PUBLIC_URL`; the adapter refuses to start without both; `deploy.sh` refuses the profile without `REMOTE_MCP_ENABLED=true`. Then, as `deploy` in `/srv/finances` (`dc` = `docker compose -f docker-compose.prod.yml`, production stack runbook):
+`APP_URL` must stay the tailnet URL of the web app: the consent page is `${APP_URL}/oauth/authorize`. The API refuses to boot with `REMOTE_MCP_ENABLED=true` and no https `REMOTE_MCP_PUBLIC_URL`; the adapter refuses to start without both; `deploy.sh` refuses the profile without `REMOTE_MCP_ENABLED=true`. Then, as `deploy` in `/srv/capi` (`dc` = `docker compose -f docker-compose.prod.yml`, production stack runbook):
 
 ```bash
 dc config --services                 # db api web capi-mcp
@@ -101,7 +101,7 @@ From a machine **outside** Anthropic's range the allowed paths answer 403 and th
 ## Disconnecting, kill switch
 
 - **One connection**: Réglages → Claude et accès → its row in « Accès actifs » → **Déconnecter** (immediate: its access and refresh tokens are revoked).
-- **Everything, now** (as `deploy` in `/srv/finances`):
+- **Everything, now** (as `deploy` in `/srv/capi`):
 
   ```bash
   dc stop capi-mcp      # the public host answers 502 at once
@@ -125,6 +125,6 @@ DATABASE_URL=…/finances_scratch_78 REMOTE_MCP_ENABLED=true REMOTE_MCP_PUBLIC_U
 REMOTE_MCP_ENABLED=true CAPI_API_URL=http://localhost:4000 REMOTE_MCP_PUBLIC_URL=http://localhost:4100 node apps/mcp/dist/index.js --http
 ```
 
-Or the production image and service: `docs/security/pentest/stack.sh up`, `run`, `oauth` (throwaway `finances-audit` stack, nothing published).
+Or the production image and service: `docs/security/pentest/stack.sh up`, `run`, `oauth` (throwaway `capi-audit` stack, nothing published).
 
 Then drive the flow with the MCP Inspector, adding its callback to `REMOTE_MCP_REDIRECT_URIS` (e.g. `http://localhost:6274/oauth/callback`), or with `curl` as in `apps/mcp/src/http/server.test.ts` and `apps/api/src/auth/oauth/oauth.http.spec.ts`. Drop the scratch database afterwards.

@@ -1,6 +1,6 @@
 # Roadmap
 
-Work is tracked as GitHub issues grouped into milestones: <https://github.com/GregoireBDN/finances/milestones>.
+Work is tracked as GitHub issues grouped into milestones: <https://github.com/GregoireBDN/capi/milestones>.
 
 - **M1 — Foundations**: clean single-user base (project rename, password-only auth, no analytics), docs and contribution templates, CI green.
 - **M2 — Import**: accounts, CIC CSV parser (Windows-1252, `;` separator, comma decimals), idempotent imports with preview, deduplication and balance continuity checks.
