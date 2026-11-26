@@ -91,7 +91,7 @@ function BreadcrumbLink({
     <Comp
       data-slot="breadcrumb-link"
       className={cn(
-        'text-primary hover:bg-muted/60 focus-visible:ring-ring/50 flex h-8 items-center gap-0.5 rounded-lg px-1.5 font-medium whitespace-nowrap outline-none focus-visible:ring-[3px]',
+        'text-primary hover:bg-glass-fill focus-visible:ring-ring/50 flex h-8 items-center gap-0.5 rounded-lg px-1.5 font-medium whitespace-nowrap outline-none focus-visible:ring-[3px]',
         'group-data-[back-on-phones]/breadcrumb:max-md:pr-2 group-data-[back-on-phones]/breadcrumb:max-md:pl-1',
         className,
       )}
@@ -142,7 +142,7 @@ function BreadcrumbSeparator({
       role="presentation"
       aria-hidden
       className={cn(
-        'text-muted-foreground flex shrink-0 [&_svg]:size-4',
+        'text-glass-muted-foreground flex shrink-0 [&_svg]:size-4',
         'group-data-[back-on-phones]/breadcrumb:max-md:hidden',
         className,
       )}

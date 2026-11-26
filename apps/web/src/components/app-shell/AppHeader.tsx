@@ -33,6 +33,9 @@ import { StagingBadge } from './StagingBadge'
  * scrolling area (#418): the page scrolls under it in its own area, so a
  * page's sticky elements stick to that area's top (`top-0`).
  *
+ * Glass (#505): one block with the month bar and the sidebar, a soft
+ * shadow below instead of a line, round glass buttons.
+ *
  * On staging (#454, `APP_ENVIRONMENT`) it is yellow (`env-banner`) with
  * « Staging » beside the name, so it is never taken for production.
  */
@@ -50,9 +53,9 @@ export function AppHeader({ user }: { user: UserDto }) {
     <header
       data-app-header
       className={cn(
-        // Its line drawn inside (no border), so its 3rem stay whole and the
-        // 44px buttons sit on whole pixels (#434).
-        'bg-glass-chrome group/header relative z-20 flex h-12 shrink-0 items-center gap-1 px-2 shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-(--glass-blur) md:gap-2 md:px-3',
+        // Glass chrome (#505): no line below, a soft shadow instead; on a
+        // month page the bar's shadow ends the block (`globals.css`).
+        'glass-chrome group/header relative z-20 flex h-12 shrink-0 items-center gap-1 px-2 md:gap-2 md:px-3',
         staging && 'env-banner',
       )}
     >
@@ -66,9 +69,9 @@ export function AppHeader({ user }: { user: UserDto }) {
       <Button
         type="button"
         variant="secondary"
-        ghost
         iconOnly
-        className="text-foreground relative rounded-full md:hidden [&_svg]:size-[1.1rem]"
+        // A round glass button like « ⋮ » (#505).
+        className="bg-glass-fill hover:bg-foreground/10 text-foreground relative rounded-full md:hidden [&_svg]:size-[1.1rem]"
         aria-label="Ouvrir le menu"
         aria-expanded={openMobile}
         onClick={() => setOpenMobile(true)}
@@ -87,7 +90,7 @@ export function AppHeader({ user }: { user: UserDto }) {
       <div
         ref={setBackSlot}
         data-page-back
-        className="flex min-w-0 items-center empty:hidden md:ml-1 md:border-l md:pl-2"
+        className="flex min-w-0 items-center empty:hidden md:ml-1"
       />
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <div

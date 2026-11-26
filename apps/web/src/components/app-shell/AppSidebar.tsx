@@ -47,10 +47,12 @@ import { StagingBadge } from './StagingBadge'
  */
 export const RAIL_BUTTON = cn(
   '[&_svg]:size-[1.1rem]',
-  // The current page on the primary tint, hover in the neutral accent: two
-  // looks, so a hovered row beside the current one reads as such (#386).
-  'hover:bg-foreground/6 hover:text-sidebar-foreground',
-  'data-active:bg-primary/12 data-active:text-primary data-active:hover:bg-primary/16 data-active:hover:text-primary',
+  // The current page in the light blue of the month's tab (#505, the
+  // owner's « A · Bleu clair »), its icon in the primary colour; hover on the
+  // neutral glass fill: two looks, so a hovered row beside the current one
+  // reads as such (#386).
+  'hover:bg-glass-fill hover:text-sidebar-foreground',
+  'data-active:bg-month-band data-active:text-sidebar-foreground data-active:font-semibold data-active:hover:bg-month-band data-active:[&_svg]:text-primary',
   'group-data-[collapsible=icon]:size-(--rail-button)!',
   // Centred in the column, under the header's logo and the groups' rules.
   'group-data-[collapsible=icon]:mx-auto',
@@ -234,7 +236,7 @@ export function AppSidebar() {
             « Réglages », the one way to the settings pages, and from md up
             the button that folds the column, beside it (under it once
             folded). */}
-        <SidebarFooter className="border-sidebar-border border-t">
+        <SidebarFooter>
           <SidebarMenu className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
             <SidebarMenuItem className="min-w-0 flex-1 group-data-[collapsible=icon]:flex-none">
               <SidebarMenuButton

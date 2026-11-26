@@ -399,8 +399,9 @@ function Sidebar({
               // names at 320px), leaving a strip ≥ 44px to tap it closed.
               'w-(--sidebar-width) data-[side=left]:w-[85%] data-[side=right]:w-[85%]',
 
-              // Styling
-              'bg-sidebar text-sidebar-foreground',
+              // Styling: glass like the app's header (#505), no edge line,
+              // the panels' shadow.
+              'bg-glass-chrome text-sidebar-foreground border-0 shadow-glass-lg backdrop-blur-(--glass-blur)',
 
               // Spacing
               'p-0',
@@ -516,8 +517,9 @@ function Sidebar({
                 ].join(' ')
               : [
                   'group-data-[collapsible=icon]:w-(--sidebar-width-icon)',
-                  'group-data-[side=left]:border-r',
-                  'group-data-[side=right]:border-l',
+                  // No edge line (#505): a soft shadow on the page's side.
+                  'group-data-[side=left]:shadow-[10px_0_24px_-16px_var(--glass-shadow)]',
+                  'group-data-[side=right]:shadow-[-10px_0_24px_-16px_var(--glass-shadow)]',
                   // Edge-to-edge (viewport-fit=cover): keep the column clear
                   // of the notch in landscape and of the home indicator. The
                   // in-flow gap is already offset by the body's safe-area
@@ -539,8 +541,9 @@ function Sidebar({
               // Layout
               'flex size-full flex-col',
 
-              // Styling
-              'bg-sidebar',
+              // Styling: the app chrome's glass (#505), one block with the
+              // header.
+              'bg-glass-chrome backdrop-blur-(--glass-blur)',
 
               // Variant: Floating
               'group-data-[variant=floating]:rounded-lg',
@@ -945,7 +948,7 @@ function SidebarGroupLabel({
           'px-2',
 
           // Typography
-          'text-xs font-medium text-sidebar-foreground/70',
+          'text-xs font-medium text-glass-muted-foreground',
 
           // Focus States
           'ring-sidebar-ring outline-hidden',
