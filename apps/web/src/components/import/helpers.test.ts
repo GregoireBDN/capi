@@ -111,12 +111,12 @@ describe('buildCommitPayload', () => {
 
   it('sends overrides only for imported rows whose category changed', () => {
     const payload = buildCommitPayload(previewRows, {
-      conflicts: { 2: 'skip' },
+      conflicts: { 4: 'skip' },
       categories: {
-        0: 'cat-food', // unchanged: proposed category
-        1: 'cat-pay', // new row: sent
-        2: 'cat-fun', // skipped conflict: not sent
-        3: 'cat-fun', // duplicate: never sent
+        2: 'cat-food', // unchanged: proposed category
+        3: 'cat-pay', // new row: sent
+        4: 'cat-fun', // skipped conflict: not sent
+        5: 'cat-fun', // duplicate: never sent
       },
     })
     expect(payload.categoryOverrides).toEqual([
@@ -126,8 +126,8 @@ describe('buildCommitPayload', () => {
 
   it('sends the override of a conflict imported anyway', () => {
     const payload = buildCommitPayload(previewRows, {
-      conflicts: { 2: 'import' },
-      categories: { 2: 'cat-fun' },
+      conflicts: { 4: 'import' },
+      categories: { 4: 'cat-fun' },
     })
     expect(payload).toEqual({
       conflictResolutions: [{ rowIndex: 2, action: 'import' }],
@@ -139,8 +139,8 @@ describe('buildCommitPayload', () => {
     expect(countForReview(previewRows, EMPTY_CHOICES)).toBe(1)
     expect(
       countForReview(previewRows, {
-        conflicts: { 2: 'import' },
-        categories: { 1: 'cat-pay' },
+        conflicts: { 4: 'import' },
+        categories: { 3: 'cat-pay' },
       }),
     ).toBe(1)
   })

@@ -3,10 +3,12 @@ import {
   type InvestmentMovementKind,
 } from '#/database/schema/domain-enums'
 import { headerKey } from '#/imports/crypto/parsers/common'
-import type {
-  ParseIssue,
-  ParseResult,
-  ParsedRow,
+import {
+  issueCells,
+  type IssueDraft,
+  type ParseIssue,
+  type ParseResult,
+  type ParsedRow,
 } from '#/imports/parsers/parsed-row'
 import { isValidIsin, normalizeIsin } from '#/positions/isin'
 import type { CsvProfile } from './profile.types'
@@ -115,12 +117,20 @@ export function parseCashCsv(bytes: Buffer, profile: CsvProfile): ParseResult {
   for (const record of table.records) {
     const cells = cellReader(table, record.fields, columns)
     if (!cells) {
-      issues.push(tooManyFields(table, record))
+      issues.push({
+        ...tooManyFields(table, record),
+        cells: issueCells(table.header.fields, record.fields, columns),
+      })
       continue
     }
     const result = cashRow(cells, profile)
     if ('error' in result) {
-      issues.push({ lineNumber: record.lineNumber, message: result.error })
+      issues.push({
+        lineNumber: record.lineNumber,
+        message: result.error,
+        cells: issueCells(table.header.fields, record.fields, columns),
+        draft: result.draft,
+      })
     } else {
       rows.push({ lineNumber: record.lineNumber, ...result.row })
     }
@@ -233,7 +243,7 @@ type CashRow = Omit<ParsedRow, 'lineNumber'>
 function cashRow(
   cell: Cells,
   profile: CsvProfile,
-): { row: CashRow } | { error: string } {
+): { row: CashRow } | { error: string; draft: IssueDraft } {
   const errors: string[] = []
   const date = (text: string) => parseDateWithFormat(text, profile.dateFormat)
   const amount = (text: string) =>
@@ -266,7 +276,16 @@ function cashRow(
     amountCents === undefined ||
     balanceAfterCents === undefined
   ) {
-    return { error: errors.join('; ') }
+    return {
+      error: errors.join('; '),
+      draft: {
+        bookingDate: bookingDate ?? null,
+        valueDate: valueDate ?? null,
+        amountCents: amountCents ?? null,
+        balanceAfterCents: balanceAfterCents ?? null,
+        rawLabel: rawLabel === '' ? null : rawLabel,
+      },
+    }
   }
   return {
     row: { bookingDate, valueDate, amountCents, balanceAfterCents, rawLabel },

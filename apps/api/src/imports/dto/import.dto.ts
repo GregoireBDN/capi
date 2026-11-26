@@ -6,18 +6,32 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator'
+import { CalendarDate } from '#/investments/calendar-date'
 import {
   IMPORT_SOURCES,
   type ImportSource,
   TRANSACTION_KINDS,
   type TransactionKind,
 } from '#/database/schema/domain-enums'
+import type { IssueCellField } from '#/imports/parsers/parsed-row'
 import type { PreviewRowStatus } from '#/imports/preview/preview.types'
+
+const ISSUE_CELL_FIELDS = [
+  'date',
+  'valueDate',
+  'amount',
+  'debit',
+  'credit',
+  'label',
+  'balance',
+] as const satisfies readonly IssueCellField[]
 
 /** Sources that can be uploaded through `POST /imports/preview`. */
 export const UPLOAD_SOURCES = [
@@ -153,6 +167,49 @@ export class CommitImportDto {
   categoryOverrides?: CategoryOverrideDto[]
 }
 
+// --- Fixing an unreadable line (#433) ----------------------------------------
+
+/** Longest label typed for a line, as a read row's (`MAX_LABEL_LENGTH`). */
+export const FIXED_LABEL_MAX = 500
+/** Bound on a typed amount or balance: 10 000 000 000 € in cents. */
+const MAX_FIXED_CENTS = 1_000_000_000_000
+
+export class FixImportLineDto {
+  @ApiProperty({ type: String, format: 'date', description: 'Booking date.' })
+  @CalendarDate()
+  bookingDate!: string
+
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  @IsOptional()
+  @CalendarDate()
+  valueDate?: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Signed cents: negative = money out.',
+  })
+  @IsInt()
+  @Min(-MAX_FIXED_CENTS)
+  @Max(MAX_FIXED_CENTS)
+  amountCents!: number
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Running balance after the line, when the file gives one.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(-MAX_FIXED_CENTS)
+  @Max(MAX_FIXED_CENTS)
+  balanceAfterCents?: number | null
+
+  @ApiProperty({ type: String, maxLength: FIXED_LABEL_MAX })
+  @IsString()
+  @MaxLength(FIXED_LABEL_MAX)
+  rawLabel!: string
+}
+
 // --- Responses --------------------------------------------------------------
 
 export class ImportCountsDto {
@@ -248,12 +305,68 @@ export class ImportSummaryDto {
   committedAt!: Date | null
 }
 
+export class IssueCellDto {
+  @ApiProperty({
+    type: String,
+    description: 'Header column of the cell; empty past the header’s end.',
+  })
+  column!: string
+
+  @ApiProperty({ type: String, description: 'The cell as written.' })
+  value!: string
+
+  @ApiProperty({
+    enum: ISSUE_CELL_FIELDS,
+    enumName: 'IssueCellField',
+    nullable: true,
+    description:
+      'The field the column is read as; null for a column the format ignores. Tells which cell made the line unreadable.',
+  })
+  field!: IssueCellField | null
+}
+
+export class IssueDraftDto {
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  bookingDate!: string | null
+
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  valueDate!: string | null
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  amountCents!: number | null
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  balanceAfterCents!: number | null
+
+  @ApiProperty({ type: String, nullable: true })
+  rawLabel!: string | null
+}
+
 export class ParseIssueDto {
   @ApiProperty({ type: 'integer', description: '1-based line in the file.' })
   lineNumber!: number
 
-  @ApiProperty({ type: String })
+  @ApiProperty({
+    type: String,
+    description: 'Why the line was not read; names no cell.',
+  })
   message!: string
+
+  @ApiProperty({
+    type: [IssueCellDto],
+    nullable: true,
+    description:
+      'The line’s cells as written (#433); null when the line could not be split (an unclosed quote) or for previews made before.',
+  })
+  cells!: IssueCellDto[] | null
+
+  @ApiProperty({
+    type: IssueDraftDto,
+    nullable: true,
+    description:
+      'What could be read from the line, to start the fix from; null when nothing could.',
+  })
+  draft!: IssueDraftDto | null
 }
 
 export class ContinuityGapDto {
@@ -411,6 +524,14 @@ export class ImportPreviewRowDto {
       'Expense noted by hand that this new row replaces on commit (same account and amount, booked a few days apart): the row keeps its category and note.',
   })
   manualMatch!: ManualExpenseMatchDto | null
+
+  @ApiProperty({
+    type: ParseIssueDto,
+    nullable: true,
+    description:
+      'The unreadable line this row was typed in place of in the preview (#433), with its reason and cells; null for rows read from the file.',
+  })
+  fixedFrom!: ParseIssueDto | null
 }
 
 export class ImportPreviewDto {

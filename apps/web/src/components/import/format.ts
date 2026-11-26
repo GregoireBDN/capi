@@ -139,3 +139,35 @@ export function sourceLabel(
   }
   return SOURCE_LABEL[item.source] ?? item.source
 }
+
+const ISSUE_FIELDS: [RegExp, string[]][] = [
+  [/^Invalid or missing date$/i, ['date']],
+  [/^Invalid value date$/i, ['valueDate']],
+  [/^Invalid balance$/i, ['balance']],
+  [/^Missing label$/i, ['label']],
+  [
+    /^(Both debit and credit are filled|Neither debit nor credit is filled)$/i,
+    ['debit', 'credit'],
+  ],
+  [/^Invalid debit amount$/i, ['debit']],
+  [/^(Invalid|Negative) credit amount$/i, ['credit']],
+  [/^(Invalid|Missing) amount$/i, ['amount']],
+]
+
+/**
+ * The fields a parse issue blames ("Invalid balance; Missing label" →
+ * balance, label): their cells are shown in red (#433).
+ */
+export function issueFields(message: string): Set<string> {
+  const fields = new Set<string>()
+  for (const part of message.split(';').map((p) => p.trim())) {
+    const match = ISSUE_FIELDS.find(([pattern]) => pattern.test(part))
+    match?.[1].forEach((field) => fields.add(field))
+  }
+  return fields
+}
+
+/** `2026-03-02` → `2026-03`, the month of the Opérations page to open. */
+export function monthOf(date: string): string {
+  return date.slice(0, 7)
+}

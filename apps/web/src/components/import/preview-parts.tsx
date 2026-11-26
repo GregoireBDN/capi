@@ -1,28 +1,80 @@
-import { Badge, cn, SegmentedControl, SegmentedControlItem } from '@capi/ui'
+import { Link } from '@tanstack/react-router'
+import { Badge, Button, cn } from '@capi/ui'
+import {
+  ArrowDownIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  FileWarningIcon,
+  PlusIcon,
+  TriangleAlertIcon,
+} from 'lucide-react'
 import type {
   CategoryDto,
   ConflictAction,
+  ExistingTransactionDto,
   ImportPreviewRowDto,
-  ImportRowStatus,
+  ParseIssueDto,
 } from '#/api'
 import { formatCents } from '#/lib/money'
+import { ROUTES } from '#/lib/routes'
 import { CategoryField } from '#/components/categories/CategoryPicker'
-import { formatDate } from './format'
+import { formatDate, issueFields, monthOf } from './format'
 
-const STATUS: Record<
-  ImportRowStatus,
-  { label: string; variant: 'success' | 'secondary' | 'warning' }
+/** The four kinds of lines of a preview (#433), each with its colours. */
+export type LineKind = 'invalid' | 'conflict' | 'new' | 'duplicate'
+
+export const LINE_KIND: Record<
+  LineKind,
+  { icon: typeof PlusIcon; tint: string; text: string; solid: string }
 > = {
-  new: { label: 'Nouvelle', variant: 'success' },
-  duplicate: { label: 'Doublon', variant: 'secondary' },
-  conflict: { label: 'À confirmer', variant: 'warning' },
+  invalid: {
+    icon: FileWarningIcon,
+    tint: 'bg-destructive/10',
+    text: 'text-destructive',
+    solid: 'bg-destructive text-white',
+  },
+  conflict: {
+    icon: TriangleAlertIcon,
+    tint: 'bg-warning/15',
+    text: 'text-warning-foreground dark:text-warning',
+    solid: 'bg-warning text-warning-foreground',
+  },
+  new: {
+    icon: PlusIcon,
+    tint: 'bg-success/12',
+    text: 'text-success-foreground dark:text-success',
+    solid: 'bg-success text-white',
+  },
+  duplicate: {
+    icon: CheckIcon,
+    tint: 'bg-muted',
+    text: 'text-muted-foreground',
+    solid: 'bg-muted-foreground text-background',
+  },
 }
 
-export function RowStatusBadge({ status }: { status: ImportRowStatus }) {
-  const { label, variant } = STATUS[status]
+/** The round coloured icon at the start of a line. */
+export function KindIcon({ kind }: { kind: LineKind }) {
+  const { icon: Icon, tint, text } = LINE_KIND[kind]
   return (
-    <Badge variant={variant} outline>
-      {label}
+    <span
+      aria-hidden
+      className={cn(
+        'grid size-7 shrink-0 place-items-center rounded-full',
+        tint,
+        text,
+      )}
+    >
+      <Icon className="size-3.5" />
+    </span>
+  )
+}
+
+/** A line typed in the preview in place of an unreadable one (#433). */
+export function FixedBadge() {
+  return (
+    <Badge variant="secondary" outline>
+      Corrigée
     </Badge>
   )
 }
@@ -107,61 +159,168 @@ export function CategorySelect({
       value={value}
       disabled={disabled}
       onPick={onChange}
-      className="h-8 text-sm"
+      className="h-8 w-full text-sm"
     />
-  )
-}
-
-interface ConflictToggleProps {
-  row: ImportPreviewRowDto
-  value: ConflictAction
-  onChange: (action: ConflictAction) => void
-}
-
-export function ConflictToggle({ row, value, onChange }: ConflictToggleProps) {
-  return (
-    <SegmentedControl
-      value={value}
-      aria-label={`Décision pour « ${row.rawLabel} »`}
-      onValueChange={onChange}
-    >
-      <SegmentedControlItem value="import">Importer</SegmentedControlItem>
-      <SegmentedControlItem value="skip">Ignorer</SegmentedControlItem>
-    </SegmentedControl>
   )
 }
 
 /** The file row next to the stored transaction it may duplicate. */
 export function ConflictCompare({ row }: { row: ImportPreviewRowDto }) {
   const existing = row.existing
+  const side = 'bg-muted/50 min-w-0 rounded-xl p-2.5'
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-      <div className="bg-muted/50 min-w-0 rounded-md border p-2">
-        <p className="text-muted-foreground mb-1 font-medium">
-          Dans le fichier
+    <div className="grid min-w-0 grid-cols-1 items-center gap-1.5 text-sm @md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+      <div className={side}>
+        <p className="text-muted-foreground text-xs">
+          Dans le fichier · {formatDate(row.bookingDate)}
         </p>
-        <p className="truncate">{row.rawLabel}</p>
-        <p className="flex justify-between gap-2">
-          <span>{formatDate(row.bookingDate)}</span>
-          <Amount cents={row.amountCents} />
+        <p className="truncate font-medium" title={row.rawLabel}>
+          {row.rawLabel}
         </p>
+        <Amount cents={row.amountCents} />
       </div>
-      <div className="bg-muted/50 min-w-0 rounded-md border p-2">
-        <p className="text-muted-foreground mb-1 font-medium">
-          Déjà enregistrée
-        </p>
+      <ArrowDownIcon
+        aria-hidden
+        className="text-muted-foreground mx-auto size-4 @md:hidden"
+      />
+      <ArrowRightIcon
+        aria-hidden
+        className="text-muted-foreground hidden size-4 @md:block"
+      />
+      <div className={side}>
         {existing ? (
           <>
-            <p className="truncate">{existing.rawLabel}</p>
-            <p className="flex justify-between gap-2">
-              <span>{formatDate(existing.bookingDate)}</span>
-              <Amount cents={existing.amountCents} />
+            <p className="text-muted-foreground text-xs">
+              Déjà enregistrée · {formatDate(existing.bookingDate)}
             </p>
+            <p className="truncate font-medium" title={existing.rawLabel}>
+              {existing.rawLabel}
+            </p>
+            <Amount cents={existing.amountCents} />
           </>
         ) : (
-          <p className="text-muted-foreground">Opération introuvable</p>
+          <p className="text-muted-foreground text-xs">
+            Opération enregistrée introuvable
+          </p>
         )}
       </div>
     </div>
+  )
+}
+
+interface ConflictChoiceProps {
+  row: ImportPreviewRowDto
+  value: ConflictAction
+  onChange: (action: ConflictAction) => void
+}
+
+/**
+ * The owner's answer for a probable duplicate: the same transaction (not
+ * imported, the default) or two transactions (imported).
+ */
+export function ConflictChoice({ row, value, onChange }: ConflictChoiceProps) {
+  const options: { action: ConflictAction; label: string }[] = [
+    { action: 'skip', label: 'C’est la même' },
+    { action: 'import', label: 'Ce sont deux opérations' },
+  ]
+  return (
+    <div
+      role="group"
+      aria-label={`Décision pour « ${row.rawLabel} »`}
+      className="grid gap-2 @sm:grid-cols-2"
+    >
+      {options.map(({ action, label }) => (
+        <Button
+          key={action}
+          type="button"
+          variant="secondary"
+          outline={value !== action}
+          aria-pressed={value === action}
+          className="h-auto min-h-9 min-w-0 py-1.5 break-normal whitespace-normal"
+          onClick={() => onChange(action)}
+        >
+          {value === action && <CheckIcon />}
+          {label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The stored transaction a line matches (#433), with a link to it on the
+ * Opérations page (its month and account, searched by its label).
+ */
+export function ExistingMatch({
+  existing,
+  accountId,
+}: {
+  existing: ExistingTransactionDto
+  accountId: string
+}) {
+  return (
+    <p className="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-xs">
+      <span className="min-w-0 break-normal">
+        Déjà enregistrée le {formatDate(existing.bookingDate)} : «{' '}
+        {existing.rawLabel} »
+      </span>
+      <Link
+        to={ROUTES.transactions}
+        search={{
+          month: monthOf(existing.bookingDate),
+          account: accountId,
+          q: existing.rawLabel,
+        }}
+        className="text-foreground underline underline-offset-2"
+      >
+        Voir l’opération
+      </Link>
+    </p>
+  )
+}
+
+/**
+ * What an unreadable line holds (#433): its cells as chips, the ones the
+ * error blames in red, so it can be typed from them.
+ */
+export function IssueCells({ issue }: { issue: ParseIssueDto }) {
+  if (!issue.cells) {
+    return (
+      <p className="text-muted-foreground text-xs">
+        La ligne n’a pas pu être découpée en colonnes : saisissez-la d’après le
+        fichier.
+      </p>
+    )
+  }
+  const blamed = issueFields(issue.message)
+  return (
+    <ul
+      aria-label={`Contenu de la ligne ${issue.lineNumber}`}
+      className="flex flex-wrap gap-1.5"
+    >
+      {issue.cells.map((cell, index) => {
+        const bad = cell.field !== null && blamed.has(cell.field)
+        const value = cell.value.trim()
+        // Empty cells the error does not blame add nothing.
+        if (value === '' && !bad) return null
+        return (
+          <li
+            key={index}
+            data-bad={bad || undefined}
+            className={cn(
+              'inline-flex max-w-full min-w-0 items-baseline gap-1.5 rounded-md border px-2 py-0.5 font-mono text-xs',
+              bad
+                ? 'border-destructive/60 bg-destructive/10 text-destructive ring-destructive/30 ring-2'
+                : 'bg-muted/60',
+            )}
+          >
+            <span className="text-muted-foreground shrink-0 font-sans">
+              {cell.column || `Colonne ${index + 1}`}
+            </span>
+            <span className="min-w-0 truncate">{value || '—'}</span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

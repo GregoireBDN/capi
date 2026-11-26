@@ -2912,6 +2912,129 @@
         ]
       }
     },
+    "/api/imports/{id}/lines/{lineNumber}": {
+      "put": {
+        "description": "Replaces a line the file’s format could not read (or a line typed before) with the values typed, then checks the whole preview again: dedupe, continuity, manual expenses, rules. The typed row may come out new, duplicate or conflict. Lines that were read cannot be changed. Nothing is written but the pending import (#433).",
+        "operationId": "ImportsController_fixLine",
+        "parameters": [
+          {
+            "name": "lineNumber",
+            "required": true,
+            "in": "path",
+            "description": "1-based line in the file.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FixImportLineDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid values, or a line that was read."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "No such import or unreadable line."
+          },
+          "409": {
+            "description": "Already committed, or the preview is outdated."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Type an unreadable line of a pending import",
+        "tags": [
+          "Imports"
+        ]
+      },
+      "delete": {
+        "description": "The line typed in the preview is left out of the import again, and the preview is checked again (#433).",
+        "operationId": "ImportsController_unfixLine",
+        "parameters": [
+          {
+            "name": "lineNumber",
+            "required": true,
+            "in": "path",
+            "description": "1-based line in the file.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "No such import or typed line."
+          },
+          "409": {
+            "description": "Already committed, or the preview is outdated."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Put a typed line back as unreadable",
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
     "/api/imports": {
       "get": {
         "description": "Committed and pending imports, newest first.",
@@ -3159,6 +3282,64 @@
       }
     },
     "/api/import-profiles/{id}": {
+      "put": {
+        "description": "Replaces a bank profile’s mapping, as `POST` saves it: from the import preview, when the file’s lines were read with the wrong columns (#433). The imports made with it stay.",
+        "operationId": "ImportProfilesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImportProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportProfileDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "As for `POST`, or a profile of investment movements."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Another profile reads this header."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Change an import profile",
+        "tags": [
+          "Imports"
+        ]
+      },
       "delete": {
         "description": "The imports made with it stay.",
         "operationId": "ImportProfilesController_remove",
@@ -11884,6 +12065,80 @@
           "openingMismatch"
         ]
       },
+      "IssueCellField": {
+        "type": "string",
+        "enum": [
+          "date",
+          "valueDate",
+          "amount",
+          "debit",
+          "credit",
+          "label",
+          "balance"
+        ],
+        "description": "The field the column is read as; null for a column the format ignores. Tells which cell made the line unreadable."
+      },
+      "IssueCellDto": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string",
+            "description": "Header column of the cell; empty past the header’s end."
+          },
+          "value": {
+            "type": "string",
+            "description": "The cell as written."
+          },
+          "field": {
+            "nullable": true,
+            "description": "The field the column is read as; null for a column the format ignores. Tells which cell made the line unreadable.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueCellField"
+              }
+            ]
+          }
+        },
+        "required": [
+          "column",
+          "value",
+          "field"
+        ]
+      },
+      "IssueDraftDto": {
+        "type": "object",
+        "properties": {
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "rawLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "bookingDate",
+          "valueDate",
+          "amountCents",
+          "balanceAfterCents",
+          "rawLabel"
+        ]
+      },
       "ParseIssueDto": {
         "type": "object",
         "properties": {
@@ -11892,12 +12147,33 @@
             "description": "1-based line in the file."
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "Why the line was not read; names no cell."
+          },
+          "cells": {
+            "nullable": true,
+            "description": "The line’s cells as written (#433); null when the line could not be split (an unclosed quote) or for previews made before.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueCellDto"
+            }
+          },
+          "draft": {
+            "nullable": true,
+            "description": "What could be read from the line, to start the fix from; null when nothing could.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueDraftDto"
+              }
+            ]
           }
         },
         "required": [
           "lineNumber",
-          "message"
+          "message",
+          "cells",
+          "draft"
         ]
       },
       "ImportRowStatus": {
@@ -12051,6 +12327,16 @@
                 "$ref": "#/components/schemas/ManualExpenseMatchDto"
               }
             ]
+          },
+          "fixedFrom": {
+            "nullable": true,
+            "description": "The unreadable line this row was typed in place of in the preview (#433), with its reason and cells; null for rows read from the file.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ParseIssueDto"
+              }
+            ]
           }
         },
         "required": [
@@ -12069,7 +12355,8 @@
           "ruleId",
           "kind",
           "needsReview",
-          "manualMatch"
+          "manualMatch",
+          "fixedFrom"
         ]
       },
       "ImportPreviewDto": {
@@ -12315,6 +12602,39 @@
             }
           }
         }
+      },
+      "FixImportLineDto": {
+        "type": "object",
+        "properties": {
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Booking date."
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents: negative = money out."
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Running balance after the line, when the file gives one."
+          },
+          "rawLabel": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "bookingDate",
+          "amountCents",
+          "rawLabel"
+        ]
       },
       "ImportSummaryDto": {
         "type": "object",

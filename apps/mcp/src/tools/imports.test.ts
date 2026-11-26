@@ -51,6 +51,7 @@ function row(
     kind: 'expense',
     needsReview: true,
     manualMatch: null,
+    fixedFrom: null,
     ...overrides,
   }
 }
@@ -254,7 +255,9 @@ describe('preview_bank_import', () => {
       }),
     ])
     detail.counts.issues = 1
-    detail.preview!.issues = [{ lineNumber: 9, message: 'Invalid date' }]
+    detail.preview!.issues = [
+      { lineNumber: 9, message: 'Invalid date', cells: null, draft: null },
+    ]
     detail.preview!.continuity = {
       checked: true,
       ok: false,

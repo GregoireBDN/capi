@@ -15,7 +15,7 @@ import { scrollAppTo } from '#/components/app-shell/app-scroll'
 
 type Step =
   | { name: 'upload' }
-  | { name: 'preview'; detail: ImportDetailDto }
+  | { name: 'preview'; detail: ImportDetailDto; file?: File }
   | { name: 'done'; outcome: CommitOutcome }
 
 /**
@@ -29,8 +29,9 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
     (a) => isBankAccount(a) && !a.archivedAt,
   )
 
-  const openPreview = (detail: ImportDetailDto) => {
-    setStep({ name: 'preview', detail })
+  /** `file`: the file just dropped, kept to change its format (#433). */
+  const openPreview = (detail: ImportDetailDto, file?: File) => {
+    setStep({ name: 'preview', detail, file })
     scrollAppTo({ top: 0 })
   }
 
@@ -40,6 +41,8 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
       <ImportPreview
         key={step.detail.id}
         detail={step.detail}
+        file={step.file}
+        onReplaced={(detail) => openPreview(detail, step.file)}
         onCommitted={(outcome) => {
           setStep({ name: 'done', outcome })
           scrollAppTo({ top: 0 })
@@ -96,7 +99,7 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
       />
       {main}
       <ImportHistory
-        onResume={openPreview}
+        onResume={(detail) => openPreview(detail)}
         activeId={step.name === 'preview' ? step.detail.id : undefined}
       />
     </div>

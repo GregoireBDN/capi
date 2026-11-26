@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common'
@@ -100,6 +101,27 @@ export class ImportProfilesController {
   @ApiConflictResponse({ description: 'A profile already reads this header.' })
   create(@Body() dto: CreateImportProfileDto): Promise<ImportProfileDto> {
     return this.profiles.create(dto)
+  }
+
+  @Put(':id')
+  @ApiOperation({
+    summary: 'Change an import profile',
+    description:
+      'Replaces a bank profile’s mapping, as `POST` saves it: from the import preview, when the file’s lines were read with the wrong columns (#433). The imports made with it stay.',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiBody({ type: CreateImportProfileDto })
+  @ApiOkResponse({ type: ImportProfileDto })
+  @ApiBadRequestResponse({
+    description: 'As for `POST`, or a profile of investment movements.',
+  })
+  @ApiNotFoundResponse()
+  @ApiConflictResponse({ description: 'Another profile reads this header.' })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateImportProfileDto,
+  ): Promise<ImportProfileDto> {
+    return this.profiles.update(id, dto)
   }
 
   @Delete(':id')
