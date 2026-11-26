@@ -426,7 +426,13 @@ describe('DashboardPage', () => {
     )
     expect(row).toHaveAttribute('href', '/forecast')
     expect(row).toHaveTextContent(euros(267_000))
-    expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le 29 nov.`)
+    // « B. Trajet »: the start, the low point and the end as three stops.
+    expect(within(row).getByTestId('forecast-low')).toHaveTextContent(
+      `${euros(18_000)}Point bas · 29 nov.`,
+    )
+    expect(within(row).getByTestId('forecast-end')).toHaveTextContent(
+      `${euros(267_000)}Fin · 30 nov.`,
+    )
   })
 
   it('warns when the balance goes under the threshold', async () => {

@@ -12,7 +12,7 @@ import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { SeeLink } from './DashboardCardHeader'
 import { formatMonthName } from './DashboardTodos'
-import { ForecastRow } from './ForecastCard'
+import { ForecastPath } from './ForecastCard'
 import { GlanceRow } from './GlanceRow'
 import { budgetPace, daysInMonth } from './glance'
 import type { Pace } from './glance'
@@ -152,7 +152,7 @@ export function GlanceCard({
         <div className="space-y-0.5 border-t pt-1.5">
           {rows.map((row) =>
             row === 'forecast' ? (
-              <ForecastRow key={row} />
+              <ForecastPath key={row} />
             ) : (
               <NetWorthRow key={row} netWorth={netWorth} year={year} />
             ),
