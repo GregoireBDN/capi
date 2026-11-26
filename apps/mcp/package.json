@@ -10,7 +10,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-skill.mjs",
     "start": "node dist/index.js",
     "start:http": "node dist/index.js --http",
     "dev": "tsx src/index.ts",

@@ -163,7 +163,7 @@ export const savingsTool = defineTool({
   name: 'savings_and_goals',
   title: 'Épargne et enveloppes',
   description:
-    "Savings, in the app's words: « Épargné » (what was saved this month and month by month: income + expenses, transfers excluded) against the monthly « Cible », averages, « Mis de côté » (money moved to savings and investment accounts), « Livrets et placements » (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), and the envelopes (savings goals became envelopes in #430) (money set aside for a goal, split across accounts, never counted twice: net worth is unchanged by them) with what each holds per account, what it paid and what is still needed per month. Read only: envelopes are managed in the app.",
+    "Savings, in the app's words: « Épargné » (what was saved this month and month by month: income + expenses, transfers excluded) against the monthly « Cible », averages, « Mis de côté » (money moved to savings and investment accounts), « Livrets et placements » (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), and the envelopes (money set aside for a project, split across accounts, never counted twice: net worth is unchanged by them) with what each holds per account, what it paid and what is still needed per month. Read only: envelopes are managed in the app.",
   inputSchema: {
     months: z
       .number()

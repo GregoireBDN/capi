@@ -313,6 +313,23 @@ describe('ClaudeAccessPage', () => {
     expect(dialog).toHaveTextContent('vous validerez l’accès sur cette page')
   })
 
+  it('offers the Capi Skill to download, with where to install it', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: /Le Skill Capi/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    const link = within(dialog).getByRole('link', {
+      name: 'Télécharger le Skill',
+    })
+    expect(link).toHaveAttribute('href', '/capi-skill.zip')
+    expect(link).toHaveAttribute('download', 'capi-skill.zip')
+    expect(dialog).toHaveTextContent('Importer un skill')
+    expect(dialog).toHaveTextContent('~/.claude/skills/')
+  })
+
   it('opens an access: its calls in plain words, then revokes it after confirmation', async () => {
     const user = userEvent.setup()
     const now = Date.now()
