@@ -1,4 +1,10 @@
-import type { ParseIssue, ParseResult, ParsedRow } from './parsed-row'
+import {
+  issueCells,
+  type IssueDraft,
+  type ParseIssue,
+  type ParseResult,
+  type ParsedRow,
+} from './parsed-row'
 import { decodeWindows1252 } from './windows-1252'
 
 /**
@@ -86,7 +92,16 @@ export function parseCicCsv(input: Buffer): ParseResult {
     const line: Line = { lineNumber: i + 1, ...parseLine(lines[i]) }
     const result = parseRow(line, columns, headerLength)
     if ('row' in result) rows.push(result.row)
-    else issues.push({ lineNumber: line.lineNumber, message: result.error })
+    else {
+      issues.push({
+        lineNumber: line.lineNumber,
+        message: result.error,
+        ...(line.unterminatedQuote
+          ? {}
+          : { cells: issueCells(header.fields, line.fields, columns) }),
+        ...(result.draft ? { draft: result.draft } : {}),
+      })
+    }
   }
   return { rows, issues, ignoredColumns }
 }
@@ -236,7 +251,7 @@ function matchHeader(fields: string[]): ColumnIndexes {
   return columns
 }
 
-type RowResult = { row: ParsedRow } | { error: string }
+type RowResult = { row: ParsedRow } | { error: string; draft?: IssueDraft }
 
 function parseRow(
   line: Line,
@@ -287,7 +302,16 @@ function parseRow(
     amountCents === undefined ||
     balanceAfterCents === undefined
   ) {
-    return { error: errors.join('; ') }
+    return {
+      error: errors.join('; '),
+      draft: {
+        bookingDate: bookingDate ?? null,
+        valueDate: valueDate ?? null,
+        amountCents: amountCents ?? null,
+        balanceAfterCents: balanceAfterCents ?? null,
+        rawLabel: rawLabel === '' ? null : rawLabel,
+      },
+    }
   }
   return {
     row: {

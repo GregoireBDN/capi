@@ -210,7 +210,25 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           },
         })
         expect(result.preview!.issues).toEqual([
-          { lineNumber: 6, message: expect.stringContaining('date') },
+          {
+            lineNumber: 6,
+            message: expect.stringContaining('date'),
+            cells: [
+              { column: 'Date', value: '32/10/2026', field: 'date' },
+              { column: 'Date de valeur', value: '', field: 'valueDate' },
+              { column: 'Débit', value: '-1,00', field: 'debit' },
+              { column: 'Crédit', value: '', field: 'credit' },
+              { column: 'Libellé', value: 'FAUX', field: 'label' },
+              { column: 'Solde', value: '1,00', field: 'balance' },
+            ],
+            draft: {
+              bookingDate: null,
+              valueDate: null,
+              amountCents: -100,
+              balanceAfterCents: 100,
+              rawLabel: 'FAUX',
+            },
+          },
         ])
         expect(result.preview!.rows[0]).toMatchObject({
           index: 0,
@@ -765,6 +783,132 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
     })
   })
 
+  describe('typing an unreadable line (#433)', () => {
+    /** Line 6: the second coffee of Oct 2, its date mistyped. */
+    const BROKEN_COFFEE = `32/10/2026;;-3,90;;${COFFEE};`
+    const typedCoffee = {
+      bookingDate: '2026-10-02',
+      amountCents: -390,
+      rawLabel: ` ${COFFEE}  `,
+    }
+
+    it('checks a typed line with the file and imports it on commit', async () => {
+      await withFixture(async ({ tx, service, preview, accountId }) => {
+        const file = cicCsv(
+          [...HISTORY.slice(0, 2), HISTORY[3]],
+          [BROKEN_COFFEE],
+        )
+        const pending = await preview(file)
+        expect(pending.counts).toMatchObject({ rows: 3, new: 3, issues: 1 })
+        expect(pending.periodEnd).toBe('2026-10-03')
+
+        const fixed = await service.fixLine(pending.id, 5, {
+          ...typedCoffee,
+          bookingDate: '2026-10-06',
+        })
+        expect(fixed.counts).toMatchObject({ rows: 4, new: 4, issues: 0 })
+        expect(fixed.periodEnd).toBe('2026-10-06')
+        expect(fixed.preview!.issues).toEqual([])
+        const typed = fixed.preview!.rows.at(-1)!
+        expect(typed).toMatchObject({
+          index: 3,
+          lineNumber: 5,
+          bookingDate: '2026-10-06',
+          amountCents: -390,
+          rawLabel: COFFEE,
+          status: 'new',
+          fixedFrom: {
+            lineNumber: 5,
+            message: expect.stringContaining('date'),
+            cells: expect.arrayContaining([
+              { column: 'Date', value: '32/10/2026', field: 'date' },
+            ]),
+          },
+        })
+        expect(fixed.preview!.rows[0].fixedFrom).toBeNull()
+        expect(await storedTransactions(tx, accountId)).toHaveLength(0)
+
+        // Typed again: the line takes the new values, rows stay in file order.
+        const retyped = await service.fixLine(pending.id, 5, typedCoffee)
+        expect(retyped.preview!.rows.map((r) => r.lineNumber)).toEqual([
+          2, 3, 4, 5,
+        ])
+        expect(retyped.periodEnd).toBe('2026-10-03')
+
+        const committed = await service.commit(pending.id, {})
+        expect(committed.counts).toMatchObject({ inserted: 4, issues: 0 })
+        expect(await storedTransactions(tx, accountId)).toHaveLength(4)
+      })
+    })
+
+    it('finds a typed line already stored, as the nth identical row of the file', async () => {
+      await withFixture(async ({ service, preview }) => {
+        await service.commit((await preview(FILE_A)).id, {})
+        // The first coffee reads; the second one, typed, is the second
+        // stored coffee (occurrence index 1), not a new row.
+        const pending = await preview(
+          cicCsv(HISTORY.slice(0, 2), [BROKEN_COFFEE]),
+        )
+        expect(statuses(pending)).toEqual(['duplicate', 'duplicate'])
+        const fixed = await service.fixLine(pending.id, 4, typedCoffee)
+        expect(statuses(fixed)).toEqual(['duplicate', 'duplicate', 'duplicate'])
+        expect(fixed.preview!.rows[2].existing).toMatchObject({
+          bookingDate: '2026-10-02',
+          amountCents: -390,
+        })
+        expect((await service.commit(pending.id, {})).counts).toMatchObject({
+          inserted: 0,
+          duplicates: 3,
+        })
+      })
+    })
+
+    it('puts a typed line back as unreadable', async () => {
+      await withFixture(async ({ service, preview }) => {
+        const pending = await preview(
+          cicCsv(HISTORY.slice(0, 2), [BROKEN_COFFEE]),
+        )
+        await service.fixLine(pending.id, 4, typedCoffee)
+        const back = await service.unfixLine(pending.id, 4)
+        expect(back.counts).toMatchObject({ rows: 2, issues: 1 })
+        expect(back.preview!.issues).toEqual(pending.preview!.issues)
+        await expect(service.unfixLine(pending.id, 4)).rejects.toBeInstanceOf(
+          NotFoundException,
+        )
+      })
+    })
+
+    it('types only the unreadable lines of a pending import', async () => {
+      await withFixture(async ({ service, preview }) => {
+        const pending = await preview(
+          cicCsv(HISTORY.slice(0, 2), [BROKEN_COFFEE]),
+        )
+        // Line 2 was read: typing it would change its dedupe hash.
+        await expect(
+          service.fixLine(pending.id, 2, typedCoffee),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await expect(
+          service.fixLine(pending.id, 9, typedCoffee),
+        ).rejects.toBeInstanceOf(NotFoundException)
+        await expect(
+          service.fixLine(pending.id, 4, { ...typedCoffee, rawLabel: '  ' }),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await expect(
+          service.fixLine(
+            '00000000-0000-4000-8000-000000000000',
+            4,
+            typedCoffee,
+          ),
+        ).rejects.toBeInstanceOf(NotFoundException)
+
+        await service.commit(pending.id, {})
+        await expect(
+          service.fixLine(pending.id, 4, typedCoffee),
+        ).rejects.toBeInstanceOf(ConflictException)
+      })
+    })
+  })
+
   describe('history and undo', () => {
     it('lists committed and pending imports, newest first', async () => {
       await withFixture(async ({ tx, service, preview }) => {
@@ -960,7 +1104,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           profileName: 'Banque fictive',
           counts: { rows: 3, new: 3, issues: 1 },
         })
-        expect(detail.preview!.issues).toEqual([
+        expect(detail.preview!.issues).toMatchObject([
           { lineNumber: 5, message: 'Invalid or missing date' },
         ])
         expect(detail.preview!.ignoredColumns).toEqual([
@@ -985,6 +1129,57 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
         )
         expect(listed).toMatchObject({ profileId: null, profileName: null })
         await expect(preview(bytes)).rejects.toThrow(/^Unrecognised CSV format/)
+      })
+    })
+
+    it('changes a profile read with the wrong columns, then reads the file again (#433)', async () => {
+      await withFixture(async ({ tx, preview }) => {
+        const profiles = new ImportProfilesService({ db: tx } as never)
+        const bytes = fixture('other-bank.csv')
+        const inspection = await profiles.inspect(bytes)
+        const { suggestion } = inspection
+        const body = {
+          name: 'Banque fictive',
+          headers: inspection.headers,
+          encoding: inspection.encoding,
+          delimiter: inspection.delimiter,
+          decimalSeparator: suggestion.decimalSeparator,
+          dateFormat: suggestion.dateFormat!,
+          columns: {
+            // The value date taken for the booking date by mistake.
+            date: 'Date valeur',
+            label: suggestion.columns.label!,
+            debit: suggestion.columns.debit,
+            credit: suggestion.columns.credit,
+          },
+        }
+        const profile = await profiles.create(body)
+        const before = await preview(bytes)
+        expect(before.preview!.ignoredColumns).toContain('Date opération')
+
+        const changed = await profiles.update(profile.id, {
+          ...body,
+          name: 'Banque fictive (corrigé)',
+          columns: { ...body.columns, date: suggestion.columns.date! },
+        })
+        expect(changed).toMatchObject({
+          id: profile.id,
+          name: 'Banque fictive (corrigé)',
+          columns: { date: 'date operation' },
+        })
+        const after = await preview(bytes)
+        expect(after.profileId).toBe(profile.id)
+        expect(after.preview!.ignoredColumns).toContain('Date valeur')
+
+        await expect(
+          profiles.update(profile.id, {
+            ...body,
+            columns: { ...body.columns, date: 'Absente' },
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await expect(
+          profiles.update('00000000-0000-4000-8000-000000000000', body),
+        ).rejects.toBeInstanceOf(NotFoundException)
       })
     })
 

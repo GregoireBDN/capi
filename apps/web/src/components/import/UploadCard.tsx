@@ -33,7 +33,8 @@ interface UploadCardProps {
   accounts: AccountDto[]
   /** Account selected first when it is one of `accounts`. */
   defaultAccountId?: string
-  onPreview: (detail: ImportDetailDto) => void
+  /** With the file, kept to change its format from the preview (#433). */
+  onPreview: (detail: ImportDetailDto, file: File) => void
 }
 
 const ACCOUNT_TYPE_LABEL: Record<string, string> = {
@@ -84,7 +85,7 @@ export function UploadCard({
             throwOnError: false,
           }),
         )
-        return { detail }
+        return { detail, file }
       } catch (err) {
         if (!isUnrecognisedFormat(err)) throw err
         const inspection = await unwrap(
@@ -103,7 +104,7 @@ export function UploadCard({
       }
       // The pending import now appears in the history.
       void queryClient.invalidateQueries({ queryKey: importKeys.imports })
-      onPreview(result.detail)
+      onPreview(result.detail, result.file)
     },
     onError: (err) => setError(uploadErrorMessage(err)),
   })
@@ -167,7 +168,7 @@ export function UploadCard({
             accountId={accountId}
             inspection={mapping.inspection}
             defaultName={account?.institution ?? ''}
-            onPreview={onPreview}
+            onPreview={(detail) => onPreview(detail, mapping.file)}
             onCancel={() => setMapping(null)}
           />
         ) : (

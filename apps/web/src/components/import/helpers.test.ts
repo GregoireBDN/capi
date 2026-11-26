@@ -8,7 +8,9 @@ import {
 import { commitErrorMessage, uploadErrorMessage } from './errors'
 import {
   conflictReasonFr,
+  fileValuesOf,
   formatDate,
+  issueSentence,
   formatPeriod,
   parseIssueFr,
   undoDescription,
@@ -43,6 +45,117 @@ describe('format', () => {
       '4 colonnes au lieu de 6',
     )
     expect(parseIssueFr('Unknown problem')).toBe('ligne illisible')
+  })
+})
+
+describe('issueSentence', () => {
+  const cells = (entries: [string, string, string | null][]) =>
+    entries.map(([column, value, field]) => ({
+      column,
+      value,
+      field: field as never,
+    }))
+  const text = (parts: ReturnType<typeof issueSentence>) =>
+    parts.map((p) => (typeof p === 'string' ? p : p.value)).join('')
+
+  it('names the faulty date, or says it is missing', () => {
+    expect(
+      text(
+        issueSentence({
+          message: 'Invalid or missing date',
+          cells: cells([['Date', '31/11/2026', 'date']]),
+        }),
+      ),
+    ).toBe('La date 31/11/2026 n’existe pas.')
+    expect(
+      text(
+        issueSentence({
+          message: 'Invalid or missing date',
+          cells: cells([['Date', ' ', 'date']]),
+        }),
+      ),
+    ).toBe('La date est manquante.')
+  })
+
+  it('marks the file values apart from the text', () => {
+    expect(
+      issueSentence({
+        message: 'Both debit and credit are filled',
+        cells: cells([
+          ['Débit', '-5,00', 'debit'],
+          ['Crédit', '5,00', 'credit'],
+        ]),
+      }),
+    ).toEqual([
+      'Débit ',
+      { value: '-5,00' },
+      ' et crédit ',
+      { value: '5,00' },
+      ' sont remplis tous les deux : lequel garder ?',
+    ])
+  })
+
+  it('joins several problems and falls back on unknown ones', () => {
+    const both = cells([
+      ['Solde', 'abc', 'balance'],
+      ['Libellé', '', 'label'],
+    ])
+    expect(
+      text(
+        issueSentence({
+          message: 'Invalid balance; Missing label',
+          cells: both,
+        }),
+      ),
+    ).toBe('Le solde abc n’est pas un montant. Le libellé est vide.')
+    expect(
+      text(
+        issueSentence({
+          message: 'Invalid debit amount',
+          cells: cells([['Débit', '1x', 'debit']]),
+        }),
+      ),
+    ).toBe('Le montant 1x n’est pas lisible.')
+    expect(
+      text(
+        issueSentence({
+          message: 'Neither debit nor credit is filled',
+          cells: [],
+        }),
+      ),
+    ).toBe('Ni débit ni crédit : indiquez le montant.')
+    expect(
+      text(
+        issueSentence({ message: 'Unterminated quoted field', cells: null }),
+      ),
+    ).toBe('Guillemet non fermé.')
+    expect(text(issueSentence({ message: 'Something new', cells: [] }))).toBe(
+      'ligne illisible.',
+    )
+  })
+
+  it('gives the file value of each form field, the blamed ones apart', () => {
+    const values = fileValuesOf({
+      message: 'Both debit and credit are filled',
+      cells: cells([
+        ['Date', '19/11/2026', 'date'],
+        ['Date de valeur', '19/11/2026', 'valueDate'],
+        ['Débit', '-5,00', 'debit'],
+        ['Crédit', '5,00', 'credit'],
+        ['Libellé', 'CB FAKE', 'label'],
+        ['Solde', '', 'balance'],
+        ['Note', 'x', null],
+      ]),
+    })
+    expect(values?.values).toEqual({
+      date: '19/11/2026',
+      amount: '-5,00 / 5,00',
+      label: 'CB FAKE',
+    })
+    expect([...(values?.bad ?? [])]).toEqual(['amount'])
+    expect(
+      fileValuesOf({ message: 'Unterminated quoted field', cells: null }),
+    ).toBeNull()
   })
 })
 
@@ -111,12 +224,12 @@ describe('buildCommitPayload', () => {
 
   it('sends overrides only for imported rows whose category changed', () => {
     const payload = buildCommitPayload(previewRows, {
-      conflicts: { 2: 'skip' },
+      conflicts: { 4: 'skip' },
       categories: {
-        0: 'cat-food', // unchanged: proposed category
-        1: 'cat-pay', // new row: sent
-        2: 'cat-fun', // skipped conflict: not sent
-        3: 'cat-fun', // duplicate: never sent
+        2: 'cat-food', // unchanged: proposed category
+        3: 'cat-pay', // new row: sent
+        4: 'cat-fun', // skipped conflict: not sent
+        5: 'cat-fun', // duplicate: never sent
       },
     })
     expect(payload.categoryOverrides).toEqual([
@@ -126,8 +239,8 @@ describe('buildCommitPayload', () => {
 
   it('sends the override of a conflict imported anyway', () => {
     const payload = buildCommitPayload(previewRows, {
-      conflicts: { 2: 'import' },
-      categories: { 2: 'cat-fun' },
+      conflicts: { 4: 'import' },
+      categories: { 4: 'cat-fun' },
     })
     expect(payload).toEqual({
       conflictResolutions: [{ rowIndex: 2, action: 'import' }],
@@ -139,8 +252,8 @@ describe('buildCommitPayload', () => {
     expect(countForReview(previewRows, EMPTY_CHOICES)).toBe(1)
     expect(
       countForReview(previewRows, {
-        conflicts: { 2: 'import' },
-        categories: { 1: 'cat-pay' },
+        conflicts: { 4: 'import' },
+        categories: { 3: 'cat-pay' },
       }),
     ).toBe(1)
   })

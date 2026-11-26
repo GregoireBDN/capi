@@ -125,3 +125,24 @@ export function genericErrorMessage(error: unknown): string {
   if (error.status === 404) return 'Cet import n’existe plus.'
   return error.status >= 502 && error.status <= 504 ? NETWORK : SERVER
 }
+
+/** French message for a failed `PUT /imports/:id/lines/:lineNumber` (#433). */
+export function fixLineErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiRequestError) || error.status === null) {
+    return NETWORK
+  }
+  switch (error.status) {
+    case 400:
+      return 'Ces valeurs ne sont pas valides : vérifiez la date, le montant et le libellé.'
+    case 404:
+      return 'Cette ligne ou cet aperçu n’existe plus : importez à nouveau le fichier.'
+    case 409:
+      return error.apiMessage?.includes('outdated')
+        ? 'Cet aperçu est périmé : importez à nouveau le fichier.'
+        : 'Cet import a déjà été validé.'
+    case 401:
+      return SESSION
+    default:
+      return error.status >= 502 && error.status <= 504 ? NETWORK : SERVER
+  }
+}

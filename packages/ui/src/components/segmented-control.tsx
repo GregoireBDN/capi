@@ -110,8 +110,10 @@ function SegmentedControl<T extends string>({
       className={cn(
         [
           // Layout: equal segments (columns as wide as the widest label),
-          // as wide as them or the whole row
-          'grid max-w-full auto-cols-fr grid-flow-col items-stretch gap-0.5',
+          // as wide as them or the whole row; never narrower than a label,
+          // so a row too narrow scrolls (`auto-cols-fr`, `minmax(0, 1fr)`,
+          // let the labels overlap instead, #433)
+          'grid max-w-full auto-cols-[minmax(max-content,1fr)] grid-flow-col items-stretch gap-0.5',
           fullWidth ? 'w-full' : 'w-fit',
 
           // Track: 44px high with the padding, which also leaves room for

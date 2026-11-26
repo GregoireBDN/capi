@@ -4,7 +4,10 @@ import type {
   ImportPreviewRowDto,
 } from '#/api'
 
-/** Choices made in the preview, keyed by row index. */
+/**
+ * Choices made in the preview, keyed by the row's line in the file: a line
+ * typed in the preview (#433) renumbers the rows, never the lines.
+ */
 export interface PreviewChoices {
   /** Conflict rows only; a conflict without a choice is skipped. */
   conflicts: Record<number, ConflictAction | undefined>
@@ -18,7 +21,7 @@ export function conflictAction(
   row: ImportPreviewRowDto,
   choices: PreviewChoices,
 ): ConflictAction {
-  return choices.conflicts[row.index] ?? 'skip'
+  return choices.conflicts[row.lineNumber] ?? 'skip'
 }
 
 /** New rows, and conflicts the user chose to import. */
@@ -35,7 +38,7 @@ export function effectiveCategoryId(
   row: ImportPreviewRowDto,
   choices: PreviewChoices,
 ): string | null {
-  return choices.categories[row.index] ?? row.categoryId
+  return choices.categories[row.lineNumber] ?? row.categoryId
 }
 
 /**
@@ -53,7 +56,7 @@ export function buildCommitPayload(
       action: conflictAction(row, choices),
     }))
   const categoryOverrides = rows.flatMap((row) => {
-    const categoryId = choices.categories[row.index]
+    const categoryId = choices.categories[row.lineNumber]
     if (!categoryId || categoryId === row.categoryId) return []
     if (!willImport(row, choices)) return []
     return [{ rowIndex: row.index, categoryId }]
@@ -70,6 +73,6 @@ export function countForReview(
     (row) =>
       willImport(row, choices) &&
       row.needsReview &&
-      choices.categories[row.index] === undefined,
+      choices.categories[row.lineNumber] === undefined,
   ).length
 }

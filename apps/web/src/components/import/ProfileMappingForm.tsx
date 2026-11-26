@@ -22,13 +22,18 @@ import {
 } from '@capi/ui'
 import { CircleAlertIcon } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
-import { importProfilesControllerCreate, importsControllerPreview } from '#/api'
+import {
+  importProfilesControllerCreate,
+  importProfilesControllerUpdate,
+  importsControllerPreview,
+} from '#/api'
 import type {
   CsvDateFormat,
   CsvEncoding,
   CsvInspectionDto,
   DecimalSeparator,
   ImportDetailDto,
+  ImportProfileDto,
 } from '#/api'
 import { importKeys, unwrap } from './api'
 import { profileErrorMessage, uploadErrorMessage } from './errors'
@@ -68,8 +73,37 @@ interface ProfileMappingFormProps {
   inspection: CsvInspectionDto
   /** Suggested name of the source (the account's bank). */
   defaultName?: string
+  /**
+   * The saved format the file was read with, to change (#433): the form
+   * starts from it and saves over it instead of creating one.
+   */
+  profile?: ImportProfileDto
   onPreview: (detail: ImportDetailDto) => void
   onCancel: () => void
+}
+
+/** Header name as the API keys it (lower case, no accents, `_` as space). */
+function headerKey(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[_\s]+/g, ' ')
+    .trim()
+}
+
+/** The file's header names of a profile's stored columns. */
+function profileColumns(
+  profile: ImportProfileDto,
+  headers: string[],
+): Partial<Record<keyof Mapping, string>> {
+  const byKey = new Map(headers.map((header) => [headerKey(header), header]))
+  return Object.fromEntries(
+    Object.entries(profile.columns).map(([field, key]) => [
+      field,
+      byKey.get(key) ?? '',
+    ]),
+  )
 }
 
 /**
@@ -82,14 +116,17 @@ export function ProfileMappingForm({
   accountId,
   inspection,
   defaultName = '',
+  profile,
   onPreview,
   onCancel,
 }: ProfileMappingFormProps) {
   const id = useId()
   const queryClient = useQueryClient()
   const { suggestion, headers } = inspection
-  const guessed = suggestion.columns
-  const [name, setName] = useState(defaultName)
+  const guessed = profile
+    ? profileColumns(profile, headers)
+    : suggestion.columns
+  const [name, setName] = useState(profile?.name ?? defaultName)
   const [mode, setMode] = useState<AmountMode>(
     guessed.debit && guessed.credit && !guessed.amount
       ? 'debitCredit'
@@ -105,12 +142,14 @@ export function ProfileMappingForm({
     valueDate: guessed.valueDate ?? '',
   })
   const [dateFormat, setDateFormat] = useState<CsvDateFormat>(
-    suggestion.dateFormat ?? 'dd/mm/yyyy',
+    profile?.dateFormat ?? suggestion.dateFormat ?? 'dd/mm/yyyy',
   )
   const [decimal, setDecimal] = useState<DecimalSeparator>(
-    suggestion.decimalSeparator,
+    profile?.decimalSeparator ?? suggestion.decimalSeparator,
   )
-  const [encoding, setEncoding] = useState<CsvEncoding>(inspection.encoding)
+  const [encoding, setEncoding] = useState<CsvEncoding>(
+    profile?.encoding ?? inspection.encoding,
+  )
   const [error, setError] = useState<string | null>(null)
   /** Saved but not previewed yet (a failed preview is retried with it). */
   const saved = useRef<string | null>(null)
@@ -136,32 +175,36 @@ export function ProfileMappingForm({
           ? 'Une même colonne est choisie deux fois.'
           : null
 
-  const createProfile = async (): Promise<string> => {
+  const saveProfile = async (): Promise<string> => {
     const optional = (value: string) => (value === '' ? undefined : value)
     try {
-      const profile = await unwrap(
-        importProfilesControllerCreate({
-          body: {
-            name: name.trim(),
-            headers,
-            encoding,
-            delimiter: inspection.delimiter,
-            decimalSeparator: decimal,
-            dateFormat,
-            columns: {
-              date: mapping.date,
-              label: mapping.label,
-              ...(mode === 'amount'
-                ? { amount: mapping.amount }
-                : { debit: mapping.debit, credit: mapping.credit }),
-              balance: optional(mapping.balance),
-              valueDate: optional(mapping.valueDate),
-            },
-          },
-          throwOnError: false,
-        }),
+      const body = {
+        name: name.trim(),
+        headers,
+        encoding,
+        delimiter: inspection.delimiter,
+        decimalSeparator: decimal,
+        dateFormat,
+        columns: {
+          date: mapping.date,
+          label: mapping.label,
+          ...(mode === 'amount'
+            ? { amount: mapping.amount }
+            : { debit: mapping.debit, credit: mapping.credit }),
+          balance: optional(mapping.balance),
+          valueDate: optional(mapping.valueDate),
+        },
+      }
+      const stored = await unwrap(
+        profile
+          ? importProfilesControllerUpdate({
+              path: { id: profile.id },
+              body,
+              throwOnError: false,
+            })
+          : importProfilesControllerCreate({ body, throwOnError: false }),
       )
-      return profile.id
+      return stored.id
     } catch (err) {
       throw new Error(profileErrorMessage(err))
     }
@@ -170,7 +213,7 @@ export function ProfileMappingForm({
   const save = useMutation({
     mutationFn: async () => {
       if (saved.current === null) {
-        saved.current = await createProfile()
+        saved.current = await saveProfile()
         void queryClient.invalidateQueries({ queryKey: importKeys.profiles })
       }
       const profileId = saved.current
@@ -233,11 +276,13 @@ export function ProfileMappingForm({
       }}
     >
       <div className="space-y-1">
-        <h3 className="font-medium">Nouveau format de relevé</h3>
+        <h3 className="font-medium">
+          {profile ? 'Changer le format' : 'Nouveau format de relevé'}
+        </h3>
         <p className="text-muted-foreground text-sm">
-          « {file.name} » n’est dans aucun format connu. Indiquez quelle colonne
-          est laquelle : le format sera retenu pour les prochains fichiers de
-          cette banque.
+          {profile
+            ? `« ${file.name} » est lu avec le format « ${profile.name} ». Corrigez les colonnes : le fichier sera relu, et le format servira ainsi aux prochains fichiers.`
+            : `« ${file.name} » n’est dans aucun format connu. Indiquez quelle colonne est laquelle : le format sera retenu pour les prochains fichiers de cette banque.`}
         </p>
       </div>
 
@@ -408,7 +453,11 @@ export function ProfileMappingForm({
           Annuler
         </Button>
         <Button type="submit" disabled={invalid !== null || save.isPending}>
-          {save.isPending ? 'Lecture…' : 'Enregistrer et prévisualiser'}
+          {save.isPending
+            ? 'Lecture…'
+            : profile
+              ? 'Enregistrer et relire'
+              : 'Enregistrer et prévisualiser'}
         </Button>
       </div>
     </form>

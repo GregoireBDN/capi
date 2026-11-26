@@ -25,10 +25,13 @@ const api = vi.hoisted(() => ({
   importsControllerCommit: vi.fn(),
   importsControllerRemove: vi.fn(),
   importsControllerFindOne: vi.fn(),
+  importsControllerFixLine: vi.fn(),
+  importsControllerUnfixLine: vi.fn(),
   importProfilesControllerList: vi.fn(),
   importProfilesControllerInspect: vi.fn(),
   importProfilesControllerCreate: vi.fn(),
   importProfilesControllerRemove: vi.fn(),
+  importProfilesControllerUpdate: vi.fn(),
 }))
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -74,8 +77,9 @@ async function uploadPreview(user: ReturnType<typeof userEvent.setup>) {
   return screen.findByRole('region', { name: 'Opérations du fichier' })
 }
 
-function rowEl(index: number) {
-  return screen.getByTestId(`row-${index}`)
+/** A line of the file in the preview (fixture rows are lines 2 to 5). */
+function lineEl(lineNumber: number) {
+  return screen.getByTestId(`line-${lineNumber}`)
 }
 
 beforeEach(() => {
@@ -264,6 +268,83 @@ describe('ImportPage — a file in no known format (#431)', () => {
     })
   })
 
+  it('changes the format a file was read with, from its preview (#433)', async () => {
+    const saved = {
+      ...profile,
+      columns: {
+        date: 'date operation',
+        label: 'categorie',
+        debit: 'debit',
+        credit: 'credit',
+      },
+    }
+    const readWith = {
+      ...pendingDetail,
+      source: 'csv_profile' as const,
+      profileId: saved.id,
+      profileName: saved.name,
+    }
+    const readAgain = {
+      ...readWith,
+      id: '00000000-0000-4000-8000-0000000000cc',
+    }
+    api.importProfilesControllerList.mockResolvedValue(ok([saved]))
+    api.importsControllerPreview
+      .mockResolvedValueOnce(ok(readWith))
+      .mockResolvedValueOnce(ok(readAgain))
+    api.importProfilesControllerInspect.mockResolvedValue(ok(inspection))
+    api.importProfilesControllerUpdate.mockResolvedValue(ok(saved))
+    api.importsControllerRemove.mockResolvedValue(
+      ok({
+        id: readWith.id,
+        result: 'discarded',
+        removedTransactions: 0,
+        restoredManual: 0,
+      }),
+    )
+    const { user } = setup()
+    await user.upload(await screen.findByLabelText('Fichier CSV'), csv())
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Changer le format' }),
+    )
+    expect(await screen.findByText(/est lu avec le format/)).toBeInTheDocument()
+    // Starts from the saved format: the label read from the wrong column.
+    expect(screen.getByLabelText('Libellé')).toHaveValue('Catégorie')
+    await user.selectOptions(screen.getByLabelText('Libellé'), 'Libellé')
+    await user.click(
+      screen.getByRole('button', { name: 'Enregistrer et relire' }),
+    )
+
+    expect(
+      await screen.findByRole('region', { name: 'Opérations du fichier' }),
+    ).toBeInTheDocument()
+    expect(api.importProfilesControllerUpdate).toHaveBeenCalledWith({
+      path: { id: saved.id },
+      body: expect.objectContaining({
+        name: 'Banque fictive',
+        columns: expect.objectContaining({ label: 'Libellé' }),
+      }),
+      throwOnError: false,
+    })
+    expect(api.importProfilesControllerCreate).not.toHaveBeenCalled()
+    expect(api.importsControllerPreview).toHaveBeenLastCalledWith({
+      body: {
+        file: expect.any(File),
+        accountId: account.id,
+        profileId: saved.id,
+      },
+      throwOnError: false,
+    })
+    // The first reading is dropped: nothing was written by it.
+    await waitFor(() =>
+      expect(api.importsControllerRemove).toHaveBeenCalledWith({
+        path: { id: readWith.id },
+        throwOnError: false,
+      }),
+    )
+  })
+
   it('lists the saved formats and deletes one after confirmation', async () => {
     api.importProfilesControllerList.mockResolvedValue(
       ok([{ ...profile, lastUsedAt: '2026-11-02T09:00:00.000Z' }]),
@@ -291,23 +372,21 @@ describe('ImportPage — a file in no known format (#431)', () => {
 })
 
 describe('ImportPage — preview', () => {
-  it('shows the summary, continuity, parse issues and rows to process', async () => {
+  it('shows the summary, continuity, and every line of the file in order', async () => {
     const { user } = setup()
     const rows = await uploadPreview(user)
 
     const summary = screen.getByRole('region', { name: 'Résumé' })
     expect(
-      within(summary).getByText('Nouvelles').nextSibling,
-    ).toHaveTextContent('2')
-    expect(within(summary).getByText('Doublons').nextSibling).toHaveTextContent(
-      '1',
-    )
-    expect(
-      within(summary).getByText('À confirmer').nextSibling,
-    ).toHaveTextContent('1')
-    expect(
-      within(summary).getByText('Lignes illisibles').nextSibling,
-    ).toHaveTextContent('1')
+      within(summary)
+        .getAllByRole('listitem')
+        .map((tile) => tile.textContent),
+    ).toEqual([
+      '1À corrigerillisibles',
+      '1À confirmerdoublons',
+      '2Nouvellesà importer',
+      '1Déjà làignorées',
+    ])
     expect(summary).toHaveTextContent('du 02/03/2026 au 05/03/2026')
 
     expect(
@@ -316,20 +395,166 @@ describe('ImportPage — preview', () => {
     expect(
       screen.getByText(/Entre le 03\/03\/2026 et le 04\/03\/2026 \(ligne 4\)/),
     ).toBeInTheDocument()
-    expect(
-      screen.getByText(/Ligne 7 : Date invalide ou manquante/),
-    ).toBeInTheDocument()
     expect(screen.queryByText('Fichier déjà importé')).not.toBeInTheDocument()
 
-    // Default filter: new rows and conflicts; the duplicate is hidden.
-    expect(within(rows).getByText('CB FAKE BAKERY')).toBeInTheDocument()
-    expect(within(rowEl(0)).getByText('Nouvelle')).toBeInTheDocument()
-    expect(within(rowEl(2)).getByText('À confirmer')).toBeInTheDocument()
+    // What needs action first, in numbered steps; the line already
+    // imported is folded.
+    expect(
+      within(rows)
+        .getAllByRole('heading')
+        .map((heading) => heading.textContent),
+    ).toEqual([
+      '1Corriger 1 ligne illisible',
+      '2Confirmer 1 doublon probable',
+      '3Vérifier 2 nouvelles opérations',
+    ])
+    expect(
+      within(rows)
+        .getAllByTestId(/^line-/)
+        .map((el) => el.dataset.testid),
+    ).toEqual(['line-7', 'line-4', 'line-2', 'line-3'])
+    // One sentence names the faulty value; the form shows the file's values.
+    expect(
+      lineEl(7).querySelector('[data-slot="issue-sentence"]'),
+    ).toHaveTextContent('La date 32/03/2026 n’existe pas.')
+    const form7 = within(lineEl(7)).getByRole('form', {
+      name: 'Corriger la ligne 7',
+    })
+    expect(within(form7).getByText(/Dans le fichier :/)).toHaveTextContent(
+      'Dans le fichier : 32/03/2026',
+    )
+    expect(within(form7).getByLabelText('Date')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+    expect(
+      within(form7).getByText(
+        (_, el) =>
+          el?.textContent === 'Fichier : CB FAKE KIOSK' && el.tagName === 'P',
+      ),
+    ).toBeInTheDocument()
+    expect(within(form7).getByLabelText('Libellé')).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
+    // Its form is open from the start.
+    expect(
+      within(lineEl(7)).getByRole('form', { name: 'Corriger la ligne 7' }),
+    ).toBeInTheDocument()
     expect(within(rows).queryByText('CB FAKE GARAGE')).not.toBeInTheDocument()
 
-    await user.click(within(rows).getByRole('radio', { name: /Doublons/ }))
-    expect(within(rowEl(3)).getByText('Doublon')).toBeInTheDocument()
-    expect(within(rows).queryByText('CB FAKE BAKERY')).not.toBeInTheDocument()
+    const folded = within(rows).getByRole('button', {
+      name: '1 ligne déjà dans vos opérations',
+    })
+    expect(folded).toHaveAttribute('aria-expanded', 'false')
+    await user.click(folded)
+    expect(folded).toHaveAttribute('aria-expanded', 'true')
+    expect(within(lineEl(5)).getByText('CB FAKE GARAGE')).toBeInTheDocument()
+  })
+
+  it('shows the stored transaction a line already imported matches, with a link', async () => {
+    const { user } = setup()
+    const rows = await uploadPreview(user)
+    await user.click(
+      within(rows).getByRole('button', {
+        name: '1 ligne déjà dans vos opérations',
+      }),
+    )
+    expect(lineEl(5)).toHaveTextContent(
+      'Déjà enregistrée le 02/03/2026 : « CB FAKE GARAGE »',
+    )
+    const link = within(lineEl(5)).getByRole('link', {
+      name: 'Voir l’opération',
+    })
+    const href = new URL(link.getAttribute('href')!, 'http://app.test')
+    expect(href.pathname).toBe('/transactions')
+    expect(Object.fromEntries(href.searchParams)).toEqual({
+      month: '2026-03',
+      account: account.id,
+      q: 'CB FAKE GARAGE',
+    })
+  })
+
+  it('types an unreadable line in place and shows it checked again', async () => {
+    const typed = {
+      ...pendingDetail.preview!.rows[0],
+      index: 4,
+      lineNumber: 7,
+      bookingDate: '2026-03-31',
+      amountCents: -800,
+      rawLabel: 'CB FAKE KIOSK',
+      merchant: null,
+      fixedFrom: pendingDetail.preview!.issues[0],
+    }
+    api.importsControllerFixLine.mockResolvedValue(
+      ok({
+        ...pendingDetail,
+        counts: { ...pendingDetail.counts, rows: 5, new: 3, issues: 0 },
+        preview: {
+          ...pendingDetail.preview!,
+          issues: [],
+          rows: [...pendingDetail.preview!.rows, typed],
+        },
+      }),
+    )
+    const { user } = setup()
+    await uploadPreview(user)
+    expect(
+      screen.getByText('1 ligne illisible restera de côté.'),
+    ).toBeInTheDocument()
+
+    const form = screen.getByRole('form', { name: 'Corriger la ligne 7' })
+    // Starts from what the file held: the amount and the label.
+    expect(within(form).getByLabelText('Libellé')).toHaveValue('CB FAKE KIOSK')
+    expect(within(form).getByLabelText('Montant')).toHaveValue('8')
+    await user.click(within(form).getByRole('button', { name: 'Vérifier' }))
+    expect(within(form).getByText('Indiquez la date.')).toBeInTheDocument()
+    expect(api.importsControllerFixLine).not.toHaveBeenCalled()
+
+    await user.type(within(form).getByLabelText('Date'), '2026-03-31')
+    await user.click(within(form).getByRole('button', { name: 'Vérifier' }))
+    await waitFor(() =>
+      expect(api.importsControllerFixLine).toHaveBeenCalledWith({
+        path: { id: pendingDetail.id, lineNumber: 7 },
+        body: {
+          bookingDate: '2026-03-31',
+          valueDate: null,
+          amountCents: -800,
+          balanceAfterCents: null,
+          rawLabel: 'CB FAKE KIOSK',
+        },
+        throwOnError: false,
+      }),
+    )
+    // Now a new transaction, in step 3.
+    expect(await within(lineEl(7)).findByText('Corrigée')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: /^Vérifier/ })).getByTestId(
+        'line-7',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: /Corriger/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByText('3 opérations seront importées.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/restera de côté/)).not.toBeInTheDocument()
+    // Nothing is written before « Valider ».
+    expect(api.importsControllerCommit).not.toHaveBeenCalled()
+
+    // Put back as unreadable.
+    api.importsControllerUnfixLine.mockResolvedValue(ok(pendingDetail))
+    await user.click(
+      within(lineEl(7)).getByRole('button', { name: 'Ne pas importer' }),
+    )
+    expect(
+      await screen.findByRole('form', { name: 'Corriger la ligne 7' }),
+    ).toBeInTheDocument()
+    expect(api.importsControllerUnfixLine).toHaveBeenCalledWith({
+      path: { id: pendingDetail.id, lineNumber: 7 },
+      throwOnError: false,
+    })
   })
 
   it('shows the stored transaction next to a conflict, skipped by default', async () => {
@@ -340,17 +565,21 @@ describe('ImportPage — preview', () => {
     expect(
       within(rows).getByText(/Même montant, 1 jour d’écart/),
     ).toBeInTheDocument()
-    const decision = within(rows).getByRole('radiogroup', {
+    const decision = within(rows).getByRole('group', {
       name: /Décision pour/,
     })
     expect(
-      within(decision).getByRole('radio', { name: 'Ignorer' }),
-    ).toBeChecked()
+      within(decision).getByRole('button', { name: 'C’est la même' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(
-      within(decision).getByRole('radio', { name: 'Importer' }),
-    ).not.toBeChecked()
-    // A skipped row's category cannot be edited.
-    expect(categoryField('Catégorie de « CB FAKE CINEMA »')).toBeDisabled()
+      within(decision).getByRole('button', {
+        name: 'Ce sont deux opérations',
+      }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    // A skipped row has no category to pick.
+    expect(
+      screen.queryByLabelText('Catégorie de « CB FAKE CINEMA »'),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByText('2 opérations seront importées.'),
     ).toBeInTheDocument()
@@ -390,7 +619,9 @@ describe('ImportPage — preview', () => {
       categoryField('Catégorie de « CB FAKE BAKERY »'),
       'Loisirs',
     )
-    await user.click(screen.getByRole('radio', { name: 'Importer' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Ce sont deux opérations' }),
+    )
     await chooseCategory(
       user,
       categoryField('Catégorie de « CB FAKE CINEMA »'),
@@ -401,7 +632,7 @@ describe('ImportPage — preview', () => {
     ).toBeInTheDocument()
 
     const historyCalls = api.importsControllerList.mock.calls.length
-    await user.click(screen.getByRole('button', { name: 'Confirmer l’import' }))
+    await user.click(screen.getByRole('button', { name: 'Valider l’import' }))
 
     await waitFor(() =>
       expect(api.importsControllerCommit).toHaveBeenCalledWith({
@@ -459,34 +690,6 @@ describe('ImportPage — preview', () => {
     )
     expect(await screen.findByLabelText('Fichier CSV')).toBeInTheDocument()
     expect(api.importsControllerCommit).not.toHaveBeenCalled()
-  })
-
-  it('renders stacked cards below the laptop breakpoint', async () => {
-    const { user } = setup()
-    const rows = await uploadPreview(user)
-    expect(within(rows).queryByRole('table')).not.toBeInTheDocument()
-    expect(within(rows).getAllByRole('listitem')).toHaveLength(3)
-  })
-
-  it('renders a table on a wide screen', async () => {
-    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
-      (query: string) =>
-        ({
-          matches: query.includes('min-width: 1280px'),
-          media: query,
-          addEventListener: vi.fn(),
-          removeEventListener: vi.fn(),
-        }) as unknown as MediaQueryList,
-    )
-    const { user } = setup()
-    const rows = await uploadPreview(user)
-    expect(within(rows).getByRole('table')).toBeInTheDocument()
-    expect(
-      within(rows)
-        .getAllByRole('columnheader')
-        .map((th) => th.textContent),
-    ).toEqual(['Statut', 'Date', 'Libellé', 'Montant', 'Catégorie'])
-    matchMedia.mockRestore()
   })
 })
 

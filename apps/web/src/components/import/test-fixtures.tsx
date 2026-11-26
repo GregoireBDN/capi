@@ -113,6 +113,7 @@ function row(overrides: Partial<ImportPreviewRowDto>): ImportPreviewRowDto {
     kind: 'expense',
     needsReview: false,
     manualMatch: null,
+    fixedFrom: null,
     ...overrides,
   }
 }
@@ -209,7 +210,27 @@ export const pendingDetail: ImportDetailDto = {
       ],
       openingMismatch: null,
     },
-    issues: [{ lineNumber: 7, message: 'Invalid or missing date' }],
+    issues: [
+      {
+        lineNumber: 7,
+        message: 'Invalid or missing date',
+        cells: [
+          { column: 'Date', value: '32/03/2026', field: 'date' },
+          { column: 'Date de valeur', value: '', field: 'valueDate' },
+          { column: 'Débit', value: '-8,00', field: 'debit' },
+          { column: 'Crédit', value: '', field: 'credit' },
+          { column: 'Libellé', value: 'CB FAKE KIOSK', field: 'label' },
+          { column: 'Solde', value: '', field: 'balance' },
+        ],
+        draft: {
+          bookingDate: null,
+          valueDate: null,
+          amountCents: -800,
+          balanceAfterCents: null,
+          rawLabel: 'CB FAKE KIOSK',
+        },
+      },
+    ],
     ignoredColumns: [],
     rows: previewRows,
   },

@@ -246,7 +246,9 @@ describe('parseCicCsv — malformed rows', () => {
   })
 
   it('reports every bad row with its line number', () => {
-    expect(issues).toEqual([
+    expect(
+      issues.map(({ lineNumber, message }) => ({ lineNumber, message })),
+    ).toEqual([
       { lineNumber: 3, message: 'Invalid or missing date; Invalid value date' },
       { lineNumber: 4, message: 'Both debit and credit are filled' },
       { lineNumber: 5, message: 'Neither debit nor credit is filled' },
@@ -259,6 +261,41 @@ describe('parseCicCsv — malformed rows', () => {
       { lineNumber: 12, message: 'Invalid value date' },
       { lineNumber: 13, message: 'Missing label' },
     ])
+  })
+
+  it('keeps the cells of a bad row and what could be read from it (#433)', () => {
+    const byLine = new Map(issues.map((issue) => [issue.lineNumber, issue]))
+    expect(byLine.get(3)).toMatchObject({
+      cells: [
+        { column: 'Date', value: '31/02/2026', field: 'date' },
+        { column: 'Date de valeur', value: '31/02/2026', field: 'valueDate' },
+        { column: 'Débit', value: '-5,00', field: 'debit' },
+        { column: 'Crédit', value: '', field: 'credit' },
+        { column: 'Libellé', value: 'CB DATE INVALIDE', field: 'label' },
+        { column: 'Solde', value: '85,00', field: 'balance' },
+      ],
+      draft: {
+        bookingDate: null,
+        valueDate: null,
+        amountCents: -500,
+        balanceAfterCents: 8500,
+        rawLabel: 'CB DATE INVALIDE',
+      },
+    })
+    expect(byLine.get(10)?.draft).toMatchObject({
+      bookingDate: '2026-10-04',
+      amountCents: -500,
+      balanceAfterCents: null,
+    })
+    // Past the header's end, a cell has no column name.
+    expect(byLine.get(7)?.cells?.at(-1)).toEqual({
+      column: '',
+      value: 'EXTRA',
+      field: null,
+    })
+    expect(byLine.get(7)?.draft).toBeUndefined()
+    // An unclosed quote: the line could not be split.
+    expect(byLine.get(9)?.cells).toBeUndefined()
   })
 
   it('never puts amounts or labels in issue messages', () => {
