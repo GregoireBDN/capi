@@ -197,7 +197,7 @@ export function RulesPage() {
           )}
 
           <Card className="min-w-0 gap-0 py-0">
-            <ul aria-label="Règles par catégorie" className="divide-y">
+            <ul aria-label="Règles par catégorie" className="space-y-1">
               {groupRules(list, allCategories).map((group) => (
                 <li key={group.categoryId}>
                   <h2 className="bg-muted/40 flex min-h-11 items-center gap-2 px-4 py-2 text-sm font-medium">
@@ -217,7 +217,7 @@ export function RulesPage() {
                   </h2>
                   <ul
                     aria-label={`Règles vers ${group.category?.name ?? 'une catégorie inconnue'}`}
-                    className="divide-y"
+                    className="space-y-1"
                   >
                     {group.rules.map((rule) => (
                       <RuleRow

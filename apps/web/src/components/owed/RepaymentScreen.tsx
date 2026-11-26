@@ -293,7 +293,7 @@ function RepaymentForm({
                 Proposé : au plus près de {formatCents(available)}, les plus
                 anciennes d’abord.
               </p>
-              <ul className="divide-y">
+              <ul className="space-y-1">
                 {options.items.map((entry) => {
                   const on = checked.has(entry.id)
                   const over = overItem(entry.id)
@@ -367,7 +367,7 @@ function RepaymentForm({
         </>
       )}
 
-      <div className="space-y-2 border-t pt-3" aria-live="polite">
+      <div className="space-y-2 pt-3" aria-live="polite">
         {rest >= 0 ? (
           <p className="text-sm tabular-nums">
             <span className="font-medium">{formatCents(linked)} liés</span>

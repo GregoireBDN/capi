@@ -213,7 +213,7 @@ function CostList({
 }) {
   if (costs.length === 0 && fiatCents === 0) return null
   return (
-    <div className="space-y-1 border-t pt-3 text-xs">
+    <div className="space-y-1 pt-3 text-xs">
       {costs.length > 0 && (
         <>
           <h3 className="text-muted-foreground font-medium">Prix de revient</h3>

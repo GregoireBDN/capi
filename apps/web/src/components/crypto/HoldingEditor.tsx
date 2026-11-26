@@ -136,7 +136,7 @@ export function AssetPicker({
         <ul
           aria-label="Résultats"
           className={cn(
-            'divide-y rounded-md border',
+            'bg-muted/40 rounded-control space-y-1 py-1',
             !fill && 'max-h-56 overflow-y-auto',
           )}
         >

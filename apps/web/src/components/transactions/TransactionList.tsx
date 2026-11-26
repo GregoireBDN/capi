@@ -85,13 +85,9 @@ export function TransactionList({
         groupByDay(items).map((group) => {
           const heading = formatDay(group.date)
           return (
-            <section
-              key={group.date}
-              aria-label={heading}
-              className="not-first:[&>h2]:border-t"
-            >
+            <section key={group.date} aria-label={heading}>
               {/* under the header (AppHeader, h-12) */}
-              <h2 className="bg-muted/70 text-muted-foreground sticky top-0 z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
+              <h2 className="bg-card text-muted-foreground sticky top-0 z-[1] flex items-baseline justify-between gap-3 px-3 pt-3 pb-1 text-xs font-medium">
                 <time dateTime={group.date}>{heading}</time>
                 {group.hasTotal && (
                   <span
@@ -102,18 +98,18 @@ export function TransactionList({
                   </span>
                 )}
               </h2>
-              <ul className="divide-y px-1">{group.items.map(row)}</ul>
+              <ul className="space-y-0.5 px-1">{group.items.map(row)}</ul>
             </section>
           )
         })
       ) : (
-        <ul className="divide-y px-1" aria-label="Opérations">
+        <ul className="space-y-0.5 px-1" aria-label="Opérations">
           {items.map(row)}
         </ul>
       )}
 
       {hasMore && (
-        <div ref={sentinel} className="flex justify-center border-t p-3">
+        <div ref={sentinel} className="flex justify-center p-3">
           <Button
             outline
             variant="secondary"

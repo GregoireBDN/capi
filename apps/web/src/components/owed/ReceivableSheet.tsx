@@ -379,7 +379,7 @@ function ReceivableContent({
             <p className="text-muted-foreground text-xs font-medium">
               {item.forgivenCents > 0 ? 'Historique' : 'Remboursements'}
             </p>
-            <ul className="divide-y text-sm">
+            <ul className="space-y-1 text-sm">
               {item.payments.map((payment) => (
                 <li
                   key={payment.id}
@@ -528,7 +528,7 @@ function TransferPicker({
     )
   }
   return (
-    <ul className="divide-y">
+    <ul className="space-y-1">
       {candidates.map((transaction) => {
         const amount = Math.min(item.leftCents, freeOn(transaction))
         return (

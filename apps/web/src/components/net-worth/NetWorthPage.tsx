@@ -284,7 +284,7 @@ function Breakdown({
             )
           })}
         </ul>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t pt-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 pt-3">
           <p className="text-sm font-medium">Total</p>
           <p className="font-semibold whitespace-nowrap tabular-nums">
             {formatWholeEuros(point.netWorthCents)}

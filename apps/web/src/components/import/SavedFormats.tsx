@@ -43,7 +43,7 @@ export function SavedFormats() {
       <h3 id="saved-formats" className="text-sm font-medium">
         Formats enregistrés
       </h3>
-      <ul className="divide-y rounded-md border">
+      <ul className="bg-muted/40 rounded-control space-y-1 py-1">
         {list.map((profile) => (
           <li
             key={profile.id}

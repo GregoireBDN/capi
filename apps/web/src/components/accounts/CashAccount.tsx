@@ -515,7 +515,7 @@ function LatestTransactions({
                 onDismiss={() => actions.setOffer(null)}
               />
             )}
-            <ul className="-mx-3 divide-y" aria-label="Dernières opérations">
+            <ul className="-mx-3 space-y-1" aria-label="Dernières opérations">
               {items.map((item) => (
                 <TransactionRow
                   key={item.id}
@@ -650,7 +650,7 @@ function useImportsDetail({
               </Link>
             )}
             {committed.length > 0 && (
-              <ul className="divide-y text-sm" aria-label="Derniers imports">
+              <ul className="space-y-1 text-sm" aria-label="Derniers imports">
                 {committed.map((item) => (
                   <li
                     key={item.id}
@@ -749,7 +749,7 @@ function useRecurringDebitsDetail(accountId: string): AccountDetail | null {
     description: `${formatCents(monthly)} / mois en moyenne.`,
     content: (
       <div className="space-y-3">
-        <ul className="divide-y text-sm" aria-label="Prélèvements réguliers">
+        <ul className="space-y-1 text-sm" aria-label="Prélèvements réguliers">
           {items.map((item) => (
             <li
               key={item.id}
