@@ -6,8 +6,8 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
-    "build": "vite build",
+    "dev": "node scripts/build-skill-zip.mjs && vite dev --port 3000",
+    "build": "node scripts/build-skill-zip.mjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",

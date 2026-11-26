@@ -88,8 +88,8 @@ The methods (month-end review, importing a statement and the standard CSV format
 
 Install it once per place you use Claude (the MCP server or connector must be set up there too):
 
-- **claude.ai, Claude Desktop and the mobile apps** (one install for the account): zip the folder, `cd skills && zip -r ~/Downloads/capi-skill.zip capi`, then on claude.ai open Settings › Capabilities (« Fonctionnalités »), check that code execution and file creation is on, and under Skills choose « Upload skill » with the zip. Turn it on in the list. Upload a new zip after changing the Skill.
-- **Claude Code**: link the folder into your personal skills, `mkdir -p ~/.claude/skills && ln -s /absolute/path/to/finances/skills/capi ~/.claude/skills/capi`; it then follows `git pull`. Check with `/skills`.
+- **claude.ai, Claude Desktop and the mobile apps** (one install for the account): download the zip from the app, **Réglages › Claude et accès › Le Skill Capi** (`/capi-skill.zip`, built from `skills/capi/` by `apps/web/scripts/build-skill-zip.mjs` at each web build, so it follows the deployed version; or `cd skills && zip -r ~/Downloads/capi-skill.zip capi`), then on claude.ai open Settings › Capabilities (« Fonctionnalités »), check that code execution and file creation is on, and under Skills choose « Upload skill » with the zip. Turn it on in the list. Upload a new zip after changing the Skill.
+- **Claude Code**: unzip the same file into `~/.claude/skills/`, or, from a checkout, link the folder into your personal skills, `mkdir -p ~/.claude/skills && ln -s /absolute/path/to/finances/skills/capi ~/.claude/skills/capi`; it then follows `git pull`. Check with `/skills`.
 
 Use: ask in plain words (« fais le bilan d'octobre », « importe ce relevé », « mets à jour mes placements depuis Drive ») with the Capi connector on in the conversation; Claude loads the Skill by itself. The Skill holds no token, URL or real data, only synthetic examples.
 

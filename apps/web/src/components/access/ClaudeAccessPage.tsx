@@ -3,6 +3,7 @@ import { cn } from '@capi/ui/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import {
   BanIcon,
+  BookOpenIcon,
   CheckIcon,
   ChevronRightIcon,
   KeyRoundIcon,
@@ -27,12 +28,14 @@ import { mergeAccesses } from './accesses'
 import type { AccessItem } from './accesses'
 import { ConnectorSheet } from './ConnectorSheet'
 import { ConnectSheet } from './ConnectSheet'
+import { SkillSheet } from './SkillSheet'
 import type { TokenTarget } from './ConnectSheet'
 
 /**
  * « Claude et accès » (#329, the owner's direction « A. Choix d’abord »):
  * what Claude can and can't do, « Connecter Claude » (this Mac,
- * the phone and claude.ai while remote access is on, a script), then every
+ * the phone and claude.ai while remote access is on, the Capi Skill (#497),
+ * a script), then every
  * access in one list.
  */
 export function ClaudeAccessPage({ email }: { email: string }) {
@@ -40,6 +43,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
   const grants = useQuery(grantsQuery)
   const [connect, setConnect] = useState<TokenTarget | null>(null)
   const [connectorOpen, setConnectorOpen] = useState(false)
+  const [skillOpen, setSkillOpen] = useState(false)
   const [openKey, setOpenKey] = useState<string | null>(null)
 
   // `null`: remote access is off on this server (the API answers 404).
@@ -78,6 +82,13 @@ export function ClaudeAccessPage({ email }: { email: string }) {
               onClick={() => setConnectorOpen(true)}
             />
           )}
+          <RowButton
+            icon={BookOpenIcon}
+            tone="success"
+            title="Le Skill Capi"
+            state="Bilan du mois, relevés et placements, pas à pas"
+            onClick={() => setSkillOpen(true)}
+          />
         </ul>
         <Button
           type="button"
@@ -137,6 +148,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
         open={connectorOpen}
         onClose={() => setConnectorOpen(false)}
       />
+      <SkillSheet open={skillOpen} onClose={() => setSkillOpen(false)} />
       <AccessDetailSheet access={opened} onClose={() => setOpenKey(null)} />
     </>
   )

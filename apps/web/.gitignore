@@ -16,3 +16,6 @@ src/api/
 # Playwright
 test-results/
 playwright-report/
+
+# Built from skills/capi by scripts/build-skill-zip.mjs (#497)
+public/capi-skill.zip
