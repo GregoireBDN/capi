@@ -7,7 +7,13 @@ import * as schema from './index'
 import {
   accountsTable,
   balanceSnapshotsTable,
+  categoriesTable,
   contactsTable,
+  dashboardWidgetAccountsTable,
+  dashboardWidgetCategoriesTable,
+  dashboardWidgetEnvelopesTable,
+  dashboardWidgetsTable,
+  envelopesTable,
   cryptoImportsTable,
   cryptoMovementsTable,
   cryptoTransferLinksTable,
@@ -16,10 +22,10 @@ import {
   type InsertRecurringItem,
   type InsertTransaction,
   monthClosesTable,
+  receivableOffsetsTable,
   receivablePaymentsTable,
   receivablesTable,
   recurringItemsTable,
-  savingsGoalsTable,
   transactionsTable,
 } from './index'
 
@@ -894,28 +900,6 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
     })
   })
 
-  describe('savings goals', () => {
-    it('keeps a typed amount on manual goals only', async () => {
-      await inRollback(async (tx) => {
-        const goal = { name: 'Objectif fictif', targetCents: 100_000 }
-        await refused(tx, 'savings_goals_manual_amount_iff_manual', (nested) =>
-          nested
-            .insert(savingsGoalsTable)
-            .values({ ...goal, source: 'accounts', manualAmountCents: 500 }),
-        )
-        await refused(tx, 'savings_goals_manual_amount_iff_manual', (nested) =>
-          nested
-            .insert(savingsGoalsTable)
-            .values({ ...goal, source: 'manual', manualAmountCents: null }),
-        )
-        await tx.insert(savingsGoalsTable).values([
-          { ...goal, source: 'accounts' },
-          { ...goal, source: 'manual', manualAmountCents: 0 },
-        ])
-      })
-    })
-  })
-
   describe('month closes', () => {
     it('refuses a ticked step that does not exist', async () => {
       await inRollback(async (tx) => {
@@ -1172,6 +1156,149 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('keeps an offset balanced: one contact, both sides, the same amount, undone as one (#484)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const lea = await contact(tx, 'Autre contact fictif')
+        const [paid] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [debt, debtLea] = await tx
+          .insert(transactionsTable)
+          .values([
+            manualRow(null as never, {
+              paidByContactId: sam.id,
+              amountCents: -500,
+              dedupeHash: 'manual:00000000-0000-4000-8000-000000000002',
+            }),
+            manualRow(null as never, {
+              paidByContactId: lea.id,
+              amountCents: -500,
+              dedupeHash: 'manual:00000000-0000-4000-8000-000000000003',
+            }),
+          ])
+          .returning()
+        const [owed, owe, oweLea] = await tx
+          .insert(receivablesTable)
+          .values([
+            {
+              direction: 'owed_to_me',
+              transactionId: paid.id,
+              contactId: sam.id,
+              amountCents: 400,
+            },
+            {
+              direction: 'i_owe',
+              transactionId: debt.id,
+              contactId: sam.id,
+              amountCents: 500,
+            },
+            {
+              direction: 'i_owe',
+              transactionId: debtLea.id,
+              contactId: lea.id,
+              amountCents: 500,
+            },
+          ])
+          .returning()
+        /** Writes an offset of `amount` with these sides, checked at once. */
+        const offset = async (
+          n: Tx,
+          amount: number,
+          sides: { receivableId: string; amountCents: number }[],
+        ) => {
+          const [made] = await n
+            .insert(receivableOffsetsTable)
+            .values({
+              contactId: sam.id,
+              amountCents: amount,
+              offsetOn: '2026-10-20',
+            })
+            .returning()
+          await n.insert(receivablePaymentsTable).values(
+            sides.map((side) => ({
+              ...side,
+              paidOn: '2026-10-20',
+              offsetId: made.id,
+            })),
+          )
+          await n.execute(sql`set constraints all immediate`)
+          return made
+        }
+        const offsetRefused = async (
+          constraint: string,
+          amount: number,
+          sides: { receivableId: string; amountCents: number }[],
+        ) => {
+          await refused(tx, constraint, (n) => offset(n, amount, sides))
+          await tx.execute(sql`set constraints all deferred`)
+        }
+
+        await refused(tx, 'receivable_offsets_amount_positive', (n) =>
+          n.insert(receivableOffsetsTable).values({
+            contactId: sam.id,
+            amountCents: 0,
+            offsetOn: '2026-10-20',
+          }),
+        )
+        // One side only, two amounts, or another contact's item.
+        await offsetRefused('receivable_offsets_balanced', 300, [
+          { receivableId: owed.id, amountCents: 300 },
+        ])
+        await offsetRefused('receivable_offsets_balanced', 300, [
+          { receivableId: owed.id, amountCents: 300 },
+          { receivableId: owe.id, amountCents: 200 },
+        ])
+        await offsetRefused('receivable_offsets_balanced', 300, [
+          { receivableId: owed.id, amountCents: 300 },
+          { receivableId: oweLea.id, amountCents: 300 },
+        ])
+        // Never past what is left: 400 owed to the owner.
+        await offsetRefused('receivables_settled_within_share', 450, [
+          { receivableId: owed.id, amountCents: 450 },
+          { receivableId: owe.id, amountCents: 450 },
+        ])
+        // An offset's repayment has no transfer.
+        await refused(
+          tx,
+          'receivable_payments_offset_without_transaction',
+          (n) =>
+            n.insert(receivablePaymentsTable).values({
+              receivableId: owed.id,
+              transactionId: paid.id,
+              amountCents: 100,
+              paidOn: '2026-10-20',
+              offsetId: '00000000-0000-4000-8000-000000000099',
+            }),
+        )
+
+        const made = await offset(tx, 400, [
+          { receivableId: owed.id, amountCents: 400 },
+          { receivableId: owe.id, amountCents: 400 },
+        ])
+        // One side can't be unlinked alone.
+        await refused(tx, 'receivable_offsets_balanced', async (n) => {
+          await n
+            .delete(receivablePaymentsTable)
+            .where(eq(receivablePaymentsTable.receivableId, owe.id))
+          await n.execute(sql`set constraints all immediate`)
+        })
+        await tx.execute(sql`set constraints all deferred`)
+        // Undone as one: both sides go with it.
+        await tx
+          .delete(receivableOffsetsTable)
+          .where(eq(receivableOffsetsTable.id, made.id))
+        await tx.execute(sql`set constraints all immediate`)
+        const left = await tx
+          .select()
+          .from(receivablePaymentsTable)
+          .where(eq(receivablePaymentsTable.offsetId, made.id))
+        expect(left).toEqual([])
+      })
+    })
+
     it('keeps a recurring share whole: a contact, a start and one of a rate or an amount', async () => {
       await inRollback(async (tx) => {
         const checking = await account(tx)
@@ -1205,6 +1332,206 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
         await refused(tx, 'contacts_name_unique', (n) =>
           n.insert(contactsTable).values({ name: 'camille' }),
         )
+      })
+    })
+  })
+
+  describe('dashboard layout (#495)', () => {
+    async function widget(
+      tx: Tx,
+      values: Partial<typeof dashboardWidgetsTable.$inferInsert> = {},
+    ) {
+      const [created] = await tx
+        .insert(dashboardWidgetsTable)
+        .values({ type: 'balances', position: 0, ...values })
+        .returning()
+      return created
+    }
+
+    it('takes each element once, at one place each, from 0', async () => {
+      await inRollback(async (tx) => {
+        await widget(tx)
+        await refused(tx, 'dashboard_widgets_type_unique', (n) =>
+          widget(n, { position: 1 }),
+        )
+        await refused(tx, 'dashboard_widgets_position_unique', (n) =>
+          widget(n, { type: 'owed' }),
+        )
+        await refused(tx, 'dashboard_widgets_position_positive', (n) =>
+          widget(n, { type: 'owed', position: -1 }),
+        )
+      })
+    })
+
+    it('keeps settings an object', async () => {
+      await inRollback(async (tx) => {
+        await refused(tx, 'dashboard_widgets_settings_object', (n) =>
+          n.execute(
+            sql`insert into dashboard_widgets (type, position, settings)
+                values ('owed', 0, '[]'::jsonb)`,
+          ),
+        )
+      })
+    })
+
+    it('chooses accounts only on the elements that show them, envelopes only on Enveloppes', async () => {
+      await inRollback(async (tx) => {
+        await refused(tx, 'dashboard_widgets_accounts_chosen_type', (n) =>
+          widget(n, { type: 'owed', accountsChosen: true }),
+        )
+        await refused(tx, 'dashboard_widgets_envelopes_chosen_type', (n) =>
+          widget(n, { envelopesChosen: true }),
+        )
+      })
+    })
+
+    it('names accounts and envelopes only while chosen ones are shown', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const [trip] = await tx
+          .insert(envelopesTable)
+          .values({ name: 'Voyage fictif' })
+          .returning()
+        const all = await widget(tx)
+        const envelopes = await widget(tx, { type: 'envelopes', position: 1 })
+        await refused(tx, 'dashboard_widget_accounts_chosen', (n) =>
+          n
+            .insert(dashboardWidgetAccountsTable)
+            .values({ widgetId: all.id, accountId: checking.id, position: 0 }),
+        )
+        await refused(tx, 'dashboard_widget_envelopes_chosen', (n) =>
+          n
+            .insert(dashboardWidgetEnvelopesTable)
+            .values({ widgetId: envelopes.id, envelopeId: trip.id }),
+        )
+
+        await tx
+          .update(dashboardWidgetsTable)
+          .set({ accountsChosen: true })
+          .where(eq(dashboardWidgetsTable.id, all.id))
+        await tx
+          .insert(dashboardWidgetAccountsTable)
+          .values({ widgetId: all.id, accountId: checking.id, position: 0 })
+        // Back to « tous » without clearing them: refused.
+        await refused(tx, 'dashboard_widget_accounts_chosen', (n) =>
+          n
+            .update(dashboardWidgetsTable)
+            .set({ accountsChosen: false })
+            .where(eq(dashboardWidgetsTable.id, all.id)),
+        )
+        // A deleted account leaves the element by itself.
+        await tx.delete(accountsTable).where(eq(accountsTable.id, checking.id))
+        const left = await tx
+          .select()
+          .from(dashboardWidgetAccountsTable)
+          .where(eq(dashboardWidgetAccountsTable.widgetId, all.id))
+        expect(left).toEqual([])
+      })
+    })
+
+    it('gives each chosen account its own place, from 0', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const savings = await account(tx, {
+          name: 'Livret fictif',
+          type: 'savings',
+        })
+        const chosen = await widget(tx, { accountsChosen: true })
+        await tx
+          .insert(dashboardWidgetAccountsTable)
+          .values({ widgetId: chosen.id, accountId: checking.id, position: 0 })
+        await refused(tx, 'dashboard_widget_accounts_position_unique', (n) =>
+          n.insert(dashboardWidgetAccountsTable).values({
+            widgetId: chosen.id,
+            accountId: savings.id,
+            position: 0,
+          }),
+        )
+        await refused(tx, 'dashboard_widget_accounts_position', (n) =>
+          n.insert(dashboardWidgetAccountsTable).values({
+            widgetId: chosen.id,
+            accountId: savings.id,
+            position: -1,
+          }),
+        )
+      })
+    })
+  })
+
+  describe('dashboard « Budgets suivis » categories (#495)', () => {
+    async function category(
+      tx: Tx,
+      kind: 'expense' | 'income' = 'expense',
+      slug = `fictive-${kind}`,
+    ) {
+      const [created] = await tx
+        .insert(categoriesTable)
+        .values({ slug, name: slug, kind })
+        .returning()
+      return created
+    }
+
+    it('chooses categories only on Budgets suivis, only while chosen ones are shown, expenses only', async () => {
+      await inRollback(async (tx) => {
+        const groceries = await category(tx)
+        const salary = await category(tx, 'income')
+        const transport = await category(tx, 'expense', 'fictive-transport')
+        await refused(tx, 'dashboard_widgets_categories_chosen_type', (n) =>
+          n
+            .insert(dashboardWidgetsTable)
+            .values({ type: 'owed', position: 0, categoriesChosen: true }),
+        )
+        const [tracked] = await tx
+          .insert(dashboardWidgetsTable)
+          .values({ type: 'tracked_budgets', position: 0 })
+          .returning()
+        await refused(tx, 'dashboard_widget_categories_chosen', (n) =>
+          n.insert(dashboardWidgetCategoriesTable).values({
+            widgetId: tracked.id,
+            categoryId: groceries.id,
+            position: 0,
+          }),
+        )
+        await tx
+          .update(dashboardWidgetsTable)
+          .set({ categoriesChosen: true })
+          .where(eq(dashboardWidgetsTable.id, tracked.id))
+        await refused(tx, 'dashboard_widget_categories_expense', (n) =>
+          n.insert(dashboardWidgetCategoriesTable).values({
+            widgetId: tracked.id,
+            categoryId: salary.id,
+            position: 0,
+          }),
+        )
+        await tx.insert(dashboardWidgetCategoriesTable).values({
+          widgetId: tracked.id,
+          categoryId: groceries.id,
+          position: 0,
+        })
+        await refused(tx, 'dashboard_widget_categories_position', (n) =>
+          n.insert(dashboardWidgetCategoriesTable).values({
+            widgetId: tracked.id,
+            categoryId: transport.id,
+            position: -1,
+          }),
+        )
+        // Back to the tracked lines without clearing them: refused.
+        await refused(tx, 'dashboard_widget_categories_chosen', (n) =>
+          n
+            .update(dashboardWidgetsTable)
+            .set({ categoriesChosen: false })
+            .where(eq(dashboardWidgetsTable.id, tracked.id)),
+        )
+        // No longer an expense: it leaves the element in the same write.
+        await tx
+          .update(categoriesTable)
+          .set({ kind: 'income' })
+          .where(eq(categoriesTable.id, groceries.id))
+        const left = await tx
+          .select()
+          .from(dashboardWidgetCategoriesTable)
+          .where(eq(dashboardWidgetCategoriesTable.widgetId, tracked.id))
+        expect(left).toEqual([])
       })
     })
   })

@@ -2,11 +2,11 @@ import {
   Button,
   cn,
   ConfirmDialog,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
   NativeSelect,
   NativeSelectOption,
   Sheet,
@@ -55,7 +55,7 @@ export function SecuritiesFacts({ accountId }: { accountId: string }) {
   const dividends = useQuery(dividendsQuery(accountId))
   const data = dividends.data
   return (
-    <div className="space-y-2 border-t pt-4">
+    <div className="space-y-2 pt-4">
       {data && (
         <p className="flex items-baseline gap-x-3 text-sm">
           <span className="text-muted-foreground min-w-0 break-normal">
@@ -341,13 +341,13 @@ export function DividendSheet({
             <FormSheetBody>
               <Field data-invalid={errors.paidOn !== undefined}>
                 <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-                <Input
+                <DateField
                   id={`${id}-date`}
-                  type="date"
+                  title="Date du dividende"
                   max={today}
                   value={paidOn}
                   aria-invalid={errors.paidOn !== undefined}
-                  onChange={(event) => setPaidOn(event.target.value)}
+                  onChange={setPaidOn}
                 />
                 {errors.paidOn && <FieldError>{errors.paidOn}</FieldError>}
               </Field>

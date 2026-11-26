@@ -51,6 +51,11 @@ export interface PreviewRow {
    * category and note. Absent from previews made before #137.
    */
   manualMatch?: ManualExpenseSummary | null
+  /**
+   * The unreadable line this row was typed in place of, in the preview
+   * (#433): its reason and cells. Absent for the rows read from the file.
+   */
+  fixedFrom?: ParseIssue | null
 }
 
 export interface PreviewCounts {

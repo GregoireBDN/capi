@@ -1075,6 +1075,20 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
               aheadOfPace: false,
             }),
           ])
+          // Every expense line with `all` (#495), each saying if it is tracked.
+          const all = await service.envelopes(undefined, tx, NOW, {
+            all: true,
+          })
+          expect(
+            all.items.map((item) => [item.categoryId, item.tracked]),
+          ).toEqual(
+            expect.arrayContaining([
+              [groceries, true],
+              [leisure, true],
+              [rent, false],
+            ]),
+          )
+          expect(all.items).toHaveLength(3)
         },
       )
     })

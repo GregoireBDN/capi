@@ -112,7 +112,7 @@ export function ForecastItems({ forecast }: { forecast: ForecastDto }) {
           </ol>
         )}
         {estimate && estimate.days > 0 && (
-          <div className="flex items-start gap-2 border-t pt-3 text-sm">
+          <div className="flex items-start gap-2 pt-3 text-sm">
             <span className="min-w-0 flex-1 space-y-0.5">
               <span className="flex flex-wrap items-center gap-2">
                 Dépenses courantes

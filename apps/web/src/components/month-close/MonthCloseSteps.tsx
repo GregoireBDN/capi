@@ -7,7 +7,6 @@ import {
   CategoryIcon,
   Checkbox,
   cn,
-  formatPercent,
   formatWholeEuros,
   Label,
   ProgressMeter,
@@ -30,6 +29,7 @@ import { formatCents } from '#/lib/money'
 import { INTEGRITY_TITLE, IntegrityStep, integrityDone } from './IntegrityStep'
 import type { IntegrityState } from './IntegrityStep'
 import { formatShortDay } from '#/lib/period'
+import { EnvelopeAvatar } from '#/components/envelopes/EnvelopeAvatar'
 import { ROUTES } from '#/lib/routes'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
 
@@ -212,7 +212,7 @@ function ImportsStep({ review }: { review: MonthCloseDto }) {
       {accounts.length === 0 ? (
         <p className="text-muted-foreground">Aucun compte courant ou livret.</p>
       ) : (
-        <ul className="divide-y">
+        <ul className="space-y-1">
           {accounts.map((account) => (
             <li
               key={account.id}
@@ -468,20 +468,23 @@ function SavingsStep(props: StepsProps) {
           <span className="text-muted-foreground">(pas de cible)</span>
         </p>
       )}
-      {savings.goals.length > 0 && (
-        <ul className="space-y-1" aria-label="Objectifs">
-          {savings.goals.map((goal) => (
+      {savings.envelopes.length > 0 && (
+        <ul className="space-y-1" aria-label="Enveloppes">
+          {savings.envelopes.map((envelope) => (
             <li
-              key={goal.id}
-              className="flex flex-wrap justify-between gap-x-3"
+              key={envelope.id}
+              className="flex flex-wrap items-center justify-between gap-x-3"
             >
-              <span className="min-w-[7rem] flex-1 break-words">
-                {goal.name}
+              <span className="flex min-w-[7rem] flex-1 items-center gap-2 break-words">
+                <EnvelopeAvatar envelope={envelope} size="sm" />
+                {envelope.name}
               </span>
               <span className="text-muted-foreground ml-auto whitespace-nowrap tabular-nums">
-                {goal.reached
+                {envelope.reached
                   ? 'atteint'
-                  : `${formatPercent(goal.progressRatio)} de ${formatWholeEuros(goal.targetCents)}`}
+                  : envelope.targetCents === null
+                    ? formatWholeEuros(envelope.totalCents)
+                    : `${formatWholeEuros(envelope.totalCents)} / ${formatWholeEuros(envelope.targetCents)}`}
               </span>
             </li>
           ))}
@@ -505,7 +508,7 @@ function InvestmentsStep({ review }: { review: MonthCloseDto }) {
     )
   }
   return (
-    <ul className="divide-y">
+    <ul className="space-y-1">
       {accounts.map((account) => (
         <li
           key={account.id}

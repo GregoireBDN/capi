@@ -169,8 +169,10 @@ const envelopes: EnvelopesDto = {
       color: null,
       icon: null,
       targetCents: 10_000,
+      tracked: true,
       spentCents: 2_000,
       manualCents: 0,
+      envelopePaidCents: 0,
       remainingCents: 8_000,
       paceCents: 4_333,
       aheadOfPace: false,
@@ -183,8 +185,10 @@ const envelopes: EnvelopesDto = {
       color: '#db2777',
       icon: 'party-popper',
       targetCents: 15_000,
+      tracked: true,
       spentCents: 9_000,
       manualCents: 2_500,
+      envelopePaidCents: 0,
       remainingCents: 6_000,
       paceCents: 6_500,
       aheadOfPace: true,
@@ -193,13 +197,13 @@ const envelopes: EnvelopesDto = {
   ],
 }
 
-function renderCard() {
+function renderCard(categoryIds: string[] | null = null) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MonthEnvelopes />
+      <MonthEnvelopes categoryIds={categoryIds} />
     </QueryClientProvider>,
   )
 }
@@ -236,10 +240,32 @@ function currentStep(dialog: HTMLElement): string {
 }
 
 describe('MonthEnvelopes', () => {
+  it('shows the budgets chosen in its settings, in their order, tracked or not', async () => {
+    api.budgetsControllerEnvelopes.mockImplementation(() =>
+      ok({
+        ...envelopes,
+        items: envelopes.items.map((item) =>
+          item.categoryId === OUTINGS ? { ...item, tracked: false } : item,
+        ),
+      }),
+    )
+    renderCard([OUTINGS, SHOPPING])
+    const card = await screen.findByRole('region', { name: 'Budgets suivis' })
+    await within(card).findByRole('meter', { name: 'Sorties' })
+    expect(
+      within(card)
+        .getAllByRole('meter')
+        .map((meter) => meter.getAttribute('aria-label')),
+    ).toEqual(['Sorties', 'Shopping'])
+    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith(
+      expect.objectContaining({ query: { all: true } }),
+    )
+  })
+
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
 
-    const card = await screen.findByRole('region', { name: 'Enveloppes' })
+    const card = await screen.findByRole('region', { name: 'Budgets suivis' })
     const outings = await within(card).findByRole('meter', { name: 'Sorties' })
     expect(outings).toHaveAttribute('aria-valuenow', '9000')
     expect(text(outings.getAttribute('aria-valuetext')!)).toBe(
@@ -827,7 +853,7 @@ describe('MonthEnvelopes', () => {
     renderCard()
 
     expect(
-      await screen.findByRole('link', { name: 'Choisir les enveloppes' }),
+      await screen.findByRole('link', { name: 'Choisir les budgets suivis' }),
     ).toHaveAttribute('href', '/budget')
     expect(screen.queryByText(/Jour 13/)).not.toBeInTheDocument()
   })
@@ -856,6 +882,8 @@ describe('ManualTransactionSheet (editing)', () => {
     manual: true,
     prepaidItemId: null,
     prepaidTermMonths: null,
+    envelopeId: null,
+    envelopeAmountCents: null,
     originalAmountCents: null,
     originalBookingDate: null,
     counterpartAccountId: null,

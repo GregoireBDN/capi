@@ -3,6 +3,8 @@ import type { QueryClient } from '@tanstack/react-query'
 import {
   contactsControllerContactOwed,
   contactsControllerCreate,
+  contactsControllerCreateOffset,
+  contactsControllerOffsetProposal,
   contactsControllerList,
   contactsControllerRemove,
   contactsControllerUpdate,
@@ -11,17 +13,20 @@ import {
   owedLinksControllerReplaceShares,
   owedLinksControllerSetRecurringShare,
   receivablesControllerCreateDebt,
+  receivablesControllerFindOne,
   receivablesControllerForgive,
   receivablesControllerLink,
   receivablesControllerOptions,
   receivablesControllerRemove,
   receivablesControllerSuggestions,
+  receivablesControllerUndoOffset,
   receivablesControllerUnforgive,
   receivablesControllerUnlink,
 } from '#/api'
 import type {
   CreateContactDto,
   CreateDebtDto,
+  LinkItemDto,
   LinkRepaymentDto,
   ReplaceSharesDto,
   SetRecurringShareDto,
@@ -41,6 +46,7 @@ export const owedKeys = {
   summary: ['owed', 'summary'] as const,
   contacts: ['owed', 'contacts'] as const,
   contact: (id: string) => ['owed', 'contact', id] as const,
+  offer: (id: string) => ['owed', 'offer', id] as const,
   options: (transactionId: string, contactId: string | null) =>
     ['owed', 'options', transactionId, contactId] as const,
   suggestions: ['owed', 'suggestions'] as const,
@@ -93,6 +99,20 @@ export function repaymentOptionsQuery(
   })
 }
 
+/** The offset to propose with one person (#484); amount 0 when none. */
+export function offsetProposalQuery(contactId: string) {
+  return queryOptions({
+    queryKey: owedKeys.offer(contactId),
+    queryFn: () =>
+      unwrap(
+        contactsControllerOffsetProposal({
+          path: { id: contactId },
+          throwOnError: false,
+        }),
+      ),
+  })
+}
+
 export const repaymentSuggestionsQuery = queryOptions({
   queryKey: owedKeys.suggestions,
   queryFn: () =>
@@ -130,8 +150,22 @@ export const forgiveReceivable = (
   )
 export const unforgiveReceivable = (id: string) =>
   unwrap(receivablesControllerUnforgive({ path: { id }, throwOnError: false }))
+export const findReceivable = (id: string) =>
+  unwrap(receivablesControllerFindOne({ path: { id }, throwOnError: false }))
 export const removeReceivable = (id: string) =>
   unwrap(receivablesControllerRemove({ path: { id }, throwOnError: false }))
+/** « Compenser » (#484): the items given, or the proposal. */
+export const createOffset = (contactId: string, items?: LinkItemDto[]) =>
+  unwrap(
+    contactsControllerCreateOffset({
+      path: { id: contactId },
+      body: items ? { items } : {},
+      throwOnError: false,
+    }),
+  )
+/** « Annuler la compensation »: both sides together. */
+export const undoOffset = (id: string) =>
+  unwrap(receivablesControllerUndoOffset({ path: { id }, throwOnError: false }))
 export const createContact = (body: CreateContactDto) =>
   unwrap(contactsControllerCreate({ body, throwOnError: false }))
 export const updateContact = (id: string, body: UpdateContactDto) =>
@@ -202,6 +236,13 @@ export function owedErrorMessage(error: unknown): string {
   }
   if (message.includes('has a history')) {
     return 'Ce contact a un historique : archivez-le plutôt.'
+  }
+  if (message.includes('one side of an offset')) {
+    return 'Ce règlement fait partie d’une compensation : annulez la compensation.'
+  }
+  if (message.includes('Nothing to offset')) return 'Rien à compenser.'
+  if (message.includes('same amount on each side')) {
+    return 'Une compensation règle le même montant de chaque côté.'
   }
   if (message.includes('Already let go')) return 'Déjà abandonné.'
   if (message.includes('Already repaid')) return 'Déjà remboursé.'

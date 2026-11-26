@@ -15,6 +15,7 @@ const contact = (id: string, name: string, archived = false): ContactDto => ({
   archivedAt: archived ? '2026-01-01T00:00:00.000Z' : null,
   owedToMeCents: 0,
   iOweCents: 0,
+  alwaysOffset: false,
 })
 const CONTACTS = [
   contact('c1', 'Alex'),

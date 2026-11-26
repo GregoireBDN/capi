@@ -45,7 +45,8 @@ import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { plural } from '#/lib/plural'
-import { categoriesQuery } from '#/lib/queries'
+import { categoriesQuery, isBankAccount } from '#/lib/queries'
+import { AccountEnvelopesCard } from '#/components/envelopes/AccountEnvelopesCard'
 import { ROUTES } from '#/lib/routes'
 import { AccountDetails } from './AccountDetails'
 import type { AccountDetail } from './AccountDetails'
@@ -122,6 +123,10 @@ export function CashAccount({
         onImport={onImport}
         onAddTransaction={onAddTransaction}
       />
+      {/* Envelopes (#430): what the balance holds for each goal. */}
+      {isBankAccount(account) && (
+        <AccountEnvelopesCard accountId={account.id} writable={writable} />
+      )}
       {history.data && <BalanceChart history={history.data} today={today} />}
       <LatestTransactions
         account={account}
@@ -510,7 +515,7 @@ function LatestTransactions({
                 onDismiss={() => actions.setOffer(null)}
               />
             )}
-            <ul className="-mx-3 divide-y" aria-label="Dernières opérations">
+            <ul className="-mx-3 space-y-1" aria-label="Dernières opérations">
               {items.map((item) => (
                 <TransactionRow
                   key={item.id}
@@ -645,7 +650,7 @@ function useImportsDetail({
               </Link>
             )}
             {committed.length > 0 && (
-              <ul className="divide-y text-sm" aria-label="Derniers imports">
+              <ul className="space-y-1 text-sm" aria-label="Derniers imports">
                 {committed.map((item) => (
                   <li
                     key={item.id}
@@ -744,7 +749,7 @@ function useRecurringDebitsDetail(accountId: string): AccountDetail | null {
     description: `${formatCents(monthly)} / mois en moyenne.`,
     content: (
       <div className="space-y-3">
-        <ul className="divide-y text-sm" aria-label="Prélèvements réguliers">
+        <ul className="space-y-1 text-sm" aria-label="Prélèvements réguliers">
           {items.map((item) => (
             <li
               key={item.id}

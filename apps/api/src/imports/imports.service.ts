@@ -36,6 +36,7 @@ import {
   type SelectImport,
   receivablePaymentsTable,
   receivablesTable,
+  envelopeMovementsTable,
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
@@ -47,7 +48,11 @@ import {
   CicCsvFormatError,
   parseCicCsv,
 } from '#/imports/parsers/cic-csv.parser'
-import type { ParseResult } from '#/imports/parsers/parsed-row'
+import type {
+  ParseIssue,
+  ParseResult,
+  ParsedRow,
+} from '#/imports/parsers/parsed-row'
 import { detectFormat } from '#/imports/profiles/detect-format'
 import { ImportProfilesService } from '#/imports/profiles/import-profiles.service'
 import { parseCashCsv } from '#/imports/profiles/parse-with-profile'
@@ -69,11 +74,13 @@ import { RecurringService } from '#/recurring/recurring.service'
 import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
 import { buildPreview, periodOf } from '#/imports/preview/build-preview'
 import {
+  type ImportPreviewData,
   PREVIEW_VERSION,
   type PreviewRow,
 } from '#/imports/preview/preview.types'
 import type {
   CommitImportDto,
+  FixImportLineDto,
   DeleteImportResultDto,
   ImportDetailDto,
   ImportSummaryDto,
@@ -155,29 +162,12 @@ export class ImportsService {
     const fileHash = createHash('sha256').update(input.buffer).digest('hex')
     const { periodStart, periodEnd } = periodOf(parsed.rows)
 
-    const [existing, manual, previousBalanceCents, ruleSet] = await Promise.all(
-      [
-        periodStart && periodEnd
-          ? loadExistingForRange(this.db, account.id, periodStart, periodEnd)
-          : [],
-        periodStart && periodEnd
-          ? loadManualExpenses(this.db, account.id, periodStart, periodEnd)
-          : [],
-        periodStart
-          ? loadPreviousBalance(this.db, account.id, periodStart)
-          : null,
-        this.rulesService.loadRuleSet(),
-      ],
+    const { preview, counts } = await this.classify(
+      this.db,
+      account.id,
+      parsed.rows,
+      parsed.issues,
     )
-    const { preview, counts } = buildPreview({
-      accountId: account.id,
-      rows: parsed.rows,
-      issues: parsed.issues,
-      existing,
-      previousBalanceCents,
-      ruleSet,
-      manual,
-    })
     preview.ignoredColumns = parsed.ignoredColumns ?? []
 
     const created = await this.db.transaction(async (tx) => {
@@ -339,6 +329,11 @@ export class ImportsService {
             .update(receivablePaymentsTable)
             .set({ transactionId: row.id })
             .where(eq(receivablePaymentsTable.transactionId, manualId))
+          // And what an envelope paid of it or carried with it (ADR 0008).
+          await tx
+            .update(envelopeMovementsTable)
+            .set({ transactionId: row.id })
+            .where(eq(envelopeMovementsTable.transactionId, manualId))
         }
       }
 
@@ -367,6 +362,185 @@ export class ImportsService {
     // New transactions may start, continue or end recurring series.
     this.recurringService?.detectInBackground()
     return detail
+  }
+
+  /**
+   * Types a line of a pending import that could not be read (#433), or
+   * types again a line fixed before, then checks the whole file again:
+   * dedupe (the occurrence index counts in file order), continuity,
+   * reconciliation with manual expenses and the rules. Only unreadable
+   * lines can be typed: a read row typed differently would get another
+   * dedupe hash, and re-importing the file would bring it back twice.
+   * Nothing is written but the pending import.
+   */
+  async fixLine(
+    id: string,
+    lineNumber: number,
+    dto: FixImportLineDto,
+  ): Promise<ImportDetailDto> {
+    const rawLabel = dto.rawLabel.trim().replace(/\s+/g, ' ')
+    if (rawLabel === '') {
+      throw new BadRequestException('rawLabel must not be empty')
+    }
+    return this.reviseLines(id, (preview) => {
+      const issue =
+        preview.issues.find((i) => i.lineNumber === lineNumber) ??
+        preview.rows.find((row) => row.lineNumber === lineNumber)?.fixedFrom
+      if (!issue) throw this.notFixable(preview, lineNumber)
+      return {
+        drop: lineNumber,
+        add: {
+          row: {
+            lineNumber,
+            bookingDate: dto.bookingDate,
+            valueDate: dto.valueDate ?? null,
+            amountCents: dto.amountCents,
+            balanceAfterCents: dto.balanceAfterCents ?? null,
+            rawLabel,
+          },
+          fixedFrom: issue,
+        },
+      }
+    })
+  }
+
+  /**
+   * Puts a line typed in the preview back as unreadable (#433): it is left
+   * out of the import again, and the file is checked again.
+   */
+  async unfixLine(id: string, lineNumber: number): Promise<ImportDetailDto> {
+    return this.reviseLines(id, (preview) => {
+      const row = preview.rows.find((r) => r.lineNumber === lineNumber)
+      if (!row?.fixedFrom) {
+        throw new NotFoundException(`Line ${lineNumber} was not typed by hand`)
+      }
+      return { drop: lineNumber, restore: row.fixedFrom }
+    })
+  }
+
+  private notFixable(preview: ImportPreviewData, lineNumber: number) {
+    return preview.rows.some((row) => row.lineNumber === lineNumber)
+      ? new BadRequestException(
+          `Line ${lineNumber} was read: only unreadable lines can be typed`,
+        )
+      : new NotFoundException(`No unreadable line ${lineNumber}`)
+  }
+
+  /**
+   * Changes the lines of a pending import and classifies them again, under
+   * the import's lock. `drop` leaves a line out of the rows and the issues;
+   * `add` puts a typed row in; `restore` puts an issue back.
+   */
+  private async reviseLines(
+    id: string,
+    change: (preview: ImportPreviewData) => {
+      drop: number
+      add?: { row: ParsedRow; fixedFrom: ParseIssue }
+      restore?: ParseIssue
+    },
+  ): Promise<ImportDetailDto> {
+    return this.db.transaction(async (tx) => {
+      const [record] = await tx
+        .select()
+        .from(importsTable)
+        .where(eq(importsTable.id, id))
+        .for('update')
+      if (!record) throw new NotFoundException('Import not found')
+      if (record.committedAt) {
+        throw new ConflictException('This import was already committed')
+      }
+      const current = record.preview
+      if (!current || current.version !== PREVIEW_VERSION) {
+        throw new ConflictException(
+          'This preview is outdated: upload the file again',
+        )
+      }
+      const { drop, add, restore } = change(current)
+
+      const fixedFrom = new Map<number, ParseIssue>()
+      const rows: ParsedRow[] = []
+      for (const row of current.rows) {
+        if (row.lineNumber === drop) continue
+        rows.push(toParsedRow(row))
+        if (row.fixedFrom) fixedFrom.set(row.lineNumber, row.fixedFrom)
+      }
+      if (add) {
+        rows.push(add.row)
+        fixedFrom.set(add.row.lineNumber, add.fixedFrom)
+      }
+      rows.sort((a, b) => a.lineNumber - b.lineNumber)
+      const issues = current.issues.filter((i) => i.lineNumber !== drop)
+      if (restore) issues.push(restore)
+      issues.sort((a, b) => a.lineNumber - b.lineNumber)
+
+      const { preview, counts } = await this.classify(
+        tx,
+        record.accountId,
+        rows,
+        issues,
+      )
+      preview.ignoredColumns = current.ignoredColumns ?? []
+      for (const row of preview.rows) {
+        row.fixedFrom = fixedFrom.get(row.lineNumber) ?? null
+      }
+      const { periodStart, periodEnd } = periodOf(rows)
+      const [updated] = await tx
+        .update(importsTable)
+        .set({
+          periodStart,
+          periodEnd,
+          rowCount: counts.rows,
+          newCount: counts.new,
+          duplicateCount: counts.duplicates,
+          conflictCount: counts.conflicts,
+          issueCount: counts.issues,
+          preview,
+        })
+        .where(eq(importsTable.id, id))
+        .returning()
+      return this.toDetail(
+        updated,
+        await this.accountName(tx, record.accountId),
+        tx,
+      )
+    })
+  }
+
+  /**
+   * Classifies parsed rows against the account as it is now: the stored
+   * transactions around their dates, the balance they continue from, the
+   * manual expenses to reconcile and the rules.
+   */
+  private async classify(
+    executor: Executor,
+    accountId: string,
+    rows: ParsedRow[],
+    issues: ParseIssue[],
+  ) {
+    const { periodStart, periodEnd } = periodOf(rows)
+    const [existing, manual, previousBalanceCents, ruleSet] = await Promise.all(
+      [
+        periodStart && periodEnd
+          ? loadExistingForRange(executor, accountId, periodStart, periodEnd)
+          : [],
+        periodStart && periodEnd
+          ? loadManualExpenses(executor, accountId, periodStart, periodEnd)
+          : [],
+        periodStart
+          ? loadPreviousBalance(executor, accountId, periodStart)
+          : null,
+        this.rulesService.loadRuleSet(),
+      ],
+    )
+    return buildPreview({
+      accountId,
+      rows,
+      issues,
+      existing,
+      previousBalanceCents,
+      ruleSet,
+      manual,
+    })
   }
 
   /** Every import, newest first, without rows. */
@@ -817,11 +991,12 @@ export class ImportsService {
         ? {
             previousBalanceCents: preview.previousBalanceCents,
             continuity: preview.continuity,
-            issues: preview.issues,
+            issues: preview.issues.map(issueDto),
             ignoredColumns: preview.ignoredColumns ?? [],
             rows: preview.rows.map(({ dedupeHash: _hash, ...row }) => ({
               ...row,
               manualMatch: row.manualMatch ?? null,
+              fixedFrom: row.fixedFrom ? issueDto(row.fixedFrom) : null,
             })),
             unmatchedManual: preview.unmatchedManual ?? [],
           }
@@ -857,6 +1032,28 @@ function toSummary(
     },
     createdAt: record.createdAt,
     committedAt: record.committedAt,
+  }
+}
+
+/** An issue with its optional parts as nulls (previews made before #433). */
+function issueDto(issue: ParseIssue) {
+  return {
+    lineNumber: issue.lineNumber,
+    message: issue.message,
+    cells: issue.cells ?? null,
+    draft: issue.draft ?? null,
+  }
+}
+
+/** A preview row back to the parsed row it was built from. */
+function toParsedRow(row: PreviewRow): ParsedRow {
+  return {
+    lineNumber: row.lineNumber,
+    bookingDate: row.bookingDate,
+    valueDate: row.valueDate,
+    amountCents: row.amountCents,
+    balanceAfterCents: row.balanceAfterCents,
+    rawLabel: row.rawLabel,
   }
 }
 

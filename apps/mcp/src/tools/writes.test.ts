@@ -542,6 +542,8 @@ describe('set_budget_targets', () => {
         spentCents: 0,
         spentExcludingOneOffsCents: 0,
         grossSpentCents: 0,
+        envelopePaidCents: 0,
+        envelopes: [],
         prepaid: [],
         remainingCents: 40000,
         percentUsed: 0,
@@ -552,6 +554,7 @@ describe('set_budget_targets', () => {
       targetCents: 40000,
       spentCents: 0,
       spentExcludingOneOffsCents: 0,
+      envelopePaidCents: 0,
       remainingCents: 40000,
       percentUsed: 0,
       status: 'ok',
@@ -787,17 +790,20 @@ describe('month-end review', () => {
     const result = await client.getPrompt({ name: 'revue_du_mois' })
     const text = (result.messages[0]?.content as { text: string }).text
     expect(text).toContain("bilan du mois d'octobre 2026 (2026-10)")
-    expect(text).toContain('month_close_status (month 2026-10)')
-    expect(text).toContain('set_budget_targets (month 2026-11)')
+    expect(text).toContain('celui de novembre 2026 (2026-11)')
+    // The Skill's method and rules, sent whole (#497).
+    expect(text).toContain('=== Fichier references/bilan-du-mois.md ===')
+    expect(text).toContain('`month_close_status` (month)')
+    expect(text).toContain('`close_months` (month) without `confirm`')
     expect(text).toContain('confirm: true')
-    expect(text).toContain('close_months (month 2026-10) sans confirm')
+    expect(text).not.toMatch(/^name: capi$/m)
 
     const chosen = await client.getPrompt({
       name: 'revue_du_mois',
       arguments: { month: '2026-01' },
     })
     expect((chosen.messages[0]?.content as { text: string }).text).toContain(
-      'Budget de février 2026',
+      'celui de février 2026 (2026-02)',
     )
   })
 
@@ -852,7 +858,7 @@ describe('month-end review', () => {
         netCents: 50000,
         targetCents: 60000,
         gapCents: -10000,
-        goals: [],
+        envelopes: [],
       },
       investments: {
         accounts: [

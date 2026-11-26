@@ -10,7 +10,6 @@ import {
   CircleCheckIcon,
   Columns3Icon,
   CopyIcon,
-  FileWarningIcon,
   InfoIcon,
   NotebookPenIcon,
   TriangleAlertIcon,
@@ -20,44 +19,109 @@ import type {
   ContinuityReportDto,
   ImportDetailDto,
   ImportPreviewDto,
-  ParseIssueDto,
 } from '#/api'
 import { formatCents } from '#/lib/money'
 import {
   formatDate,
   formatDateTime,
   formatPeriod,
-  parseIssueFr,
   plural,
   sourceLabel,
 } from './format'
+import { LINE_KIND } from './preview-parts'
+import type { LineKind } from './preview-parts'
 
-function SummaryCard({
-  label,
+const TILES: {
+  kind: LineKind
+  title: string
+  hint: string
+  count: (counts: ImportDetailDto['counts']) => number
+}[] = [
+  {
+    kind: 'invalid',
+    title: 'À corriger',
+    hint: 'illisibles',
+    count: (c) => c.issues,
+  },
+  {
+    kind: 'conflict',
+    title: 'À confirmer',
+    hint: 'doublons',
+    count: (c) => c.conflicts,
+  },
+  {
+    kind: 'new',
+    title: 'Nouvelles',
+    hint: 'à importer',
+    count: (c) => c.new,
+  },
+  {
+    kind: 'duplicate',
+    title: 'Déjà là',
+    hint: 'ignorées',
+    count: (c) => c.duplicates,
+  },
+]
+
+/** One of the four counts of a preview (#433), tinted when it asks for action. */
+function CountTile({
+  kind,
+  title,
+  hint,
   value,
-  tone,
 }: {
-  label: string
-  value: string | number
-  tone?: 'success' | 'warning' | 'muted' | 'danger'
+  kind: LineKind
+  title: string
+  hint: string
+  value: number
 }) {
+  const { icon: Icon, tint, text } = LINE_KIND[kind]
+  // Nothing to correct or confirm: the tile steps back.
+  const idle = value === 0 && kind !== 'new'
   return (
-    <Card size="sm">
-      <CardContent>
-        <p className="text-muted-foreground text-xs">{label}</p>
-        <p
-          className={cn(
-            'text-lg leading-tight font-semibold tabular-nums',
-            tone === 'success' && 'text-success-foreground dark:text-success',
-            tone === 'warning' && 'text-warning-foreground dark:text-warning',
-            tone === 'danger' && 'text-destructive',
-            tone === 'muted' && 'text-muted-foreground',
-          )}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
+    <li
+      className={cn(
+        '@container min-w-0 rounded-xl px-3 py-2',
+        idle ? 'bg-muted/50' : tint,
+      )}
+    >
+      {/* Narrow tiles (phones) stack the title under the count. */}
+      <div className="flex flex-col gap-1 @[180px]:flex-row @[180px]:items-center @[180px]:gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className={cn(
+              'grid size-10 shrink-0 place-items-center rounded-full',
+              idle
+                ? 'bg-muted text-muted-foreground/70'
+                : cn('bg-background/70', text),
+            )}
+          >
+            <Icon className="size-5" />
+          </span>
+          <p
+            data-slot="count"
+            className={cn(
+              'text-xl leading-none font-semibold tabular-nums',
+              idle && 'text-muted-foreground',
+            )}
+          >
+            {value}
+          </p>
+        </div>
+        <div className="min-w-0 leading-tight">
+          <p
+            className={cn(
+              'truncate text-sm font-medium break-normal',
+              idle ? 'text-muted-foreground' : text,
+            )}
+          >
+            {title}
+          </p>
+          <p className="text-muted-foreground truncate text-xs">{hint}</p>
+        </div>
+      </div>
+    </li>
   )
 }
 
@@ -80,20 +144,17 @@ export function PreviewSummary({ detail }: { detail: ImportDetailDto }) {
           </p>
         </CardContent>
       </Card>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryCard label="Nouvelles" value={counts.new} tone="success" />
-        <SummaryCard label="Doublons" value={counts.duplicates} tone="muted" />
-        <SummaryCard
-          label="À confirmer"
-          value={counts.conflicts}
-          tone={counts.conflicts > 0 ? 'warning' : 'muted'}
-        />
-        <SummaryCard
-          label="Lignes illisibles"
-          value={counts.issues}
-          tone={counts.issues > 0 ? 'danger' : 'muted'}
-        />
-      </div>
+      <ul className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        {TILES.map((tile) => (
+          <CountTile
+            key={tile.kind}
+            kind={tile.kind}
+            title={tile.title}
+            hint={tile.hint}
+            value={tile.count(counts)}
+          />
+        ))}
+      </ul>
     </section>
   )
 }
@@ -163,28 +224,6 @@ export function ContinuityPanel({ report }: { report: ContinuityReportDto }) {
           )}
           {report.gaps.map((gap) => (
             <li key={`${gap.lineNumber}-${gap.toDate}`}>{gapText(gap)}</li>
-          ))}
-        </ul>
-      </AlertDescription>
-    </Alert>
-  )
-}
-
-export function ParseIssuesPanel({ issues }: { issues: ParseIssueDto[] }) {
-  if (issues.length === 0) return null
-  return (
-    <Alert variant="destructive">
-      <FileWarningIcon />
-      <AlertTitle>
-        {plural(issues.length, 'ligne ignorée', 'lignes ignorées')}
-      </AlertTitle>
-      <AlertDescription>
-        <p>Ces lignes n’ont pas pu être lues et ne seront pas importées :</p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-4">
-          {issues.map((issue) => (
-            <li key={issue.lineNumber}>
-              Ligne {issue.lineNumber} : {parseIssueFr(issue.message)}
-            </li>
           ))}
         </ul>
       </AlertDescription>

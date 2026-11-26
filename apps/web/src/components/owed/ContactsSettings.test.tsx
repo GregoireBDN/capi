@@ -29,6 +29,7 @@ const contact = (id: string, name: string, owedToMeCents = 0): ContactDto => ({
   archivedAt: null,
   owedToMeCents,
   iOweCents: 0,
+  alwaysOffset: false,
 })
 
 let contacts: ContactDto[]

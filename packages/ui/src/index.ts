@@ -1,7 +1,13 @@
 export { cn } from './lib/utils'
+export {
+  fieldButtonSurface,
+  fieldGroupSurface,
+  fieldSurface,
+} from './lib/field'
 export { useIsMobile } from './hooks/use-mobile'
 
 export * from './components/alert'
+export * from './components/answer-figure'
 export * from './components/badge'
 export * from './components/breadcrumb'
 export * from './components/button'
@@ -13,6 +19,7 @@ export * from './components/chart'
 export * from './components/checkbox'
 export * from './components/choice-tiles'
 export * from './components/confirm-dialog'
+export * from './components/date-field'
 export * from './components/dialog'
 export * from './components/dropdown-menu'
 export * from './components/empty'

@@ -1,9 +1,9 @@
 import {
   Button,
+  DateField,
   Field,
   FieldError,
   FieldLabel,
-  Input,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -103,7 +103,7 @@ export function PeaFacts({
       ? 0
       : Math.min(1, Math.max(0, investedCents / PEA_CEILING_CENTS))
   return (
-    <div className="space-y-3 border-t pt-4">
+    <div className="space-y-3 pt-4">
       {investedCents !== null && (
         <div className="space-y-1.5">
           {/* « Plafond 150 000 € » and what is in it, on one line at 320px. */}
@@ -249,13 +249,13 @@ function OpeningDateSheet({
           <FormSheetBody>
             <Field data-invalid={error !== undefined}>
               <FieldLabel htmlFor={`${id}-day`}>Ouvert le</FieldLabel>
-              <Input
+              <DateField
                 id={`${id}-day`}
-                type="date"
+                title="Ouvert le"
                 max={today}
                 value={day}
                 aria-invalid={error !== undefined}
-                onChange={(event) => setDay(event.target.value)}
+                onChange={setDay}
               />
               {error && <FieldError>{error}</FieldError>}
             </Field>

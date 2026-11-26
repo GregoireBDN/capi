@@ -63,63 +63,45 @@ export class ImportProfilesService {
 
   /** Saves a cash profile for a header the app does not read yet. */
   async create(dto: CreateImportProfileDto): Promise<ImportProfileDto> {
-    const headers = dto.headers.map(headerKey)
-    while (headers.length > 0 && headers[headers.length - 1] === '') {
-      headers.pop()
-    }
-    if (isBuiltInHeader(headers)) {
-      throw new BadRequestException(
-        'This header is already read without a profile (CIC export or standard format)',
-      )
-    }
-    const columns: Record<string, string> = {}
-    const used = new Set<string>()
-    for (const [field, name] of Object.entries(dto.columns)) {
-      if (name === undefined) continue
-      const key = headerKey(name)
-      if (!headers.includes(key)) {
-        throw new BadRequestException(`columns.${field} is not in the header`)
-      }
-      if (used.has(key)) {
-        throw new BadRequestException(`columns.${field} is already mapped`)
-      }
-      if (headers.filter((h) => h === key).length > 1) {
-        throw new BadRequestException(
-          `columns.${field} names a column the header has twice`,
-        )
-      }
-      used.add(key)
-      columns[field] = key
-    }
-    const hasAmount = columns.amount !== undefined
-    const hasDebit = columns.debit !== undefined
-    const hasCredit = columns.credit !== undefined
-    if (hasAmount ? hasDebit || hasCredit : !(hasDebit && hasCredit)) {
-      throw new BadRequestException(
-        'Map either an amount column, or both a debit and a credit column',
-      )
-    }
+    const values = cashProfileValues(dto)
     try {
       const [row] = await this.db
         .insert(importProfilesTable)
-        .values({
-          name: dto.name.trim(),
-          target: 'cash',
-          encoding: dto.encoding,
-          delimiter: dto.delimiter,
-          decimalSeparator: dto.decimalSeparator,
-          dateFormat: dto.dateFormat,
-          headers,
-          columns,
-        })
+        .values(values)
         .returning()
       return toDto(row)
     } catch (error) {
-      const code = (error as { cause?: { code?: unknown } }).cause?.code
-      if (code === UNIQUE_VIOLATION) {
-        throw new ConflictException('A profile already reads this header')
-      }
-      throw error
+      throw uniqueHeaderError(error)
+    }
+  }
+
+  /**
+   * Changes a cash profile's mapping (#433): from the import preview, when
+   * its lines were read with the wrong columns. Same rules as `create`; the
+   * imports made with it stay as they are.
+   */
+  async update(
+    id: string,
+    dto: CreateImportProfileDto,
+  ): Promise<ImportProfileDto> {
+    const values = cashProfileValues(dto)
+    const [current] = await this.db
+      .select({ target: importProfilesTable.target })
+      .from(importProfilesTable)
+      .where(eq(importProfilesTable.id, id))
+    if (!current) throw new NotFoundException('Profile not found')
+    if (current.target !== 'cash') {
+      throw new BadRequestException('Only a bank profile can be changed here')
+    }
+    try {
+      const [row] = await this.db
+        .update(importProfilesTable)
+        .set(values)
+        .where(eq(importProfilesTable.id, id))
+        .returning()
+      return toDto(row)
+    } catch (error) {
+      throw uniqueHeaderError(error)
     }
   }
 
@@ -172,6 +154,67 @@ function toStored(row: SelectImportProfile): StoredCsvProfile {
     columns: row.columns,
     kindValues: row.kindValues,
   }
+}
+
+/**
+ * The stored values of a cash profile: header keys, each mapped column in
+ * the header once, an amount or both debit and credit.
+ */
+function cashProfileValues(dto: CreateImportProfileDto) {
+  const headers = dto.headers.map(headerKey)
+  while (headers.length > 0 && headers[headers.length - 1] === '') {
+    headers.pop()
+  }
+  if (isBuiltInHeader(headers)) {
+    throw new BadRequestException(
+      'This header is already read without a profile (CIC export or standard format)',
+    )
+  }
+  const columns: Record<string, string> = {}
+  const used = new Set<string>()
+  for (const [field, name] of Object.entries(dto.columns)) {
+    if (name === undefined) continue
+    const key = headerKey(name)
+    if (!headers.includes(key)) {
+      throw new BadRequestException(`columns.${field} is not in the header`)
+    }
+    if (used.has(key)) {
+      throw new BadRequestException(`columns.${field} is already mapped`)
+    }
+    if (headers.filter((h) => h === key).length > 1) {
+      throw new BadRequestException(
+        `columns.${field} names a column the header has twice`,
+      )
+    }
+    used.add(key)
+    columns[field] = key
+  }
+  const hasAmount = columns.amount !== undefined
+  const hasDebit = columns.debit !== undefined
+  const hasCredit = columns.credit !== undefined
+  if (hasAmount ? hasDebit || hasCredit : !(hasDebit && hasCredit)) {
+    throw new BadRequestException(
+      'Map either an amount column, or both a debit and a credit column',
+    )
+  }
+  return {
+    name: dto.name.trim(),
+    target: 'cash' as const,
+    encoding: dto.encoding,
+    delimiter: dto.delimiter,
+    decimalSeparator: dto.decimalSeparator,
+    dateFormat: dto.dateFormat,
+    headers,
+    columns,
+  }
+}
+
+/** A unique violation on the header becomes a 409. */
+function uniqueHeaderError(error: unknown): unknown {
+  const code = (error as { cause?: { code?: unknown } }).cause?.code
+  return code === UNIQUE_VIOLATION
+    ? new ConflictException('A profile already reads this header')
+    : error
 }
 
 function toDto(row: SelectImportProfile): ImportProfileDto {

@@ -23,8 +23,6 @@ import {
   receivablePaymentsTable,
   receivablesTable,
   recurringItemsTable,
-  savingsGoalAccountsTable,
-  savingsGoalsTable,
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
@@ -185,21 +183,13 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
       accountId: doomed.id,
       categoryId: groceries.id,
     })
-    const [goal] = await tx
-      .insert(savingsGoalsTable)
-      .values({ name: 'Objectif test', targetCents: 500_000 })
-      .returning()
-    await tx.insert(savingsGoalAccountsTable).values([
-      { goalId: goal.id, accountId: doomed.id },
-      { goalId: goal.id, accountId: kept.id },
-    ])
     await tx.insert(monthClosesTable).values({
       month: '2019-03',
       closedAt: new Date('2019-04-02T10:00:00Z'),
       report: { synthetic: true } as never,
       reportVersion: 1,
     })
-    return { doomed, kept, groceries, goal }
+    return { doomed, kept, groceries }
   }
 
   /** Every row of `accountId` in the tables an account owns. */
@@ -213,7 +203,6 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         | typeof importsTable
         | typeof balanceSnapshotsTable
         | typeof recurringItemsTable
-        | typeof savingsGoalAccountsTable
         | typeof categorizationRulesTable
         | typeof cryptoHoldingsTable
         | typeof cryptoWalletKeysTable
@@ -240,7 +229,6 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
       imports: await count(importsTable),
       snapshots: await count(balanceSnapshotsTable),
       recurring: await count(recurringItemsTable),
-      goalLinks: await count(savingsGoalAccountsTable),
       rules: await count(categorizationRulesTable),
       holdings: await count(cryptoHoldingsTable),
       walletKeys: await count(cryptoWalletKeysTable),
@@ -262,7 +250,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         walletKeys: 0,
         recurringItems: 1,
         rules: 1,
-        savingsGoals: 1,
+        envelopeMovements: 0,
         closedMonths: 1,
       })
     })
@@ -270,7 +258,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
 
   it('deletes everything of the account and nothing else', async () => {
     await inRollback(async ({ tx, service }) => {
-      const { doomed, kept, groceries, goal } = await seed(tx, service)
+      const { doomed, kept, groceries } = await seed(tx, service)
       const keptBefore = await rowsOf(tx, kept.id)
       const coverageBefore = await dataUntilByAccount(tx, NOW)
       const budgetsBefore = await tx.select().from(budgetsTable)
@@ -284,7 +272,6 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         imports: 0,
         snapshots: 0,
         recurring: 0,
-        goalLinks: 0,
         rules: 0,
         holdings: 0,
         walletKeys: 0,
@@ -294,8 +281,8 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
       await expect(service.findOne(doomed.id)).rejects.toThrow(
         NotFoundException,
       )
-      // The other account, its coverage, the budgets, categories, the goal
-      // and the closed month are untouched.
+      // The other account, its coverage, the budgets, categories and the
+      // closed month are untouched.
       expect(await rowsOf(tx, kept.id)).toEqual(keptBefore)
       expect(keptBefore).toMatchObject({ transactions: 3, splits: 2 })
       expect(await service.findOne(kept.id)).toEqual(keptAccountBefore)
@@ -308,12 +295,6 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
           .select({ id: categoriesTable.id })
           .from(categoriesTable)
           .where(eq(categoriesTable.id, groceries.id)),
-      ).toHaveLength(1)
-      expect(
-        await tx
-          .select({ id: savingsGoalsTable.id })
-          .from(savingsGoalsTable)
-          .where(eq(savingsGoalsTable.id, goal.id)),
       ).toHaveLength(1)
       const [march] = await tx
         .select()

@@ -148,7 +148,7 @@ export const addInvestmentSnapshotsTool = defineTool({
   name: 'add_investment_snapshots',
   title: 'Ajouter des valeurs de placement',
   description:
-    "Record dated values of an investment account (PEA, compte-titres, life insurance, employee savings) read from statements: one row per day, upserted on (account, day). Without confirm: preview of new / changed / unchanged days and the effect on the account's current value and net worth. With confirm: true writes only the days that differ (one transaction, all or nothing), so a repeated call changes nothing. A day's value is the account value at the end of that day; use the statement date (or the last day of the quarter / year it covers). Never after today. Not for crypto accounts: their values are computed every day from their holdings and prices (use sync_crypto_holdings for the quantities of a manual one).",
+    "Record dated values of an investment account (PEA, compte-titres, life insurance, employee savings) read from statements, one per day (upserted). A day's value is the account value at the end of that day: the statement's valuation date. Never after today. Not for crypto accounts (sync_crypto_holdings). Method: Capi skill, « placements ».",
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -433,7 +433,7 @@ export const syncCryptoHoldingsTool = defineTool({
   name: 'sync_crypto_holdings',
   title: 'Mettre à jour des avoirs crypto',
   description:
-    "Set the crypto quantities held at one location (wallet or exchange label) of a crypto account, from an export or statement: the given list becomes the account's hand-entered holdings at that location. The tool owns only the hand-entered (manual) lines of that location: lines imported from an exchange export or synced from a wallet are never touched, and an asset held through such a line at that location is refused. Only for crypto accounts with the manual source: exchange accounts are fed by their imports and wallets by their sync, in the app (refused here, and by the API for tokens). Manual lines of that location missing from the list are set to quantity 0, not deleted: the owner deletes them in the app (no deletes through MCP). Without confirm: preview of added / changed / set to 0 / unchanged lines. With confirm: true writes only what differs and returns the new account value. Quantities are exact decimal strings, never rounded.",
+    "Set the quantities held at one location (wallet or exchange label) of a crypto account with the manual source, from an export or statement. The list becomes that location's hand-entered lines; imported or synced lines are never touched. Hand-entered lines left out go to quantity 0 (deleted in the app). Quantities are exact decimal strings, never rounded. Method: Capi skill, « placements ».",
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -730,7 +730,7 @@ export const setInvestedAmountTool = defineTool({
   name: 'set_invested_amount',
   title: 'Montant investi d’un placement',
   description:
-    'Set what the owner invested in a PEA, a compte-titres, a life insurance or employee savings up to a day (« Investi au … »), so its result (latent gain) and rate show. The invested amount is then this base plus the bank transfers linked to the account after that day, until a value typed later with its own invested amount. Not for crypto accounts: their invested amount is the cost of their coins, carried from exchange to wallet and back (#373); coins whose cost is unknown are answered in the app (« À préciser »). Without confirm: preview of the invested amount, result and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.',
+    'Set what the owner invested in a PEA, a compte-titres, a life insurance or employee savings up to a day (« Investi au … »), so its result and rate show; transfers linked to the account after that day add on top. Not for crypto accounts (cost of their coins, in the app). Removing it is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     account: z

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AuthCard } from './AuthCard'
+import { AppEnvironmentProvider } from '#/lib/app-environment'
 
 // The forms themselves are covered by their own tests; stub them so this suite
 // only exercises which view the card shows and which links it offers.
@@ -87,5 +88,18 @@ describe('AuthCard', () => {
     expect(screen.queryByText('Connexion')).not.toBeInTheDocument()
     expect(screen.queryByRole('img', { name: 'Capi' })).not.toBeInTheDocument()
     expect(signUp()).not.toBeInTheDocument()
+  })
+
+  it('shows the staging flask beside the name on staging only (#504)', () => {
+    const { unmount } = render(
+      <AppEnvironmentProvider value="staging">
+        <AuthCard registrationOpen={false} />
+      </AppEnvironmentProvider>,
+    )
+    expect(screen.getByTestId('staging-badge')).toHaveTextContent('Staging')
+    unmount()
+
+    render(<AuthCard registrationOpen={false} />)
+    expect(screen.queryByTestId('staging-badge')).not.toBeInTheDocument()
   })
 })

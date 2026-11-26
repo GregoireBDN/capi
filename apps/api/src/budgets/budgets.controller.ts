@@ -79,13 +79,15 @@ export class BudgetsController {
   @ApiOperation({
     summary: 'Envelopes followed during a month',
     description:
-      'Budget lines flagged `tracked` for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).',
+      'Budget lines flagged `tracked` (every expense line with `all`) for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).',
   })
   @ApiQuery({ type: EnvelopesQueryDto })
   @ApiOkResponse({ type: EnvelopesDto })
   @ApiBadRequestResponse({ description: 'Invalid month.' })
   envelopes(@Query() query: EnvelopesQueryDto): Promise<EnvelopesDto> {
-    return this.budgetsService.envelopes(query.month)
+    return this.budgetsService.envelopes(query.month, undefined, undefined, {
+      all: query.all ?? false,
+    })
   }
 
   @Get('history')

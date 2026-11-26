@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   pgTable,
   smallint,
@@ -35,6 +36,12 @@ export const contactsTable = pgTable(
       .default(sql`'{}'::text[]`),
     /** Usual day of the month their repayments arrive (forecast). */
     repaymentDay: smallint('repayment_day'),
+    /**
+     * « Toujours compenser » (#484): when they owe the owner and he owes
+     * them, the two are offset as soon as a new item makes it so, without
+     * asking.
+     */
+    alwaysOffset: boolean('always_offset').notNull().default(false),
     /** Left out of the pickers; history kept. */
     archivedAt: timestamp('archived_at', { withTimezone: true }),
   },

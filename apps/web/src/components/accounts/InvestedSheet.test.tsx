@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountDto } from '#/api/types.gen'
 import { InvestedSheet } from './InvestedSheet'
+import { pickDay } from '#/test/date-field'
 
 const api = vi.hoisted(() => ({
   accountSnapshotsControllerSetInvestedBase: vi.fn(),
@@ -122,9 +123,7 @@ describe('InvestedSheet', () => {
     ).toBeChecked()
     expect(screen.getByText(/au 31 oct\. 2026/)).toBeInTheDocument()
     await user.click(screen.getByRole('radio', { name: 'Autre' }))
-    const day = screen.getByLabelText('Investi au')
-    await user.clear(day)
-    await user.type(day, '2026-01-02')
+    await pickDay(user, screen.getByLabelText('Investi au'), '2026-01-02')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
 
     await waitFor(() =>

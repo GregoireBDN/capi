@@ -1,7 +1,9 @@
-import { Card, ItemList, ItemListRow } from '@capi/ui'
+import { Card, cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import {
+  ArrowRightIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   FileUpIcon,
   HandshakeIcon,
   InboxIcon,
@@ -11,8 +13,8 @@ import {
   RepeatIcon,
   TargetIcon,
 } from 'lucide-react'
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { cloneElement, useState } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
@@ -143,13 +145,30 @@ function view(todo: Todo, today: string): TodoView {
   }
 }
 
-/** Rows shown before « n autres », so the month's figures stay on screen. */
+/** Tasks shown before « n autres »: the next one large, two rows under it. */
 export const TODOS_SHOWN = 3
 
+/** The large task's tint and badge, after its tone. */
+const HERO = {
+  warning: {
+    tint: 'from-warning/25 to-warning/5',
+    badge: 'bg-warning text-warning-foreground',
+  },
+  primary: {
+    tint: 'from-primary/15 to-primary/5',
+    badge: 'bg-primary text-primary-foreground',
+  },
+  info: {
+    tint: 'from-info/20 to-info/5',
+    badge: 'bg-info text-white',
+  },
+} as const
+
 /**
- * « À faire » (#405): what is waiting for the owner, most pressing first,
- * one row each opening the page where it is done; past `TODOS_SHOWN`, the
- * rest behind « n autres à faire ». Hidden when all is done.
+ * « À faire » (#405; #495, the owner's « B. La prochaine » with « B2.
+ * Lignes »): the most pressing task large, a tap opening the page where it
+ * is done; under it the next two as thin rows, then « n autres » unfolding
+ * the rest. Hidden when all is done.
  */
 export function DashboardTodos({
   todos,
@@ -160,54 +179,103 @@ export function DashboardTodos({
 }) {
   const [expanded, setExpanded] = useState(false)
   if (todos.length === 0) return null
+  const [first, ...rest] = todos.map((todo) => view(todo, today))
   // « 1 autre » would take as much room as the row itself.
-  const capped = todos.length > TODOS_SHOWN + 1 && !expanded
-  const shown = capped ? todos.slice(0, TODOS_SHOWN) : todos
-  const hidden = todos.length - shown.length
+  const capped = rest.length > TODOS_SHOWN && !expanded
+  const rows = capped ? rest.slice(0, TODOS_SHOWN - 1) : rest
+  const hidden = rest.length - rows.length
+  const hero = HERO[first.tone]
   return (
     <Card
       role="region"
-      aria-labelledby="dashboard-todos-title"
-      className="ring-warning/60 min-w-0 gap-0 px-2 pt-1 pb-2"
+      aria-label="À faire"
+      className="min-w-0 gap-0 overflow-hidden p-0"
     >
-      <div className="flex min-h-8 items-center justify-between gap-2 px-2">
-        <h2
-          id="dashboard-todos-title"
-          className="text-muted-foreground text-xs font-medium"
-        >
-          À faire
-        </h2>
-        {capped && (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative flex min-h-8 items-center gap-1 rounded-md px-1 text-xs font-medium outline-none focus-visible:ring-2"
+      {cloneElement(
+        first.link as ReactElement<{
+          children?: ReactNode
+          className?: string
+        }>,
+        {
+          className: cn(
+            'focus-visible:ring-ring flex min-h-[4.4rem] items-center gap-3 bg-gradient-to-br px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset',
+            hero.tint,
+          ),
+        },
+        <>
+          <span
+            aria-hidden
+            className={cn(
+              'grid size-[44px] shrink-0 place-items-center rounded-2xl [&_svg]:size-[22px]',
+              hero.badge,
+            )}
           >
-            {hidden} autres
-            <ChevronDownIcon aria-hidden className="size-4" />
-          </button>
-        )}
-      </div>
-      <ItemList>
-        <ul>
-          {shown.map((todo) => {
-            const row = view(todo, today)
-            return (
-              <ItemListRow
-                key={row.key}
-                asChild
-                className="min-h-8 py-1"
-                icon={row.icon}
-                iconClassName={TONES[row.tone]}
-                title={row.title}
-                subtitle={row.subtitle}
-              >
-                {row.link}
-              </ItemListRow>
-            )
-          })}
-        </ul>
-      </ItemList>
+            {first.icon}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{first.title}</span>
+            {first.subtitle && (
+              <span className="text-muted-foreground block text-xs">
+                {first.subtitle}
+              </span>
+            )}
+          </span>
+          <span
+            aria-hidden
+            className="bg-foreground text-background grid size-[40px] shrink-0 place-items-center rounded-full [&_svg]:size-5"
+          >
+            <ArrowRightIcon />
+          </span>
+        </>,
+      )}
+      {rest.length > 0 && (
+        <div className="px-2 pt-1 pb-1.5">
+          <ul>
+            {rows.map((row) => (
+              <li key={row.key}>
+                {cloneElement(
+                  row.link as ReactElement<{
+                    children?: ReactNode
+                    className?: string
+                  }>,
+                  {
+                    className:
+                      'hover:bg-muted/60 focus-visible:ring-ring flex min-h-[44px] items-center gap-3 rounded-lg px-2 outline-none focus-visible:ring-2',
+                  },
+                  <>
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'grid size-[28px] shrink-0 place-items-center rounded-full [&_svg]:size-[15px]',
+                        TONES[row.tone],
+                      )}
+                    >
+                      {row.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {row.title}
+                    </span>
+                    <ChevronRightIcon
+                      aria-hidden
+                      className="text-muted-foreground size-4 shrink-0"
+                    />
+                  </>,
+                )}
+              </li>
+            ))}
+          </ul>
+          {capped && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-[36px] w-full items-center justify-center gap-1 rounded-md text-xs font-medium outline-none focus-visible:ring-2"
+            >
+              {hidden} autres
+              <ChevronDownIcon aria-hidden className="size-4" />
+            </button>
+          )}
+        </div>
+      )}
     </Card>
   )
 }

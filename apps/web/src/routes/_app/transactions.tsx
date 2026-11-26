@@ -4,7 +4,7 @@ import { parseTransactionsSearch } from '#/components/transactions/search'
 
 export const Route = createFileRoute('/_app/transactions')({
   // Its month is in the app header (#401).
-  staticData: { monthBar: true },
+  staticData: { monthBar: true, movementsTab: 'operations' },
   // Filters live in the URL: reload, back/forward and shared links keep them.
   validateSearch: parseTransactionsSearch,
   head: () => ({ meta: [{ title: 'Opérations · Capi' }] }),

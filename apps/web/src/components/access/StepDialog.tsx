@@ -145,9 +145,9 @@ export function ChoiceTile({
         disabled={disabled}
         aria-current={selected ? 'true' : undefined}
         className={cn(
-          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2 disabled:opacity-60',
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-control glass-well px-3 py-2.5 text-left outline-none focus-visible:ring-2 disabled:opacity-60',
           selected &&
-            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
+            'ring-primary ring-2 bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
         )}
       >
         {icon && (

@@ -95,7 +95,8 @@ case "${args[*]}" in
   "pull api web capi-mcp" | "pull api web finances-mcp") step=pull+mcp; listed FAKE_PULL_FAIL ;;
   "run --rm -T api node dist/database/migrate.js") start_db; step=migrate; listed FAKE_MIGRATE_FAIL ;;
   "run --rm -T api node dist/database/seed.js") start_db; step=seed ;;
-  "run --rm -T api node dist/database/seed-demo.js --reset") start_db; step=demo; listed FAKE_DEMO_FAIL ;;
+  "run --rm -T api node dist/database/seed-demo.js --if-empty") start_db; step=demo; listed FAKE_DEMO_FAIL ;;
+  "run --rm -T api node dist/database/seed-demo.js --reset") start_db; step=demo-reset; listed FAKE_DEMO_FAIL ;;
   "up -d --remove-orphans")
     start_db
     step=up
@@ -482,7 +483,7 @@ setup_staging() {
 
 staging_files() { cat "$srv/docker-compose.prod.yml" "$srv/docker-compose.staging.yml" | head -n 2 | tr '\n' '|'; }
 
-test_case "staging: deploys a commit with fresh demo data"
+test_case "staging: deploys a commit and keeps the data (#494)"
 setup_staging $S1
 deploy --staging $S2 "$release/docker-compose.prod.yml"
 check "exit 0" eq "$rc" 0
@@ -493,6 +494,26 @@ check "running" eq "$(running)" $S2
 check "both compose files installed" eq "$(staging_files)" "# compose new|# staging new|"
 check "no compose backup left" eq "$(find "$srv" -name '*.prev' | wc -l)" 0
 check "deploy.log written" has "$srv/deploy.log" "deployed $S2 to finances-staging (previous: $S1)"
+
+test_case "staging: resets the demo data on demand"
+setup_staging $S1
+deploy --staging --reset-demo $S2 "$release/docker-compose.prod.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @$S2 pull @$S2 migrate @$S2 seed @$S2 demo-reset @$S2 up @$S2 health @$S2"
+check "running" eq "$(running)" $S2
+
+test_case "staging: keeps the running version when the reset fails"
+setup_staging $S1
+FAKE_DEMO_FAIL=$S2 deploy --staging --reset-demo $S2 "$release/docker-compose.prod.yml"
+check "exit 1" eq "$rc" 1
+check "running untouched" eq "$(running)" $S1
+check "says why" has "$work/out" "FAILED: demo data"
+
+test_case "production refuses --reset-demo"
+setup v1.0.0
+deploy --reset-demo v1.1.0
+check "exit 2" eq "$rc" 2
+check "running untouched" eq "$(running)" v1.0.0
 
 test_case "staging: first deploy"
 setup_staging ""

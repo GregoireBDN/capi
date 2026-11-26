@@ -3,6 +3,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
 import {
   type AbsorbedManual,
+  envelopeMovementsTable,
   type InsertTransaction,
   type SelectTransaction,
   receivablePaymentsTable,
@@ -150,8 +151,9 @@ export function restoredManual(row: AbsorbingRow): InsertTransaction {
 
 /**
  * Puts back, as manual transactions, the ones the rows of `importId`
- * absorbed, each with the split of its row and what is owed or repaid on it
- * (#359, moved to the row on reconciliation). Run before the rows are
+ * absorbed, each with the split of its row, what is owed or repaid on it
+ * (#359) and its envelope movements (ADR 0008), moved to the row on
+ * reconciliation. Run before the rows are
  * deleted. Returns how many were put back.
  */
 export async function restoreAbsorbedManual(
@@ -193,6 +195,10 @@ export async function restoreAbsorbedManual(
       .update(receivablePaymentsTable)
       .set({ transactionId: restored.id })
       .where(eq(receivablePaymentsTable.transactionId, id))
+    await tx
+      .update(envelopeMovementsTable)
+      .set({ transactionId: restored.id })
+      .where(eq(envelopeMovementsTable.transactionId, id))
   }
   return rows.length
 }

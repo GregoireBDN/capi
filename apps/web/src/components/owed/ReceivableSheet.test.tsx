@@ -45,6 +45,7 @@ const item: ReceivableDto = {
       paidOn: '2026-10-10',
       note: null,
       label: 'VIR SAM FICTIF',
+      offsetId: null,
     },
   ],
 }

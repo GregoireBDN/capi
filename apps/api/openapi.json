@@ -2912,6 +2912,129 @@
         ]
       }
     },
+    "/api/imports/{id}/lines/{lineNumber}": {
+      "put": {
+        "description": "Replaces a line the file’s format could not read (or a line typed before) with the values typed, then checks the whole preview again: dedupe, continuity, manual expenses, rules. The typed row may come out new, duplicate or conflict. Lines that were read cannot be changed. Nothing is written but the pending import (#433).",
+        "operationId": "ImportsController_fixLine",
+        "parameters": [
+          {
+            "name": "lineNumber",
+            "required": true,
+            "in": "path",
+            "description": "1-based line in the file.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FixImportLineDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid values, or a line that was read."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "No such import or unreadable line."
+          },
+          "409": {
+            "description": "Already committed, or the preview is outdated."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Type an unreadable line of a pending import",
+        "tags": [
+          "Imports"
+        ]
+      },
+      "delete": {
+        "description": "The line typed in the preview is left out of the import again, and the preview is checked again (#433).",
+        "operationId": "ImportsController_unfixLine",
+        "parameters": [
+          {
+            "name": "lineNumber",
+            "required": true,
+            "in": "path",
+            "description": "1-based line in the file.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "No such import or typed line."
+          },
+          "409": {
+            "description": "Already committed, or the preview is outdated."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Put a typed line back as unreadable",
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
     "/api/imports": {
       "get": {
         "description": "Committed and pending imports, newest first.",
@@ -3159,6 +3282,64 @@
       }
     },
     "/api/import-profiles/{id}": {
+      "put": {
+        "description": "Replaces a bank profile’s mapping, as `POST` saves it: from the import preview, when the file’s lines were read with the wrong columns (#433). The imports made with it stay.",
+        "operationId": "ImportProfilesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImportProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportProfileDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "As for `POST`, or a profile of investment movements."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Another profile reads this header."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Change an import profile",
+        "tags": [
+          "Imports"
+        ]
+      },
       "delete": {
         "description": "The imports made with it stay.",
         "operationId": "ImportProfilesController_remove",
@@ -4454,7 +4635,7 @@
     },
     "/api/contacts/{id}/owed": {
       "get": {
-        "description": "Totals, open items and history both ways (« Il vous doit », « Vous lui devez », never netted), this month’s expected repayments and the recurring items shared with them.",
+        "description": "Totals, open items and history both ways (« Il vous doit », « Vous lui devez »), the offsets made with them and the one to propose (#484), this month’s expected repayments and the recurring items shared with them.",
         "operationId": "ContactsController_contactOwed",
         "parameters": [
           {
@@ -4496,9 +4677,108 @@
         ]
       }
     },
+    "/api/contacts/{id}/offset": {
+      "get": {
+        "description": "« Compenser » (#484): what they owe the owner against what he owes them, the smaller settled on each side, oldest items first. `amountCents` is 0 when one side is empty.",
+        "operationId": "ContactsController_offsetProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffsetProposalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "The offset to propose",
+        "tags": [
+          "Contacts"
+        ]
+      },
+      "post": {
+        "description": "« Compenser » (#484): settles the same amount on each side as repayments without a transfer, tied together (undone as one). The items ticked, or the proposal. Neither income nor spending: no statistic moves. Session only.",
+        "operationId": "ContactsController_createOffset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOffsetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffsetDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nothing to offset, two different amounts, another contact’s item, or past what is left."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Offset what is owed both ways",
+        "tags": [
+          "Contacts"
+        ]
+      }
+    },
     "/api/contacts/{id}": {
       "patch": {
-        "description": "Name, bank words, usual repayment day, archive. Session only.",
+        "description": "Name, bank words, usual repayment day, « Toujours compenser », archive. Session only.",
         "operationId": "ContactsController_update",
         "parameters": [
           {
@@ -4593,7 +4873,7 @@
     },
     "/api/owed": {
       "get": {
-        "description": "« Dépenses partagées »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.",
+        "description": "« Dépenses partagées »: « On me doit » and « Je dois » as two lists, one row per person (the oldest open item’s age, the net position both ways), the people all settled apart, this month’s repayments expected from shared recurring items, and the offsets to propose (#484). Outside the net worth.",
         "operationId": "OwedController_summary",
         "parameters": [],
         "responses": {
@@ -4864,6 +5144,43 @@
         ]
       }
     },
+    "/api/receivables/offsets/{id}": {
+      "delete": {
+        "description": "« Annuler la compensation » (#484): both sides’ repayments go together. Session only.",
+        "operationId": "ReceivablesController_undoOffset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown offset."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Undo an offset",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
     "/api/receivables/payments/{id}": {
       "delete": {
         "description": "Session only.",
@@ -4888,6 +5205,9 @@
           },
           "404": {
             "description": "Unknown payment."
+          },
+          "409": {
+            "description": "One side of an offset: undo the offset instead."
           }
         },
         "security": [
@@ -5336,7 +5656,7 @@
     },
     "/api/budgets/envelopes": {
       "get": {
-        "description": "Budget lines flagged `tracked` for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
+        "description": "Budget lines flagged `tracked` (every expense line with `all`) for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
         "operationId": "BudgetsController_envelopes",
         "parameters": [
           {
@@ -5348,6 +5668,15 @@
               "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
               "example": "2026-11",
               "type": "string"
+            }
+          },
+          {
+            "description": "Every expense budget line of the month, tracked or not (`tracked` says which), for the dashboard’s « Budgets suivis » on chosen categories (#495). Default: the tracked lines only.",
+            "required": false,
+            "name": "all",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -5648,6 +5977,110 @@
         ]
       }
     },
+    "/api/dashboard/layout": {
+      "get": {
+        "description": "The elements in their order, hidden ones included, with their accounts, envelopes and settings. While nothing was saved, today’s default layout (`custom: false`).",
+        "operationId": "DashboardLayoutController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardLayoutDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "The dashboard’s elements",
+        "tags": [
+          "Dashboard"
+        ]
+      },
+      "put": {
+        "description": "Replaces the whole layout in one transaction. Each element at most once; accounts only on the elements that show accounts, envelopes only on `envelopes`, each element only its own settings.",
+        "operationId": "DashboardLayoutController_replace",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDashboardLayoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardLayoutDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An element twice, accounts or envelopes or a setting it does not take, an unknown account or envelope."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Save the dashboard’s elements",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/api/dashboard/layout/reset": {
+      "post": {
+        "description": "Deletes the saved layout: the dashboard is today’s again.",
+        "operationId": "DashboardLayoutController_reset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardLayoutDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Back to the default dashboard",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
     "/api/dashboard/overview": {
       "get": {
         "description": "Net worth now (per account, cash vs investments, with the date each account’s data goes up to) and at the end of the previous month; income, expenses, net and savings rate of `month` and of the month before (transfers excluded, one-offs reported); review queue size. Without `month`: the current month when it has data, else the month the data stops in. While the month is partial, the previous month only counts the same first days (`period`).",
@@ -5706,7 +6139,7 @@
             "in": "query",
             "schema": {
               "minimum": 1,
-              "maximum": 60,
+              "maximum": 121,
               "default": 12,
               "type": "integer"
             }
@@ -8869,13 +9302,12 @@
         ]
       }
     },
-    "/api/savings/goals": {
+    "/api/envelopes": {
       "get": {
-        "description": "Each goal comes with its current amount (linked accounts’ balances or manual amount), progress, the saving needed per month to reach it by its date, and the date it would be reached at the average monthly savings (6 full months, one-offs excluded).",
-        "operationId": "SavingsController_listGoals",
+        "description": "Money set aside for a goal: never a transaction, so net worth and statistics are untouched. Each envelope comes with its total, what it paid, its amount per account and the monthly amount needed to reach its target by its due date.",
+        "operationId": "EnvelopesController_list",
         "parameters": [
           {
-            "description": "Also return archived goals (after the active ones).",
             "required": false,
             "name": "includeArchived",
             "in": "query",
@@ -8893,7 +9325,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/SavingsGoalDto"
+                    "$ref": "#/components/schemas/EnvelopeSummaryDto"
                   }
                 }
               }
@@ -8908,20 +9340,21 @@
             "token": []
           }
         ],
-        "summary": "Savings goals with progress and projection",
+        "summary": "Envelopes with what they hold per account and their plan",
         "tags": [
-          "Savings"
+          "Envelopes"
         ]
       },
       "post": {
-        "operationId": "SavingsController_createGoal",
+        "description": "`start` takes an amount per account from its « libre »; the money does not move.",
+        "operationId": "EnvelopesController_create",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateGoalDto"
+                "$ref": "#/components/schemas/CreateEnvelopeDto"
               }
             }
           }
@@ -8932,13 +9365,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SavingsGoalDto"
+                  "$ref": "#/components/schemas/EnvelopeSummaryDto"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid body, unknown account, or `source = accounts` without accounts."
+            "description": "Invalid body, unknown or non-expense category, unknown account, or more than « libre »."
           },
           "401": {
             "description": ""
@@ -8949,16 +9382,131 @@
             "token": []
           }
         ],
-        "summary": "Create a savings goal",
+        "summary": "Create an envelope",
         "tags": [
-          "Savings"
+          "Envelopes"
         ]
       }
     },
-    "/api/savings/goals/{id}": {
+    "/api/envelopes/offers": {
+      "get": {
+        "description": "Nothing is attached without the owner: each offer is confirmed, or answered « Non » (`POST /envelopes/offers/:transactionId/dismiss`).",
+        "operationId": "EnvelopesController_offers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeOffersDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Savings to split, transfers and expenses to attach",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/month": {
+      "get": {
+        "description": "Each envelope that paid an expense booked in the month: paid, put aside, what is left, and per category (what it adds to the month’s budget).",
+        "operationId": "EnvelopesController_month",
+        "parameters": [
+          {
+            "description": "YYYY-MM; default the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeMonthDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "What envelopes paid in a month, per category",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/{id}": {
+      "get": {
+        "operationId": "EnvelopesController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "An envelope with its history and movements",
+        "tags": [
+          "Envelopes"
+        ]
+      },
       "patch": {
-        "description": "Omitted fields keep their value; `accountIds` replaces the linked accounts.",
-        "operationId": "SavingsController_updateGoal",
+        "description": "Omitted fields keep their value; `categoryIds` replaces them.",
+        "operationId": "EnvelopesController_update",
         "parameters": [
           {
             "name": "id",
@@ -8975,7 +9523,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateGoalDto"
+                "$ref": "#/components/schemas/UpdateEnvelopeDto"
               }
             }
           }
@@ -8986,13 +9534,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SavingsGoalDto"
+                  "$ref": "#/components/schemas/EnvelopeSummaryDto"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid body, unknown account, or `source = accounts` without accounts."
+            "description": ""
           },
           "401": {
             "description": ""
@@ -9006,13 +9554,14 @@
             "token": []
           }
         ],
-        "summary": "Change, archive or restore a savings goal",
+        "summary": "Change, archive or restore an envelope",
         "tags": [
-          "Savings"
+          "Envelopes"
         ]
       },
       "delete": {
-        "operationId": "SavingsController_removeGoal",
+        "description": "Its money goes back to « libre »; balances do not change.",
+        "operationId": "EnvelopesController_remove",
         "parameters": [
           {
             "name": "id",
@@ -9040,9 +9589,368 @@
             "token": []
           }
         ],
-        "summary": "Delete a savings goal",
+        "summary": "Delete an envelope",
         "tags": [
-          "Savings"
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/moves": {
+      "post": {
+        "description": "The balance does not change. Never more than the envelope (or « libre ») holds there.",
+        "operationId": "EnvelopesController_move",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveEnvelopeMoneyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Move money between envelopes and « libre » on one account",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/{id}/transactions": {
+      "post": {
+        "description": "An expense keeps its category and counts once in the month; the envelope pays it (or `amountCents` of it) and adds that to the month’s budget. A transfer out carries the envelope’s money (or `amountCents` of it) to its other account.",
+        "operationId": "EnvelopesController_attach",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already attached to an envelope."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Attach an expense or a transfer out to an envelope",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/{id}/transactions/{transactionId}": {
+      "delete": {
+        "operationId": "EnvelopesController_detach",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "The envelope would fall below zero on an account."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Detach an expense, a transfer or a saving split",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/splits/{transactionId}": {
+      "post": {
+        "description": "The shares given, else the account’s key (rounded down to the cent, the rest « libre »).",
+        "operationId": "EnvelopesController_applySplit",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplySplitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already split."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Split a saving between envelopes",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/offers/{transactionId}/dismiss": {
+      "post": {
+        "operationId": "EnvelopesController_dismiss",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "« Non » to the envelope offers on a transaction",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/accounts/{id}/envelopes": {
+      "get": {
+        "description": "« Libre » is the balance minus the envelopes; `shortfallCents` is what is missing when the balance falls under them (never reduced automatically). With the account’s split key.",
+        "operationId": "EnvelopesController_forAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "An account split between its envelopes and « libre »",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/accounts/{id}/envelope-key": {
+      "put": {
+        "description": "Each envelope’s share of the new savings arriving on the account, in basis points; at most 10 000 in all, the rest is « libre ». Applied as offers the owner confirms.",
+        "operationId": "EnvelopesController_setSplitKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSplitKeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set an account’s split key",
+        "tags": [
+          "Envelopes"
         ]
       }
     },
@@ -11665,10 +12573,10 @@
             "minimum": 0,
             "description": "Categorization rules limited to this account."
           },
-          "savingsGoals": {
+          "envelopeMovements": {
             "type": "integer",
             "minimum": 0,
-            "description": "Savings goals counting this account (the goals themselves stay)."
+            "description": "Envelope movements on this account (the envelopes stay; their money here goes)."
           },
           "closedMonths": {
             "type": "integer",
@@ -11686,7 +12594,7 @@
           "walletKeys",
           "recurringItems",
           "rules",
-          "savingsGoals",
+          "envelopeMovements",
           "closedMonths"
         ]
       },
@@ -11884,6 +12792,80 @@
           "openingMismatch"
         ]
       },
+      "IssueCellField": {
+        "type": "string",
+        "enum": [
+          "date",
+          "valueDate",
+          "amount",
+          "debit",
+          "credit",
+          "label",
+          "balance"
+        ],
+        "description": "The field the column is read as; null for a column the format ignores. Tells which cell made the line unreadable."
+      },
+      "IssueCellDto": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string",
+            "description": "Header column of the cell; empty past the header’s end."
+          },
+          "value": {
+            "type": "string",
+            "description": "The cell as written."
+          },
+          "field": {
+            "nullable": true,
+            "description": "The field the column is read as; null for a column the format ignores. Tells which cell made the line unreadable.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueCellField"
+              }
+            ]
+          }
+        },
+        "required": [
+          "column",
+          "value",
+          "field"
+        ]
+      },
+      "IssueDraftDto": {
+        "type": "object",
+        "properties": {
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "rawLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "bookingDate",
+          "valueDate",
+          "amountCents",
+          "balanceAfterCents",
+          "rawLabel"
+        ]
+      },
       "ParseIssueDto": {
         "type": "object",
         "properties": {
@@ -11892,12 +12874,33 @@
             "description": "1-based line in the file."
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "Why the line was not read; names no cell."
+          },
+          "cells": {
+            "nullable": true,
+            "description": "The line’s cells as written (#433); null when the line could not be split (an unclosed quote) or for previews made before.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueCellDto"
+            }
+          },
+          "draft": {
+            "nullable": true,
+            "description": "What could be read from the line, to start the fix from; null when nothing could.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueDraftDto"
+              }
+            ]
           }
         },
         "required": [
           "lineNumber",
-          "message"
+          "message",
+          "cells",
+          "draft"
         ]
       },
       "ImportRowStatus": {
@@ -12051,6 +13054,16 @@
                 "$ref": "#/components/schemas/ManualExpenseMatchDto"
               }
             ]
+          },
+          "fixedFrom": {
+            "nullable": true,
+            "description": "The unreadable line this row was typed in place of in the preview (#433), with its reason and cells; null for rows read from the file.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ParseIssueDto"
+              }
+            ]
           }
         },
         "required": [
@@ -12069,7 +13082,8 @@
           "ruleId",
           "kind",
           "needsReview",
-          "manualMatch"
+          "manualMatch",
+          "fixedFrom"
         ]
       },
       "ImportPreviewDto": {
@@ -12315,6 +13329,39 @@
             }
           }
         }
+      },
+      "FixImportLineDto": {
+        "type": "object",
+        "properties": {
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Booking date."
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents: negative = money out."
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Running balance after the line, when the file gives one."
+          },
+          "rawLabel": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "bookingDate",
+          "amountCents",
+          "rawLabel"
+        ]
       },
       "ImportSummaryDto": {
         "type": "object",
@@ -13857,6 +14904,17 @@
             "nullable": true,
             "description": "Term in months of that prepaid subscription."
           },
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Envelope that paid this expense or carried its money with this transfer (#430, ADR 0008)."
+          },
+          "envelopeAmountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "What that envelope paid of the expense, or carried with the transfer (positive)."
+          },
           "prepaidSuggestion": {
             "nullable": true,
             "description": "Rows of the review queue only (#439): a large debit that may be a fee paid for a year, offered as « Prépayé 12 mois ? ».",
@@ -13932,6 +14990,8 @@
           "manual",
           "prepaidItemId",
           "prepaidTermMonths",
+          "envelopeId",
+          "envelopeAmountCents",
           "originalAmountCents",
           "originalBookingDate",
           "splits",
@@ -14366,6 +15426,23 @@
           "shares"
         ]
       },
+      "EditEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "What it pays of the expense or carries with the transfer; omitted = all it can (`POST /envelopes/{id}/transactions`)."
+          }
+        },
+        "required": [
+          "envelopeId"
+        ]
+      },
       "LinkItemDto": {
         "type": "object",
         "properties": {
@@ -14471,6 +15548,16 @@
             "maximum": 60,
             "description": "Prepaid term in months (#314): declares this expense as an upfront payment, or changes the term of the item it pays; `null` makes that item an ordinary one again."
           },
+          "envelope": {
+            "nullable": true,
+            "description": "The envelope that pays this expense or carries this transfer’s money (#430): detached first when it changes, attached after the other fields; `null` detaches it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EditEnvelopeDto"
+              }
+            ]
+          },
           "repayments": {
             "$ref": "#/components/schemas/EditRepaymentsDto"
           }
@@ -14508,6 +15595,10 @@
           "iOweCents": {
             "type": "integer",
             "description": "What the owner owes them now (open items)."
+          },
+          "alwaysOffset": {
+            "type": "boolean",
+            "description": "« Toujours compenser » (#484)."
           }
         },
         "required": [
@@ -14517,7 +15608,8 @@
           "repaymentDay",
           "archivedAt",
           "owedToMeCents",
-          "iOweCents"
+          "iOweCents",
+          "alwaysOffset"
         ]
       },
       "CreateContactDto": {
@@ -14646,6 +15738,12 @@
             "type": "string",
             "nullable": true,
             "description": "Label of the transfer."
+          },
+          "offsetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The offset (« Compensé ») this repayment is one side of (#484): no transfer then, undone with the offset only."
           }
         },
         "required": [
@@ -14655,7 +15753,8 @@
           "amountCents",
           "paidOn",
           "note",
-          "label"
+          "label",
+          "offsetId"
         ]
       },
       "ReceivableDto": {
@@ -14918,6 +16017,83 @@
           "share"
         ]
       },
+      "OffsetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Settled on each side."
+          },
+          "offsetOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          },
+          "automatic": {
+            "type": "boolean",
+            "description": "Made by « Toujours compenser », not by a tap."
+          }
+        },
+        "required": [
+          "id",
+          "contactId",
+          "amountCents",
+          "offsetOn",
+          "automatic"
+        ]
+      },
+      "OffsetProposalDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "owedToMeCents": {
+            "type": "integer",
+            "description": "What they owe the owner now."
+          },
+          "iOweCents": {
+            "type": "integer",
+            "description": "What the owner owes them now."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Settled on each side by the offset: the smaller of the two, 0 when one side is empty."
+          },
+          "alwaysOffset": {
+            "type": "boolean",
+            "description": "« Toujours compenser »."
+          },
+          "items": {
+            "description": "The items it settles, both directions, oldest first on each side.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkItemDto"
+            }
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "owedToMeCents",
+          "iOweCents",
+          "amountCents",
+          "alwaysOffset",
+          "items"
+        ]
+      },
       "ContactOwedDto": {
         "type": "object",
         "properties": {
@@ -14951,6 +16127,23 @@
             "items": {
               "$ref": "#/components/schemas/ContactSharedItemDto"
             }
+          },
+          "offsets": {
+            "description": "Offsets made with them, newest first (#484).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OffsetDto"
+            }
+          },
+          "offer": {
+            "nullable": true,
+            "description": "The offset to propose when both sides are open, else null (#484).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OffsetProposalDto"
+              }
+            ]
           }
         },
         "required": [
@@ -14958,8 +16151,22 @@
           "owedToMe",
           "iOwe",
           "expected",
-          "sharedItems"
+          "sharedItems",
+          "offsets",
+          "offer"
         ]
+      },
+      "CreateOffsetDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "The items to settle (the ones the owner ticked), both directions, adding up to the same amount on each side. Omitted: the oldest open items first, for the smaller of the two totals.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkItemDto"
+            }
+          }
+        }
       },
       "UpdateContactDto": {
         "type": "object",
@@ -14979,6 +16186,10 @@
             "nullable": true,
             "minimum": 1,
             "maximum": 31
+          },
+          "alwaysOffset": {
+            "type": "boolean",
+            "description": "« Toujours compenser » (#484): offset what they owe and what the owner owes them as soon as both are open, without asking. Turning it on offsets what is open now."
           },
           "archived": {
             "type": "boolean",
@@ -15014,6 +16225,10 @@
             "type": "integer",
             "nullable": true,
             "description": "Days since the oldest open item (Europe/Paris)."
+          },
+          "netCents": {
+            "type": "integer",
+            "description": "Net position with this person, both directions (#484): what they owe the owner minus what he owes them, signed cents."
           }
         },
         "required": [
@@ -15022,7 +16237,8 @@
           "owedCents",
           "openCount",
           "oldestOpenDate",
-          "oldestOpenDays"
+          "oldestOpenDays",
+          "netCents"
         ]
       },
       "OwedListDto": {
@@ -15087,6 +16303,13 @@
             "items": {
               "$ref": "#/components/schemas/ExpectedRepaymentDto"
             }
+          },
+          "offers": {
+            "description": "People who owe the owner and whom he owes too: the offset to propose (« Compenser »), most settled first (#484).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OffsetProposalDto"
+            }
           }
         },
         "required": [
@@ -15094,7 +16317,8 @@
           "month",
           "owedToMe",
           "iOwe",
-          "expected"
+          "expected",
+          "offers"
         ]
       },
       "CreateSharesDto": {
@@ -15487,6 +16711,37 @@
           "termMonths"
         ]
       },
+      "BudgetEnvelopePaidDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What the envelope paid in the category this month (« + 95 € par Lisbonne »)."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "icon",
+          "color",
+          "paidCents"
+        ]
+      },
       "BudgetStatus": {
         "type": "string",
         "enum": [
@@ -15560,14 +16815,24 @@
               "$ref": "#/components/schemas/BudgetPrepaidDto"
             }
           },
+          "envelopePaidCents": {
+            "type": "integer",
+            "description": "What envelopes paid of `spentCents` (#429, ADR 0008): it adds to the month’s budget of the category, so the budget itself paid `spentCents` − this."
+          },
+          "envelopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetEnvelopePaidDto"
+            }
+          },
           "remainingCents": {
             "type": "integer",
-            "description": "`targetCents` − `spentCents` (negative when over)."
+            "description": "`targetCents` + `envelopePaidCents` − `spentCents` (negative when over)."
           },
           "percentUsed": {
             "type": "number",
             "example": 85.3,
-            "description": "Spent / target × 100, one decimal."
+            "description": "What the budget paid itself (spent − paid by envelopes) / target × 100, one decimal."
           },
           "status": {
             "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
@@ -15592,6 +16857,8 @@
           "spentExcludingOneOffsCents",
           "grossSpentCents",
           "prepaid",
+          "envelopePaidCents",
+          "envelopes",
           "remainingCents",
           "percentUsed",
           "status"
@@ -15611,8 +16878,13 @@
           "spentExcludingOneOffsCents": {
             "type": "integer"
           },
+          "envelopePaidCents": {
+            "type": "integer",
+            "description": "What envelopes paid in the budgeted categories (in `spentCents`; « 715 € par une enveloppe »)."
+          },
           "remainingCents": {
-            "type": "integer"
+            "type": "integer",
+            "description": "`targetCents` + `envelopePaidCents` − `spentCents`."
           },
           "percentUsed": {
             "type": "number",
@@ -15643,6 +16915,7 @@
           "targetCents",
           "spentCents",
           "spentExcludingOneOffsCents",
+          "envelopePaidCents",
           "remainingCents",
           "percentUsed",
           "status",
@@ -15978,6 +17251,10 @@
             "type": "integer",
             "description": "Monthly target in cents."
           },
+          "tracked": {
+            "type": "boolean",
+            "description": "Flagged « suivre pendant le mois »; always true unless `all` was asked."
+          },
           "spentCents": {
             "type": "integer",
             "description": "Spent during the month (so far for the current one), in positive cents: imported and manual `expense` transactions of the category (refunds reduce it)."
@@ -15986,9 +17263,13 @@
             "type": "integer",
             "description": "Part of `spentCents` noted by hand, not imported yet."
           },
+          "envelopePaidCents": {
+            "type": "integer",
+            "description": "Part of `spentCents` paid by envelopes (#429): it adds to the target, so remaining, pace and status read `spentCents` − this."
+          },
           "remainingCents": {
             "type": "integer",
-            "description": "`targetCents` − `spentCents` (negative when over)."
+            "description": "`targetCents` + `envelopePaidCents` − `spentCents` (negative when over)."
           },
           "paceCents": {
             "type": "integer",
@@ -16014,8 +17295,10 @@
           "color",
           "icon",
           "targetCents",
+          "tracked",
           "spentCents",
           "manualCents",
+          "envelopePaidCents",
           "remainingCents",
           "paceCents",
           "aheadOfPace",
@@ -16529,6 +17812,156 @@
           "monthlyTargetCents",
           "note",
           "tracked"
+        ]
+      },
+      "DashboardWidgetType": {
+        "type": "string",
+        "enum": [
+          "todo",
+          "left_to_spend",
+          "forecast",
+          "net_worth",
+          "tracked_budgets",
+          "balances",
+          "owed",
+          "upcoming_debits",
+          "month_flows",
+          "envelopes",
+          "investments"
+        ]
+      },
+      "DashboardOwedSide": {
+        "type": "string",
+        "enum": [
+          "both",
+          "owed_to_me",
+          "i_owe"
+        ],
+        "description": "`owed`: both sides, what I am owed or what I owe."
+      },
+      "DashboardBalancesSort": {
+        "type": "string",
+        "enum": [
+          "order",
+          "desc",
+          "asc"
+        ],
+        "description": "`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first)."
+      },
+      "DashboardWidgetSettingsDto": {
+        "type": "object",
+        "properties": {
+          "upcomingDays": {
+            "type": "number",
+            "enum": [
+              7,
+              30
+            ],
+            "description": "`upcoming_debits`: the next 7 or 30 days."
+          },
+          "owedSide": {
+            "description": "`owed`: both sides, what I am owed or what I owe.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardOwedSide"
+              }
+            ]
+          },
+          "balancesSort": {
+            "description": "`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardBalancesSort"
+              }
+            ]
+          }
+        }
+      },
+      "DashboardWidgetDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardWidgetType"
+              }
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "accountIds": {
+            "nullable": true,
+            "description": "The accounts shown, in no order; null = all of them. Only on the elements that show accounts (`forecast`, `net_worth`, `balances`, `upcoming_debits`, `investments`); an empty list = every chosen account was deleted.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "envelopeIds": {
+            "nullable": true,
+            "description": "`envelopes` only: the envelopes shown; null = all of them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "categoryIds": {
+            "nullable": true,
+            "description": "`tracked_budgets` only: the expense categories shown, in their order; null = the budget lines flagged « suivre pendant le mois ».",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DashboardWidgetSettingsDto"
+          }
+        },
+        "required": [
+          "type",
+          "hidden",
+          "accountIds",
+          "envelopeIds",
+          "settings"
+        ]
+      },
+      "DashboardLayoutDto": {
+        "type": "object",
+        "properties": {
+          "custom": {
+            "type": "boolean",
+            "description": "False while the owner has saved nothing: `widgets` is then the default layout (today’s dashboard)."
+          },
+          "widgets": {
+            "description": "The elements in their order, hidden ones included.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardWidgetDto"
+            }
+          }
+        },
+        "required": [
+          "custom",
+          "widgets"
+        ]
+      },
+      "UpdateDashboardLayoutDto": {
+        "type": "object",
+        "properties": {
+          "widgets": {
+            "description": "The whole layout, in order; each type at most once.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardWidgetDto"
+            }
+          }
+        },
+        "required": [
+          "widgets"
         ]
       },
       "NetWorthDto": {
@@ -21693,50 +23126,67 @@
           "monthlyTargetCents"
         ]
       },
-      "SavingsGoalSource": {
-        "type": "string",
-        "enum": [
-          "accounts",
-          "manual"
-        ]
-      },
-      "GoalProjectionDto": {
+      "EnvelopeAccountAmountDto": {
         "type": "object",
         "properties": {
-          "averageMonthlyCents": {
-            "type": "integer",
-            "nullable": true,
-            "description": "Average monthly savings the projection uses."
-          },
-          "reachable": {
-            "type": "boolean",
-            "description": "False when the average is unknown or ≤ 0."
-          },
-          "monthsNeeded": {
-            "type": "integer",
-            "nullable": true
-          },
-          "projectedDate": {
+          "accountId": {
             "type": "string",
-            "format": "date",
-            "nullable": true,
-            "description": "Month end at which the target would be reached."
+            "format": "uuid"
           },
-          "onTrack": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Projected date ≤ target date; null without a target date, true once reached."
+          "accountName": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "What the envelope holds on the account. Below 0 only after an import was undone or an account deleted (reported, never refused)."
           }
         },
         "required": [
-          "averageMonthlyCents",
-          "reachable",
-          "monthsNeeded",
-          "projectedDate",
-          "onTrack"
+          "accountId",
+          "accountName",
+          "amountCents"
         ]
       },
-      "SavingsGoalDto": {
+      "EnvelopePlanDto": {
+        "type": "object",
+        "properties": {
+          "remainingCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Target − total, at least 0; null without a target."
+          },
+          "progressRatio": {
+            "type": "number",
+            "nullable": true,
+            "description": "Total / target."
+          },
+          "reached": {
+            "type": "boolean"
+          },
+          "monthsLeft": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Month ends left until the due date (at least 1 until it)."
+          },
+          "targetDatePassed": {
+            "type": "boolean"
+          },
+          "requiredMonthlyCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "What is missing spread over the month ends left (« 221 € par mois »); null without a target or a due date, or once it has passed."
+          }
+        },
+        "required": [
+          "remainingCents",
+          "progressRatio",
+          "reached",
+          "monthsLeft",
+          "targetDatePassed",
+          "requiredMonthlyCents"
+        ]
+      },
+      "EnvelopeSummaryDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -21746,203 +23196,823 @@
           "name": {
             "type": "string"
           },
-          "targetCents": {
-            "type": "integer"
+          "icon": {
+            "type": "string",
+            "nullable": true
           },
-          "targetDate": {
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "dueDate": {
             "type": "string",
             "format": "date",
             "nullable": true
           },
-          "source": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SavingsGoalSource"
-              }
-            ]
+          "archived": {
+            "type": "boolean"
           },
-          "manualAmountCents": {
-            "type": "integer",
-            "nullable": true
-          },
-          "accountIds": {
+          "categoryIds": {
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
           },
-          "color": {
-            "type": "string",
-            "nullable": true
-          },
-          "archived": {
-            "type": "boolean"
-          },
-          "currentCents": {
+          "totalCents": {
             "type": "integer",
-            "description": "Saved so far: the linked accounts’ known balances, or the manual amount."
+            "description": "What it holds now, all accounts."
           },
-          "progressRatio": {
-            "type": "number",
-            "description": "`currentCents / targetCents` (may exceed 1)."
-          },
-          "remainingCents": {
-            "type": "integer"
-          },
-          "reached": {
-            "type": "boolean"
-          },
-          "monthsLeft": {
+          "paidCents": {
             "type": "integer",
-            "nullable": true,
-            "description": "Month ends left until the target date (today’s month end included; 0 once passed), null without a date."
+            "description": "What it paid of expenses, all time (refunds deducted)."
           },
-          "targetDatePassed": {
-            "type": "boolean"
-          },
-          "requiredMonthlyCents": {
+          "putAsideCents": {
             "type": "integer",
-            "nullable": true,
-            "description": "Saving needed per month to reach the target by its date; null without a date or once it has passed."
+            "description": "Put aside so far: what it holds + what it paid."
           },
-          "projection": {
-            "$ref": "#/components/schemas/GoalProjectionDto"
+          "accounts": {
+            "description": "Per account where it holds or held money, non-zero only.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeAccountAmountDto"
+            }
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EnvelopePlanDto"
           }
         },
         "required": [
           "id",
           "name",
-          "targetCents",
-          "targetDate",
-          "source",
-          "manualAmountCents",
-          "accountIds",
+          "icon",
           "color",
+          "targetCents",
+          "dueDate",
           "archived",
-          "currentCents",
-          "progressRatio",
-          "remainingCents",
-          "reached",
-          "monthsLeft",
-          "targetDatePassed",
-          "requiredMonthlyCents",
-          "projection"
+          "categoryIds",
+          "totalCents",
+          "paidCents",
+          "putAsideCents",
+          "accounts",
+          "plan"
         ]
       },
-      "CreateGoalDto": {
+      "EnvelopeOfferTransactionDto": {
         "type": "object",
         "properties": {
-          "name": {
+          "transactionId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 100
+            "format": "uuid"
           },
-          "targetCents": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000000000,
-            "description": "Target amount in cents."
-          },
-          "targetDate": {
+          "accountId": {
             "type": "string",
-            "format": "date",
-            "nullable": true,
-            "description": "Calendar date to reach the target by; null = no deadline."
+            "format": "uuid"
           },
-          "source": {
-            "default": "accounts",
-            "description": "`accounts`: the current amount is the sum of the linked accounts’ balances (at least one account). `manual`: `manualAmountCents`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SavingsGoalSource"
-              }
-            ]
-          },
-          "manualAmountCents": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0,
-            "maximum": 1000000000,
-            "description": "Amount saved so far when `source = manual` (default 0)."
-          },
-          "accountIds": {
-            "maxItems": 20,
-            "description": "Linked accounts (any type, archived ones included).",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "color": {
+          "bookingDate": {
             "type": "string",
-            "nullable": true,
-            "pattern": "^#[0-9a-fA-F]{6}$",
-            "example": "#0284c7"
+            "format": "date"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         },
         "required": [
-          "name",
-          "targetCents"
+          "transactionId",
+          "accountId",
+          "bookingDate",
+          "amountCents",
+          "label",
+          "categoryId",
+          "counterpartAccountId"
         ]
       },
-      "UpdateGoalDto": {
+      "EnvelopeOfferChoiceDto": {
         "type": "object",
         "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
+            "type": "string"
           },
-          "targetCents": {
+          "amountCents": {
             "type": "integer",
-            "minimum": 1,
-            "maximum": 1000000000,
-            "description": "Target amount in cents."
+            "description": "For a saving: its share by the key. For a transfer or an expense: what the envelope holds on the account."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "amountCents"
+        ]
+      },
+      "EnvelopeOfferDto": {
+        "type": "object",
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/EnvelopeOfferTransactionDto"
           },
-          "targetDate": {
+          "envelopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferChoiceDto"
+            }
+          }
+        },
+        "required": [
+          "transaction",
+          "envelopes"
+        ]
+      },
+      "EnvelopeOffersDto": {
+        "type": "object",
+        "properties": {
+          "savings": {
+            "description": "Savings arrived on an account with a split key, each envelope’s share by the key.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferDto"
+            }
+          },
+          "transfers": {
+            "description": "Transfers out of an account where envelopes hold money, the envelopes that could follow them.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferDto"
+            }
+          },
+          "expenses": {
+            "description": "Expenses in an envelope’s categories on an account where it holds money.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferDto"
+            }
+          }
+        },
+        "required": [
+          "savings",
+          "transfers",
+          "expenses"
+        ]
+      },
+      "EnvelopeCategoryPaidDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
             "type": "string",
-            "format": "date",
-            "nullable": true,
-            "description": "Calendar date to reach the target by; null = no deadline."
+            "format": "uuid",
+            "nullable": true
           },
-          "source": {
-            "default": "accounts",
-            "description": "`accounts`: the current amount is the sum of the linked accounts’ balances (at least one account). `manual`: `manualAmountCents`.",
+          "paidCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "categoryId",
+          "paidCents"
+        ]
+      },
+      "EnvelopeMonthItemDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What it paid this month."
+          },
+          "putAsideCents": {
+            "type": "integer",
+            "description": "Put aside so far (what it holds now + what it ever paid)."
+          },
+          "leftCents": {
+            "type": "integer",
+            "description": "What it holds now (« Il reste »)."
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeCategoryPaidDto"
+            }
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "icon",
+          "color",
+          "paidCents",
+          "putAsideCents",
+          "leftCents",
+          "categories"
+        ]
+      },
+      "EnvelopeMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "paidCents": {
+            "type": "integer"
+          },
+          "envelopes": {
+            "description": "Envelopes that paid something this month.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeMonthItemDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "paidCents",
+          "envelopes"
+        ]
+      },
+      "EnvelopeHistoryAccountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "amountCents"
+        ]
+      },
+      "EnvelopeHistoryMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Held at the month’s end."
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeHistoryAccountDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "totalCents",
+          "accounts"
+        ]
+      },
+      "EnvelopeMovementReason": {
+        "type": "string",
+        "enum": [
+          "start",
+          "move",
+          "split",
+          "transfer",
+          "spend"
+        ],
+        "description": "`start` taken from « libre » at creation, `move` a hand move, `split` its share of a saving, `transfer` an attached transfer (one leg per account), `spend` what it paid of an expense."
+      },
+      "EnvelopeMovementDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "onDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "description": "`start` taken from « libre » at creation, `move` a hand move, `split` its share of a saving, `transfer` an attached transfer (one leg per account), `spend` what it paid of an expense.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SavingsGoalSource"
+                "$ref": "#/components/schemas/EnvelopeMovementReason"
               }
             ]
           },
-          "manualAmountCents": {
-            "type": "integer",
+          "counterEnvelopeId": {
+            "type": "string",
+            "format": "uuid",
             "nullable": true,
-            "minimum": 0,
-            "maximum": 1000000000,
-            "description": "Amount saved so far when `source = manual` (default 0)."
+            "description": "A move’s other envelope; null = « libre »."
           },
-          "accountIds": {
-            "maxItems": 20,
-            "description": "Linked accounts (any type, archived ones included).",
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "amountCents",
+          "onDate",
+          "reason",
+          "counterEnvelopeId",
+          "transactionId",
+          "note"
+        ]
+      },
+      "EnvelopeDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "categoryIds": {
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
           },
+          "totalCents": {
+            "type": "integer",
+            "description": "What it holds now, all accounts."
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What it paid of expenses, all time (refunds deducted)."
+          },
+          "putAsideCents": {
+            "type": "integer",
+            "description": "Put aside so far: what it holds + what it paid."
+          },
+          "accounts": {
+            "description": "Per account where it holds or held money, non-zero only.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeAccountAmountDto"
+            }
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EnvelopePlanDto"
+          },
+          "history": {
+            "description": "The last 12 month ends (Europe/Paris), oldest first (« Évolution »).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeHistoryMonthDto"
+            }
+          },
+          "movements": {
+            "description": "Its latest 200 movements, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeMovementDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "color",
+          "targetCents",
+          "dueDate",
+          "archived",
+          "categoryIds",
+          "totalCents",
+          "paidCents",
+          "putAsideCents",
+          "accounts",
+          "plan",
+          "history",
+          "movements"
+        ]
+      },
+      "EnvelopeStartDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Taken from the account’s « libre »; the money does not move."
+          }
+        },
+        "required": [
+          "accountId",
+          "amountCents"
+        ]
+      },
+      "CreateEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40,
+            "description": "Icon name of the web app (`plane`, `gift`…)."
+          },
           "color": {
             "type": "string",
             "nullable": true,
-            "pattern": "^#[0-9a-fA-F]{6}$",
             "example": "#0284c7"
           },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "The amount aimed at; null = no target."
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Calendar day it is for; null = no due date."
+          },
+          "categoryIds": {
+            "maxItems": 20,
+            "description": "Expense categories it pays for (offers only). On update, replaces them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "start": {
+            "maxItems": 20,
+            "description": "« Pour commencer »: an amount per account, taken from its « libre » (400 beyond it).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeStartDto"
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40,
+            "description": "Icon name of the web app (`plane`, `gift`…)."
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#0284c7"
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "The amount aimed at; null = no target."
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Calendar day it is for; null = no due date."
+          },
+          "categoryIds": {
+            "maxItems": 20,
+            "description": "Expense categories it pays for (offers only). On update, replaces them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
           "archived": {
-            "type": "boolean",
-            "description": "Archive (true) or restore (false) the goal."
+            "type": "boolean"
           }
         }
+      },
+      "MoveEnvelopeMoneyDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromEnvelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The envelope the money leaves; null = « libre »."
+          },
+          "toEnvelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The envelope the money goes to; null = « libre »."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "accountId",
+          "fromEnvelopeId",
+          "toEnvelopeId",
+          "amountCents"
+        ]
+      },
+      "AccountEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "shareOfBalance": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Its share of the balance in basis points (« 22 % du solde »); null without a positive balance."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "icon",
+          "color",
+          "archived",
+          "amountCents",
+          "shareOfBalance"
+        ]
+      },
+      "SplitKeyEntryDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "basisPoints": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "envelopeId",
+          "basisPoints"
+        ]
+      },
+      "AccountEnvelopesDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "balanceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "balanceDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "envelopes": {
+            "description": "Envelopes holding money here (non-zero), largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountEnvelopeDto"
+            }
+          },
+          "allocatedCents": {
+            "type": "integer",
+            "description": "Σ of the envelopes here."
+          },
+          "freeCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "« Libre »: balance − envelopes; negative when the balance is under its envelopes; null without a balance."
+          },
+          "shortfallCents": {
+            "type": "integer",
+            "description": "What is missing to cover the envelopes (« Il manque 150 € »), 0 when covered. Never reduced automatically."
+          },
+          "splitKey": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitKeyEntryDto"
+            }
+          },
+          "freeBasisPoints": {
+            "type": "integer",
+            "description": "What the key leaves « libre », in basis points."
+          }
+        },
+        "required": [
+          "accountId",
+          "balanceCents",
+          "balanceDate",
+          "envelopes",
+          "allocatedCents",
+          "freeCents",
+          "shortfallCents",
+          "splitKey",
+          "freeBasisPoints"
+        ]
+      },
+      "AttachTransactionDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "How much the envelope pays of the expense, or carries with the transfer (positive). Default: all of it, at most what the envelope holds on the account."
+          }
+        },
+        "required": [
+          "transactionId"
+        ]
+      },
+      "SplitShareDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "envelopeId",
+          "amountCents"
+        ]
+      },
+      "ApplySplitDto": {
+        "type": "object",
+        "properties": {
+          "shares": {
+            "maxItems": 50,
+            "description": "The shares to set aside, at most the saving in all. Default: the account’s split key.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitShareDto"
+            }
+          }
+        }
+      },
+      "SplitKeyShareDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "basisPoints": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Share of each new saving, in basis points (500 = 5 %)."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "basisPoints"
+        ]
+      },
+      "SetSplitKeyDto": {
+        "type": "object",
+        "properties": {
+          "shares": {
+            "maxItems": 50,
+            "description": "The whole key of the account (replaces it); at most 10 000 in all, the rest is « libre ». Empty = no key.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitKeyShareDto"
+            }
+          }
+        },
+        "required": [
+          "shares"
+        ]
       },
       "ClosedMonthDto": {
         "type": "object",
@@ -22291,7 +24361,7 @@
           "shortfalls"
         ]
       },
-      "CloseGoalDto": {
+      "CloseEnvelopeDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -22301,19 +24371,30 @@
           "name": {
             "type": "string"
           },
-          "targetCents": {
-            "type": "integer"
+          "icon": {
+            "type": "string",
+            "nullable": true
           },
-          "currentCents": {
-            "type": "integer"
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "What it holds, all accounts."
           },
           "progressRatio": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "reached": {
             "type": "boolean"
           },
-          "targetDate": {
+          "dueDate": {
             "type": "string",
             "format": "date",
             "nullable": true
@@ -22322,11 +24403,13 @@
         "required": [
           "id",
           "name",
+          "icon",
+          "color",
           "targetCents",
-          "currentCents",
+          "totalCents",
           "progressRatio",
           "reached",
-          "targetDate"
+          "dueDate"
         ]
       },
       "CloseSavingsDto": {
@@ -22345,11 +24428,11 @@
             "nullable": true,
             "description": "`netCents` − `targetCents`; null without a target."
           },
-          "goals": {
-            "description": "Active goals.",
+          "envelopes": {
+            "description": "Active envelopes.",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CloseGoalDto"
+              "$ref": "#/components/schemas/CloseEnvelopeDto"
             }
           }
         },
@@ -22357,7 +24440,7 @@
           "netCents",
           "targetCents",
           "gapCents",
-          "goals"
+          "envelopes"
         ]
       },
       "CloseInvestmentsDto": {

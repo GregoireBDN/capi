@@ -3,6 +3,7 @@ import { cn } from '@capi/ui/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import {
   BanIcon,
+  BookOpenIcon,
   CheckIcon,
   ChevronRightIcon,
   KeyRoundIcon,
@@ -27,12 +28,14 @@ import { mergeAccesses } from './accesses'
 import type { AccessItem } from './accesses'
 import { ConnectorSheet } from './ConnectorSheet'
 import { ConnectSheet } from './ConnectSheet'
+import { SkillSheet } from './SkillSheet'
 import type { TokenTarget } from './ConnectSheet'
 
 /**
  * « Claude et accès » (#329, the owner's direction « A. Choix d’abord »):
  * what Claude can and can't do, « Connecter Claude » (this Mac,
- * the phone and claude.ai while remote access is on, a script), then every
+ * the phone and claude.ai while remote access is on, the Capi Skill (#497),
+ * a script), then every
  * access in one list.
  */
 export function ClaudeAccessPage({ email }: { email: string }) {
@@ -40,6 +43,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
   const grants = useQuery(grantsQuery)
   const [connect, setConnect] = useState<TokenTarget | null>(null)
   const [connectorOpen, setConnectorOpen] = useState(false)
+  const [skillOpen, setSkillOpen] = useState(false)
   const [openKey, setOpenKey] = useState<string | null>(null)
 
   // `null`: remote access is off on this server (the API answers 404).
@@ -61,7 +65,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
         >
           Connecter Claude
         </h2>
-        <ul className="bg-card divide-border divide-y overflow-hidden rounded-xl border">
+        <ul className="glass-card rounded-card overflow-hidden py-1">
           <RowButton
             icon={LaptopIcon}
             tone="primary"
@@ -78,6 +82,13 @@ export function ClaudeAccessPage({ email }: { email: string }) {
               onClick={() => setConnectorOpen(true)}
             />
           )}
+          <RowButton
+            icon={BookOpenIcon}
+            tone="success"
+            title="Le Skill Capi"
+            state="Bilan du mois, relevés et placements, pas à pas"
+            onClick={() => setSkillOpen(true)}
+          />
         </ul>
         <Button
           type="button"
@@ -114,7 +125,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
         ) : (
           <ul
             aria-label="Accès actifs"
-            className="bg-card divide-border divide-y overflow-hidden rounded-xl border"
+            className="glass-card rounded-card overflow-hidden py-1"
           >
             {accesses.map((access) => (
               <AccessRow
@@ -137,6 +148,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
         open={connectorOpen}
         onClose={() => setConnectorOpen(false)}
       />
+      <SkillSheet open={skillOpen} onClose={() => setSkillOpen(false)} />
       <AccessDetailSheet access={opened} onClose={() => setOpenKey(null)} />
     </>
   )
@@ -145,7 +157,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
 /** The short « what Claude can and can't do » at the top. */
 export function ClaudeCanDo() {
   return (
-    <div className="bg-card space-y-2 rounded-xl border p-3 text-sm">
+    <div className="glass-card rounded-card space-y-2 p-3 text-sm">
       <p className="font-medium">Ce que Claude peut faire</p>
       <p className="flex gap-2">
         <CheckIcon

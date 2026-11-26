@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   bigint,
+  boolean,
   check,
   date,
   index,
@@ -116,6 +117,35 @@ export const receivablesTable = pgTable(
 )
 
 /**
+ * « Compenser » (#484): what a contact owes the owner and what he owes them
+ * settled against each other, `amountCents` on each side, without a
+ * transfer. Its repayments (`receivable_payments.offset_id`, without a
+ * transaction) are on the contact's items of both directions, adding up to
+ * `amountCents` on each side: the deferred `receivable_offsets_balanced`
+ * trigger says so, so an offset is made and undone as one (deleting it
+ * deletes its repayments). Like « Réglé autrement », it has no line in
+ * `transaction_lines`: no statistic moves.
+ */
+export const receivableOffsetsTable = pgTable(
+  'receivable_offsets',
+  {
+    ...coreColumns,
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => contactsTable.id, { onDelete: 'restrict' }),
+    /** Settled on each side, positive integer cents. */
+    amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+    offsetOn: date('offset_on', { mode: 'string' }).notNull(),
+    /** Made by « Toujours compenser » rather than by the owner's tap. */
+    automatic: boolean('automatic').notNull().default(false),
+  },
+  (t) => [
+    index().on(t.contactId),
+    check('receivable_offsets_amount_positive', sql`${t.amountCents} > 0`),
+  ],
+)
+
+/**
  * Repayments of receivables (#359): a transfer (incoming for `owed_to_me`,
  * outgoing for `i_owe`) linked to one or several receivables, partly or in
  * full, or « Réglé autrement » without a transaction (cash, in kind). The
@@ -148,10 +178,22 @@ export const receivablePaymentsTable = pgTable(
     amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
     paidOn: date('paid_on', { mode: 'string' }).notNull(),
     note: text('note'),
+    /**
+     * The offset this repayment is one side of (#484): no transaction then,
+     * deleted with it.
+     */
+    offsetId: uuid('offset_id').references(() => receivableOffsetsTable.id, {
+      onDelete: 'cascade',
+    }),
   },
   (t) => [
     index().on(t.receivableId),
     index().on(t.transactionId),
+    index().on(t.offsetId),
+    check(
+      'receivable_payments_offset_without_transaction',
+      sql`${t.offsetId} is null or ${t.transactionId} is null`,
+    ),
     check('receivable_payments_amount_positive', sql`${t.amountCents} > 0`),
     check(
       'receivable_payments_split_needs_transaction',
@@ -161,5 +203,6 @@ export const receivablePaymentsTable = pgTable(
 )
 
 export type SelectReceivable = typeof receivablesTable.$inferSelect
+export type SelectReceivableOffset = typeof receivableOffsetsTable.$inferSelect
 export type SelectReceivablePayment =
   typeof receivablePaymentsTable.$inferSelect

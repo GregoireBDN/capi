@@ -3,16 +3,23 @@
 # Every push to main: CI, then build, scan and push the API, web and MCP
 # adapter images to GHCR as sha-<short> (the tag a release of this commit
 # also gets), then deploy them to the `capi-staging` project on the
-# server (deploy/deploy.sh --staging), which resets the demo data and checks
-# the health. The `staging` environment has no required reviewer: nothing
-# waits for the owner. Production is untouched (release.yml, vX.Y.Z tags).
-# Run it by hand to redeploy main's latest commit.
+# server (deploy/deploy.sh --staging), which keeps staging's data (the demo
+# data only on an empty database, #494) and checks the health. The `staging`
+# environment has no required reviewer: nothing waits for the owner.
+# Production is untouched (release.yml, vX.Y.Z tags). Run it by hand to
+# redeploy main's latest commit, with `reset_demo` to wipe staging and seed
+# the demo data again.
 name: Staging
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      reset_demo:
+        description: Wipe staging's data and seed the demo data again
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -175,8 +182,16 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           STAGING_URL: ${{ vars.STAGING_URL || 'https://finances-staging.gbodin.cloud' }}
+          # Empty on a push: only a manual run resets.
+          RESET_DEMO: ${{ inputs.reset_demo }}
         run: |
           release_dir=$STAGING_DIR/releases/$VERSION
+          reset=
+          data="data kept"
+          if [[ $RESET_DEMO == true ]]; then
+            reset=--reset-demo
+            data="demo data reset"
+          fi
           # shellcheck disable=SC2029
-          ssh "$DEPLOY_HOST" "'$release_dir/deploy/deploy.sh' --staging '$VERSION' '$release_dir/docker-compose.prod.yml'"
-          echo "Deployed **$VERSION** to $STAGING_URL (demo data)" >>"$GITHUB_STEP_SUMMARY"
+          ssh "$DEPLOY_HOST" "'$release_dir/deploy/deploy.sh' --staging $reset '$VERSION' '$release_dir/docker-compose.prod.yml'"
+          echo "Deployed **$VERSION** to $STAGING_URL ($data)" >>"$GITHUB_STEP_SUMMARY"

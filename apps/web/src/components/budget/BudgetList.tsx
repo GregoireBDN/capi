@@ -2,7 +2,7 @@ import { Button, CategoryIcon, cn, ProgressMeter } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { PencilIcon } from 'lucide-react'
 import type { BudgetLineDto } from '#/api/types.gen'
-import { formatCents } from '#/lib/money'
+import { formatCents, formatWholeEuros } from '#/lib/money'
 import { formatBudgetAmount } from './amount'
 import { ROUTES } from '#/lib/routes'
 import { WARNING_THRESHOLD } from './BudgetSummary'
@@ -38,8 +38,9 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
             key={item.categoryId}
             data-status={item.status}
             className={cn(
-              'bg-card flex items-start gap-1 rounded-xl border p-1',
-              item.status === 'over' && 'border-chart-over/50 bg-chart-over/5',
+              'bg-card rounded-card flex items-start gap-1 p-1 shadow-[var(--glass-edge),var(--glass-shadow-md)]',
+              item.status === 'over' &&
+                'bg-[color-mix(in_oklch,var(--chart-over)_6%,var(--card))]',
             )}
           >
             <Link
@@ -52,12 +53,24 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
               <span className="min-w-0 flex-1 space-y-1">
                 <ProgressMeter
                   label={item.name}
-                  value={item.spentCents}
+                  // What the month's budget paid itself: what envelopes
+                  // paid adds to the target (#430, ADR 0008 §5).
+                  value={item.spentCents - item.envelopePaidCents}
                   target={item.targetCents}
                   // Compact amounts keep the name readable on a phone.
                   valueFormatter={formatBudgetAmount}
                   warningThreshold={WARNING_THRESHOLD}
                 />
+                {item.envelopes.length > 0 && (
+                  <span className="text-muted-foreground block text-xs">
+                    {item.envelopes
+                      .map(
+                        (paid) =>
+                          `+ ${formatWholeEuros(paid.paidCents)} par ${paid.name}`,
+                      )
+                      .join(' · ')}
+                  </span>
+                )}
                 {(oneOffs !== 0 ||
                   prepaid.length > 0 ||
                   item.note ||

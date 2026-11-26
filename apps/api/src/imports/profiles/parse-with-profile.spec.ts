@@ -99,7 +99,9 @@ describe('standard cash format', () => {
     )
     const result = parseCashCsv(bytes, standard(bytes))
     expect(result.rows.map((r) => r.lineNumber)).toEqual([2])
-    expect(result.issues).toEqual([
+    expect(
+      result.issues.map(({ lineNumber, message }) => ({ lineNumber, message })),
+    ).toEqual([
       { lineNumber: 3, message: 'Invalid or missing date' },
       { lineNumber: 4, message: 'Invalid amount' },
       { lineNumber: 5, message: 'Missing label' },
@@ -110,6 +112,22 @@ describe('standard cash format', () => {
     for (const issue of result.issues) {
       expect(issue.message).not.toMatch(/FICTIF|JOUR|douze|TROP/)
     }
+    // The cells and what could be read, for the fix in the preview (#433).
+    expect(result.issues[1]).toMatchObject({
+      cells: [
+        { column: 'date', value: '2026-10-02', field: 'date' },
+        { column: 'amount', value: 'douze', field: 'amount' },
+        { column: 'label', value: 'MONTANT ILLISIBLE', field: 'label' },
+      ],
+      draft: {
+        bookingDate: '2026-10-02',
+        amountCents: null,
+        rawLabel: 'MONTANT ILLISIBLE',
+      },
+    })
+    expect(result.issues[4].cells).toHaveLength(5)
+    expect(result.issues[4].draft).toBeUndefined()
+    expect(result.issues[5].cells).toBeUndefined()
   })
 
   it('refuses an empty file', () => {
@@ -145,7 +163,7 @@ describe('a saved cash profile', () => {
       }),
       expect.objectContaining({ amountCents: -320 }),
     ])
-    expect(result.issues).toEqual([
+    expect(result.issues).toMatchObject([
       { lineNumber: 5, message: 'Invalid or missing date' },
     ])
   })

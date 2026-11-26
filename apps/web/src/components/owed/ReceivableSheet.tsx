@@ -1,6 +1,7 @@
 import {
   Button,
   CategoryIcon,
+  DateField,
   Field,
   FieldDescription,
   FieldLabel,
@@ -42,6 +43,7 @@ import {
   owedErrorMessage,
   unforgiveReceivable,
   UNDO_TOAST_MS,
+  undoOffset,
   unlinkPayment,
 } from './queries'
 
@@ -170,6 +172,16 @@ function ReceivableContent({
       onClose()
       await afterOwedChanged(queryClient)
       toast.success('Remboursement délié')
+    },
+    onError: (error) => toast.error(owedErrorMessage(error)),
+  })
+  // An offset's side is undone with the other side (#484).
+  const unoffset = useMutation({
+    mutationFn: (offsetId: string) => undoOffset(offsetId),
+    onSuccess: async () => {
+      onClose()
+      await afterOwedChanged(queryClient)
+      toast.success('Compensation annulée : les deux côtés sont dus à nouveau')
     },
     onError: (error) => toast.error(owedErrorMessage(error)),
   })
@@ -367,31 +379,50 @@ function ReceivableContent({
             <p className="text-muted-foreground text-xs font-medium">
               {item.forgivenCents > 0 ? 'Historique' : 'Remboursements'}
             </p>
-            <ul className="divide-y text-sm">
+            <ul className="space-y-1 text-sm">
               {item.payments.map((payment) => (
                 <li
                   key={payment.id}
                   className="flex min-h-11 flex-wrap items-center gap-x-3"
                 >
-                  <span className="min-w-0 flex-1 break-normal">
+                  <span className="min-w-0 flex-1 basis-40 break-normal">
                     {formatCalendarDate(payment.paidOn)} ·{' '}
-                    {payment.label ?? 'Réglé autrement'}
+                    {payment.offsetId
+                      ? 'Compensé'
+                      : (payment.label ?? 'Réglé autrement')}
                   </span>
                   <span className="whitespace-nowrap tabular-nums">
                     {formatCents(payment.amountCents)}
                   </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    ghost
-                    variant="secondary"
-                    loading={
-                      unlink.isPending && unlink.variables === payment.id
-                    }
-                    onClick={() => unlink.mutate(payment.id)}
-                  >
-                    Délier
-                  </Button>
+                  {payment.offsetId ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      ghost
+                      variant="secondary"
+                      className="ml-auto"
+                      loading={
+                        unoffset.isPending &&
+                        unoffset.variables === payment.offsetId
+                      }
+                      onClick={() => unoffset.mutate(payment.offsetId!)}
+                    >
+                      Annuler la compensation
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      ghost
+                      variant="secondary"
+                      loading={
+                        unlink.isPending && unlink.variables === payment.id
+                      }
+                      onClick={() => unlink.mutate(payment.id)}
+                    >
+                      Délier
+                    </Button>
+                  )}
                 </li>
               ))}
               {item.forgivenCents > 0 && (
@@ -497,7 +528,7 @@ function TransferPicker({
     )
   }
   return (
-    <ul className="divide-y">
+    <ul className="space-y-1">
       {candidates.map((transaction) => {
         const amount = Math.min(item.leftCents, freeOn(transaction))
         return (
@@ -650,12 +681,12 @@ function SettledOtherwise({
       </Field>
       <Field>
         <FieldLabel htmlFor="settled-day">Jour</FieldLabel>
-        <Input
+        <DateField
           id="settled-day"
-          type="date"
+          title="Jour"
           max={today}
           value={paidOn}
-          onChange={(event) => setPaidOn(event.target.value)}
+          onChange={setPaidOn}
         />
       </Field>
       <Field>

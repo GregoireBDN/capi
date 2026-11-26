@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CategoryDto, RecurringItemDto } from '#/api/types.gen'
 import { SubscriptionsPage } from './SubscriptionsPage'
+import { pickDay } from '#/test/date-field'
 import { recurringItem, recurringSummary } from './test-fixtures'
 
 const api = vi.hoisted(() => ({
@@ -324,7 +325,7 @@ describe('SubscriptionsPage', () => {
         name: 'Résilier Hébergeur Exemple',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('Date de fin')).toHaveValue('2026-11-20')
+    expect(screen.getByLabelText('Date de fin')).toHaveTextContent('20/11/2026')
   })
 
   it('confirms or dismisses a suggestion', async () => {
@@ -456,8 +457,8 @@ describe('SubscriptionsPage', () => {
         name: 'Résilier Streamflix',
       })
       // Opens on the day after the next charge (November 11).
-      expect(within(sheet).getByLabelText('Date de fin')).toHaveValue(
-        '2026-11-12',
+      expect(within(sheet).getByLabelText('Date de fin')).toHaveTextContent(
+        '12/11/2026',
       )
       const afterNext = within(sheet).getByRole('radio', {
         name: /Après la prochaine échéance \(11 nov\.\)/,
@@ -503,12 +504,11 @@ describe('SubscriptionsPage', () => {
       await user.click(
         within(sheet).getByRole('radio', { name: 'Aujourd’hui' }),
       )
-      expect(within(sheet).getByLabelText('Date de fin')).toHaveValue(
-        '2026-11-06',
+      expect(within(sheet).getByLabelText('Date de fin')).toHaveTextContent(
+        '06/11/2026',
       )
       const date = within(sheet).getByLabelText('Date de fin')
-      await user.clear(date)
-      await user.type(date, '2026-10-01')
+      await pickDay(user, date, '2026-10-01')
       expect(within(sheet).getByText(/dès maintenant/)).toBeInTheDocument()
       await user.click(within(sheet).getByRole('button', { name: 'Résilier' }))
       await waitFor(() =>

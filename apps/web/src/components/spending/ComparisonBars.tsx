@@ -187,7 +187,7 @@ function BiggestChange({
   // « octobre, du 1er au 12 », as the bar's label.
   const { previous } = comparisonLabels(data)
   return (
-    <div data-slot="biggest-change" className="space-y-1 border-t pt-3">
+    <div data-slot="biggest-change" className="space-y-1 pt-3">
       <p className="text-muted-foreground text-xs">{title}</p>
       {item ? (
         <Link
@@ -261,7 +261,7 @@ function OneOffSwitch({
   return (
     <div
       data-slot="one-off-switch"
-      className="flex min-h-11 items-center gap-3 border-t pt-3"
+      className="flex min-h-11 items-center gap-3 pt-3"
     >
       <Switch
         id={id}

@@ -6,8 +6,10 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common'
@@ -36,6 +38,7 @@ import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   CommitImportDto,
   DeleteImportResultDto,
+  FixImportLineDto,
   ImportDetailDto,
   ImportSummaryDto,
   PreviewImportBodyDto,
@@ -45,6 +48,11 @@ import { ImportsService } from './imports.service'
 import { IMPORT_FILE_FIELD, readMultipartUpload } from './upload/multipart'
 
 const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
+const LINE_PARAM = {
+  name: 'lineNumber',
+  type: 'integer',
+  description: '1-based line in the file.',
+} as const
 
 @ApiTags('Imports')
 @ApiCookieAuth('token')
@@ -127,6 +135,53 @@ export class ImportsController {
     @Body() dto: CommitImportDto,
   ): Promise<ImportDetailDto> {
     return this.importsService.commit(id, dto)
+  }
+
+  // Typing a line is session only: the MCP converts a statement to the
+  // standard format instead.
+  @Put(':id/lines/:lineNumber')
+  @ApiOperation({
+    summary: 'Type an unreadable line of a pending import',
+    description:
+      'Replaces a line the file’s format could not read (or a line typed before) with the values typed, then checks the whole preview again: dedupe, continuity, manual expenses, rules. The typed row may come out new, duplicate or conflict. Lines that were read cannot be changed. Nothing is written but the pending import (#433).',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiParam(LINE_PARAM)
+  @ApiBody({ type: FixImportLineDto })
+  @ApiOkResponse({ type: ImportDetailDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid values, or a line that was read.',
+  })
+  @ApiNotFoundResponse({ description: 'No such import or unreadable line.' })
+  @ApiConflictResponse({
+    description: 'Already committed, or the preview is outdated.',
+  })
+  fixLine(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('lineNumber', ParseIntPipe) lineNumber: number,
+    @Body() dto: FixImportLineDto,
+  ): Promise<ImportDetailDto> {
+    return this.importsService.fixLine(id, lineNumber, dto)
+  }
+
+  @Delete(':id/lines/:lineNumber')
+  @ApiOperation({
+    summary: 'Put a typed line back as unreadable',
+    description:
+      'The line typed in the preview is left out of the import again, and the preview is checked again (#433).',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiParam(LINE_PARAM)
+  @ApiOkResponse({ type: ImportDetailDto })
+  @ApiNotFoundResponse({ description: 'No such import or typed line.' })
+  @ApiConflictResponse({
+    description: 'Already committed, or the preview is outdated.',
+  })
+  unfixLine(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('lineNumber', ParseIntPipe) lineNumber: number,
+  ): Promise<ImportDetailDto> {
+    return this.importsService.unfixLine(id, lineNumber)
   }
 
   @Get()

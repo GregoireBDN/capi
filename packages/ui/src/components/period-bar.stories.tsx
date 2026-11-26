@@ -54,7 +54,7 @@ function Frame({ width, label }: { width: number; label: string }) {
       <figcaption className="text-muted-foreground text-xs">{label}</figcaption>
       <div
         data-frame={width}
-        className="@container flex h-12 items-center border-y bg-(--header-bg) px-2"
+        className="@container flex h-12 items-center border-y bg-glass-chrome px-2"
         style={{ width }}
       >
         <MonthBar />
@@ -90,7 +90,7 @@ export const Default: Story = {
     children: null,
   },
   render: () => (
-    <div className="@container w-[390px] bg-(--header-bg) px-2">
+    <div className="@container w-[390px] bg-glass-chrome px-2">
       <MonthBar />
     </div>
   ),

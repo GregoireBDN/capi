@@ -365,8 +365,10 @@ export class AccountDeletionPreviewDto {
   @count('Categorization rules limited to this account.')
   rules!: number
 
-  @count('Savings goals counting this account (the goals themselves stay).')
-  savingsGoals!: number
+  @count(
+    'Envelope movements on this account (the envelopes stay; their money here goes).',
+  )
+  envelopeMovements!: number
 
   @count(
     'Closed months with data of this account: their frozen report keeps its figures.',

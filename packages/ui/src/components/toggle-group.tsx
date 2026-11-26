@@ -1,33 +1,33 @@
-"use client";
+'use client'
 
-import { type VariantProps } from "class-variance-authority";
-import { ToggleGroup as ToggleGroupPrimitive } from "radix-ui";
-import * as React from "react";
+import { type VariantProps } from 'class-variance-authority'
+import { ToggleGroup as ToggleGroupPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { toggleVariants } from "./toggle";
-import { cn } from "../lib/utils";
+import { toggleVariants } from './toggle'
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type ToggleGroupOrientation = "horizontal" | "vertical";
+type ToggleGroupOrientation = 'horizontal' | 'vertical'
 
 type ToggleGroupContextValue = VariantProps<typeof toggleVariants> & {
-  spacing?: number;
-  orientation?: ToggleGroupOrientation;
-};
+  spacing?: number
+  orientation?: ToggleGroupOrientation
+}
 
 type ToggleGroupProps = React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
   VariantProps<typeof toggleVariants> & {
-    spacing?: number;
-    orientation?: ToggleGroupOrientation;
-  };
+    spacing?: number
+    orientation?: ToggleGroupOrientation
+  }
 
 type ToggleGroupItemProps = React.ComponentProps<
   typeof ToggleGroupPrimitive.Item
 > &
-  VariantProps<typeof toggleVariants>;
+  VariantProps<typeof toggleVariants>
 
 /* ============================================================================
  * CONTEXT
@@ -38,11 +38,11 @@ type ToggleGroupItemProps = React.ComponentProps<
  * Provides variant, size, spacing, and orientation to all items
  */
 const ToggleGroupContext = React.createContext<ToggleGroupContextValue>({
-  size: "default",
-  variant: "default",
+  size: 'default',
+  variant: 'default',
   spacing: 0,
-  orientation: "horizontal",
-});
+  orientation: 'horizontal',
+})
 
 /* ============================================================================
  * COMPONENTS
@@ -59,7 +59,7 @@ function ToggleGroup({
   variant,
   size,
   spacing = 0,
-  orientation = "horizontal",
+  orientation = 'horizontal',
   children,
   ...props
 }: ToggleGroupProps) {
@@ -70,28 +70,28 @@ function ToggleGroup({
       data-size={size}
       data-spacing={spacing}
       data-orientation={orientation}
-      style={{ "--gap": spacing } as React.CSSProperties}
+      style={{ '--gap': spacing } as React.CSSProperties}
       className={cn(
         [
           // Grouping
-          "group/toggle-group",
+          'group/toggle-group',
 
           // Layout
-          "flex w-fit flex-row items-center",
+          'flex w-fit flex-row items-center',
 
           // Spacing
-          "gap-[--spacing(var(--gap))]",
+          'gap-[--spacing(var(--gap))]',
 
           // Styling
-          "rounded-lg",
+          'rounded-control',
 
           // Size Variants
-          "data-[size=sm]:rounded-[min(var(--radius-md),10px)]",
+          'data-[size=sm]:rounded-[min(var(--radius-control),10px)]',
 
           // Vertical Orientation
-          "data-vertical:flex-col",
-          "data-vertical:items-stretch",
-        ].join(" "),
+          'data-vertical:flex-col',
+          'data-vertical:items-stretch',
+        ].join(' '),
         className,
       )}
       {...props}
@@ -102,7 +102,7 @@ function ToggleGroup({
         {children}
       </ToggleGroupContext.Provider>
     </ToggleGroupPrimitive.Root>
-  );
+  )
 }
 
 /**
@@ -114,11 +114,11 @@ function ToggleGroup({
 function ToggleGroupItem({
   className,
   children,
-  variant = "default",
-  size = "default",
+  variant = 'default',
+  size = 'default',
   ...props
 }: ToggleGroupItemProps) {
-  const context = React.useContext(ToggleGroupContext);
+  const context = React.useContext(ToggleGroupContext)
 
   return (
     <ToggleGroupPrimitive.Item
@@ -129,36 +129,28 @@ function ToggleGroupItem({
       className={cn(
         [
           // Layout
-          "shrink-0",
+          'shrink-0',
 
           // Focus States
-          "focus:z-10",
-          "focus-visible:z-10",
+          'focus:z-10',
+          'focus-visible:z-10',
 
           // Spacing=0: Segmented Control Style
-          "group-data-[spacing=0]/toggle-group:rounded-none",
-          "group-data-[spacing=0]/toggle-group:px-2",
+          'group-data-[spacing=0]/toggle-group:rounded-none',
+          'group-data-[spacing=0]/toggle-group:px-2',
 
           // Spacing=0: Icon Padding Adjustments
-          "group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-1.5",
-          "group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-1.5",
+          'group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-1.5',
+          'group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-1.5',
 
           // Spacing=0: First/Last Border Radius (Horizontal)
-          "group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-lg",
-          "group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-lg",
+          'group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-control',
+          'group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-control',
 
           // Spacing=0: First/Last Border Radius (Vertical)
-          "group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-lg",
-          "group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-lg",
-
-          // Spacing=0: Border Removal (Horizontal Outline)
-          "group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0",
-          "group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l",
-
-          // Spacing=0: Border Removal (Vertical Outline)
-          "group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0",
-          "group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t",
-        ].join(" "),
+          'group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-control',
+          'group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-control',
+        ].join(' '),
         toggleVariants({
           variant: context.variant || variant,
           size: context.size || size,
@@ -169,7 +161,7 @@ function ToggleGroupItem({
     >
       {children}
     </ToggleGroupPrimitive.Item>
-  );
+  )
 }
 
 /* ============================================================================
@@ -182,4 +174,4 @@ export {
   type ToggleGroupItemProps,
   type ToggleGroupOrientation,
   type ToggleGroupProps,
-};
+}

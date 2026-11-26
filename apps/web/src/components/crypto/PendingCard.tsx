@@ -228,7 +228,7 @@ export function PendingCard({
             <summary className="text-muted-foreground flex min-h-11 cursor-pointer items-center text-sm">
               Réponses données ({data.answered.length})
             </summary>
-            <ul className="divide-y text-sm">
+            <ul className="space-y-1 text-sm">
               {data.answered.map((item) => (
                 <li
                   key={item.movementId}

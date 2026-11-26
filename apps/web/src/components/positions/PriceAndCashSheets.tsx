@@ -1,4 +1,5 @@
 import {
+  DateField,
   Field,
   FieldDescription,
   FieldError,
@@ -126,13 +127,13 @@ export function PriceSheet({
             </Field>
             <Field data-invalid={dayError !== undefined}>
               <FieldLabel htmlFor={`${id}-day`}>Date</FieldLabel>
-              <Input
+              <DateField
                 id={`${id}-day`}
-                type="date"
+                title="Date"
                 max={today}
                 value={day}
                 aria-invalid={dayError !== undefined}
-                onChange={(event) => setDay(event.target.value)}
+                onChange={setDay}
               />
               {dayError && <FieldError>{dayError}</FieldError>}
             </Field>

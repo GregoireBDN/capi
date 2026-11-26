@@ -148,13 +148,6 @@ export type PositionStatementSource =
   (typeof POSITION_STATEMENT_SOURCES)[number]
 
 /**
- * Where a savings goal's current amount comes from: the balances of its
- * linked accounts, or an amount entered by hand.
- */
-export const SAVINGS_GOAL_SOURCES = ['accounts', 'manual'] as const
-export type SavingsGoalSource = (typeof SAVINGS_GOAL_SOURCES)[number]
-
-/**
  * Where a crypto account's holdings come from: an exchange's exports
  * (`exchange`), a self-custody wallet read from its public keys (`wallet`), or
  * typed by hand (`manual`, the only source before #127).
@@ -293,3 +286,46 @@ export type ReceivableDirection = (typeof RECEIVABLE_DIRECTIONS)[number]
 /** How a receivable was made: by hand, or from a shared recurring item. */
 export const RECEIVABLE_ORIGINS = ['manual', 'recurring'] as const
 export type ReceivableOrigin = (typeof RECEIVABLE_ORIGINS)[number]
+
+/**
+ * Why an envelope's amount on an account changed (#429, ADR 0008):
+ * `start` money taken from « libre » at creation, `move` a hand move,
+ * `split` its share of a saving, `transfer` an attached transfer's legs,
+ * `spend` what it paid of an expense.
+ */
+export const ENVELOPE_MOVEMENT_REASONS = [
+  'start',
+  'move',
+  'split',
+  'transfer',
+  'spend',
+] as const
+export type EnvelopeMovementReason = (typeof ENVELOPE_MOVEMENT_REASONS)[number]
+
+/**
+ * The dashboard's elements (#495), each answering one question in one card.
+ * The default layout is `DEFAULT_DASHBOARD_LAYOUT` (`dashboard/layout`).
+ */
+export const DASHBOARD_WIDGET_TYPES = [
+  'todo',
+  'left_to_spend',
+  'forecast',
+  'net_worth',
+  'tracked_budgets',
+  'balances',
+  'owed',
+  'upcoming_debits',
+  'month_flows',
+  'envelopes',
+  'investments',
+] as const
+export type DashboardWidgetType = (typeof DASHBOARD_WIDGET_TYPES)[number]
+
+/** The elements that show accounts, all of them or the ones chosen. */
+export const DASHBOARD_ACCOUNT_WIDGET_TYPES = [
+  'forecast',
+  'net_worth',
+  'balances',
+  'upcoming_debits',
+  'investments',
+] as const satisfies readonly DashboardWidgetType[]

@@ -15,6 +15,7 @@ const contact = (id: string, name: string): ContactDto => ({
   archivedAt: null,
   owedToMeCents: 0,
   iOweCents: 0,
+  alwaysOffset: false,
 })
 const ALEX = contact('a0000000-0000-4000-8000-000000000001', 'Alex')
 const SAM = contact('a0000000-0000-4000-8000-000000000002', 'Sam')
@@ -44,6 +45,8 @@ const dinner: TransactionDto = {
   manual: false,
   prepaidItemId: null,
   prepaidTermMonths: null,
+  envelopeId: null,
+  envelopeAmountCents: null,
   originalAmountCents: null,
   originalBookingDate: null,
   splits: [],

@@ -22,6 +22,9 @@ const api = vi.hoisted(() => ({
   budgetsControllerIncomeSuggestions: vi.fn(),
   budgetsControllerUpsert: vi.fn(),
   budgetsControllerRemove: vi.fn(),
+  envelopesControllerMonth: vi.fn(),
+  envelopesControllerDetail: vi.fn(),
+  envelopesControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -107,6 +110,8 @@ function line(
     spentCents,
     spentExcludingOneOffsCents: spentCents,
     grossSpentCents: spentCents,
+    envelopePaidCents: 0,
+    envelopes: [],
     prepaid: [],
     remainingCents: targetCents - spentCents,
     percentUsed: Math.round((spentCents * 1000) / targetCents) / 10,
@@ -136,6 +141,7 @@ const monthData: BudgetMonthDto = {
     targetCents: 50_000,
     spentCents: 35_000,
     spentExcludingOneOffsCents: 25_000,
+    envelopePaidCents: 0,
     remainingCents: 15_000,
     percentUsed: 70,
     status: 'ok',
@@ -358,6 +364,9 @@ describe('BudgetPage', () => {
       ok([groceries, leisure, transport, salary, family]),
     )
     api.budgetsControllerMonth.mockImplementation(() => ok(monthData))
+    api.envelopesControllerMonth.mockImplementation(() =>
+      ok({ month: '2026-10', paidCents: 0, envelopes: [] }),
+    )
     api.budgetsControllerHistory.mockImplementation(() => ok(history))
     api.budgetsControllerSuggest.mockImplementation(() => ok(suggestions))
     api.budgetsControllerIncomeSuggestions.mockImplementation(() =>
@@ -410,7 +419,11 @@ describe('BudgetPage', () => {
 
     const total = screen.getByRole('meter', { name: 'Total' })
     expect(total).toHaveAttribute('aria-valuenow', '35000')
-    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    // The page's answer (#434): what is left, the lines over their target.
+    const answer = document.querySelector('[data-slot="budget-answer"]')
+    expect(answer).toHaveTextContent(/Reste à dépenser|Dépassement/)
+    expect(answer).toHaveTextContent(/1\s*dépassé/)
+    expect(answer).not.toHaveTextContent('Hors budget')
     // Spending outside the budgets, uncategorized included.
     const outside = screen.getByRole('list', { name: 'Dépenses hors budget' })
     expect(within(outside).getByText('Sans catégorie')).toBeInTheDocument()
@@ -425,6 +438,53 @@ describe('BudgetPage', () => {
       }),
     ).toBeInTheDocument()
     expect(within(outsideRows[1]).queryByRole('button')).toBeNull()
+  })
+
+  it('shows what an envelope paid as its own line and under its categories (#430)', async () => {
+    const paid = {
+      envelopeId: 'env-1',
+      name: 'Lisbonne',
+      icon: 'plane',
+      color: '#e87ba4',
+      paidCents: 9_500,
+    }
+    api.budgetsControllerMonth.mockImplementation(() =>
+      ok({
+        ...monthData,
+        items: [
+          {
+            ...line(leisure, 10_000, 15_000, 'ok'),
+            envelopePaidCents: 9_500,
+            envelopes: [paid],
+          },
+        ],
+        totals: { ...monthData.totals, envelopePaidCents: 9_500 },
+      }),
+    )
+    api.envelopesControllerMonth.mockImplementation(() =>
+      ok({
+        month: '2026-10',
+        paidCents: 9_500,
+        envelopes: [
+          {
+            envelopeId: 'env-1',
+            name: 'Lisbonne',
+            icon: 'plane',
+            color: '#e87ba4',
+            paidCents: 9_500,
+            putAsideCents: 20_000,
+            leftCents: 10_500,
+            categories: [{ categoryId: leisure.id, paidCents: 9_500 }],
+          },
+        ],
+      }),
+    )
+    renderPage()
+    const envelopeLine = await screen.findByRole('button', {
+      name: 'Enveloppe Lisbonne',
+    })
+    expect(envelopeLine).toHaveTextContent(/95\s€\s\/\s200\s€/)
+    expect(await screen.findByText(/\+ 95\s€ par Lisbonne/)).toBeInTheDocument()
   })
 
   it('shows the planned income, what came in and what the plan leaves to save (#315)', async () => {

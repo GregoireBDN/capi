@@ -348,7 +348,7 @@ export function InvestmentSummary({
 
         {/* Sales into euros (#373): realised, apart from the result. */}
         {realised && realised.count > 0 && (
-          <div className="flex min-h-11 flex-wrap items-baseline gap-x-3 border-t pt-3 text-sm">
+          <div className="flex min-h-11 flex-wrap items-baseline gap-x-3 pt-3 text-sm">
             <span className="text-muted-foreground min-w-[9rem] flex-1">
               Plus-value réalisée
             </span>
