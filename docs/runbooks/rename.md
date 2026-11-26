@@ -76,7 +76,7 @@ For production, in one window (about 15 minutes; Caddy already targets `capi-web
 
 On the Mac, once: `docker compose -p finances down` (no `-v`) in the repository, then `docker compose up -d` starts `capi` on the same local volume (`finances_postgres_data`).
 
-### C. Repository rename (any time after B)
+### C. Repository rename (any time after B, done 2026-11-26)
 
 GitHub → Settings → General → Repository name: `capi`. Then on the Mac: `git remote set-url origin https://github.com/GregoireBDN/capi.git` (the clone uses HTTPS); links in the docs (a search-and-replace PR). The Claude project's repository setting and the GHCR packages' repository link follow the rename by themselves; check the packages' « Manage Actions access » still lists the repository.
 
