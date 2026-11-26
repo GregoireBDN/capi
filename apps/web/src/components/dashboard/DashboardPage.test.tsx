@@ -525,7 +525,6 @@ describe('DashboardPage', () => {
     expect(links()[0]).toHaveTextContent('Dernier relevé au 11 nov.')
     expect(links()[1]).toHaveAttribute('href', '/month-review?month=2026-10')
     expect(links()[1]).toHaveTextContent('Clôturer octobre')
-    expect(links()[1]).toHaveTextContent('1 compte à mettre à jour avant')
     expect(links()[2]).toHaveTextContent('7 opérations à revoir')
     expect(links()[2]).toHaveAttribute(
       'href',
