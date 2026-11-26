@@ -1,7 +1,7 @@
 # Build the production images from this checkout instead of pulling them from
 # GHCR. Use on top of docker-compose.prod.yml, from the repo root:
 #
-#   CAPI_VERSION=local docker compose -p finances-local \
+#   CAPI_VERSION=local docker compose -p capi-local \
 #     -f docker-compose.prod.yml -f docker-compose.build.yml build
 #
 # The images are tagged like the GHCR ones (ghcr.io/gregoirebdn/capi-*:

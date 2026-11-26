@@ -8,7 +8,7 @@ This runbook covers how Capi runs on the server: first install, environment, mig
 phone / laptop ──tailnet──▶ Caddy (infra, 443 on the Tailscale IP, network `proxy`)
                               │  finances.gbodin.cloud → capi-web:3000 (or finances-web)
                               ▼
-                 ┌──────── project `finances` (/srv/finances) ─────────┐
+                 ┌──────── project `capi` (/srv/capi) ─────────────┐
                  │ web  (proxy + default networks, alias capi-web) │
                  │  │  /api/* and SSR → http://api:4000                │
                  │ api  (default network only)                         │
@@ -24,12 +24,12 @@ Claude's servers ──internet──▶ Caddy, public host finances-mcp.<domain
 - **No service publishes a port.** Only Caddy publishes 80/443, bound to the Tailscale IP. Never add `ports:` to this stack: Docker-published ports bypass `ufw`, and the API trusts `X-Forwarded-For` from private addresses (#49).
 - **Images**: `ghcr.io/gregoirebdn/capi-api`, `capi-web` and `capi-mcp`, tag pinned by `CAPI_VERSION` in `.env` (`vX.Y.Z` or `sha-<shortsha>`).
 - **Remote MCP adapter** (`capi-mcp`, #78, #328): only started with `COMPOSE_PROFILES=remote-mcp` in `.env`, and refuses to start unless `REMOTE_MCP_ENABLED=true`. It is the only part of the app on a public host; enabling, checks and the kill switch are in the [remote MCP runbook](remote-mcp.md).
-- **Files on the server**: `/srv/finances/docker-compose.prod.yml` (copied from the release tag by each deploy) and `/srv/finances/.env`. Both are owned by `deploy`, and `.env` has mode `600`. Nothing else from the repo is needed there.
+- **Files on the server**: `/srv/capi/docker-compose.prod.yml` (copied from the release tag by each deploy) and `/srv/capi/.env`. Both are owned by `deploy`, and `.env` has mode `600`. Nothing else from the repo is needed there.
 - **Restart policy**: every service is `restart: unless-stopped`. After a reboot, Docker starts the stack again on its own (Docker is enabled at boot and ordered after `tailscaled`, see the `infra` bootstrap). Containers stopped by hand stay stopped.
 - **Container hardening** (#183): `api`, `web` and `capi-mcp` run as the image's `node` user on a read-only root filesystem (only a 16 MB `/tmp` tmpfs is writable), with every Linux capability dropped, `no-new-privileges`, a memory limit (`APP_MEM_LIMIT`, default `512m`, no swap; `capi-mcp`: `MCP_MEM_LIMIT`, default `256m`) and at most 256 processes (`capi-mcp`: 128). `db` keeps only the capabilities its entrypoint needs to fix the data directory's ownership and drop to `postgres`, with `no-new-privileges`. `dc run` (migrations, seed) gets the same settings as the service.
 - **Health**: `GET /api/health` checks the database, and SMTP only when SMTP is configured (see [Email](#email-smtp)). The `api` and `web` containers have healthchecks. `web` checks the whole chain (web → API → database). `capi-mcp` checks that its port accepts connections (no request, no log line).
 
-Every command below runs as `deploy` in `/srv/finances` (`sudo -iu deploy`, then `cd /srv/finances`). To keep commands short:
+Every command below runs as `deploy` in `/srv/capi` (`sudo -iu deploy`, then `cd /srv/capi`). To keep commands short:
 
 ```bash
 alias dc='docker compose -f docker-compose.prod.yml'
@@ -40,7 +40,7 @@ alias dc='docker compose -f docker-compose.prod.yml'
 Before the first install, make sure of the following:
 
 - Docker Engine and the compose plugin are installed, and the external network `proxy` exists (`docker network ls | grep proxy`). The `infra` bootstrap sets both up.
-- The `deploy` user exists, owns `/srv/finances` and is logged in to GHCR with a `read:packages` token. See [deploy runbook § One-time setup](deploy.md#one-time-setup), steps 1 and 2.
+- The `deploy` user exists, owns `/srv/capi` and is logged in to GHCR with a `read:packages` token. See [deploy runbook § One-time setup](deploy.md#one-time-setup), steps 1 and 2.
 - Caddy has the `finances.gbodin.cloud → capi-web:3000` site block (`infra` repo; `web` also answers to `finances-web` until #464's step B, [rename runbook](rename.md)), and `*.gbodin.cloud` resolves to the server's Tailscale IP.
 - At least one release exists in GHCR (`vX.Y.Z`, pushed by the release workflow).
 
@@ -54,7 +54,7 @@ Copy `docker-compose.prod.yml` of the release you are about to run from your lap
 # On the laptop, in the finances checkout
 git fetch --tags
 git show v1.0.0:docker-compose.prod.yml > /tmp/docker-compose.prod.yml
-scp /tmp/docker-compose.prod.yml deploy@vps:/srv/finances/docker-compose.prod.yml
+scp /tmp/docker-compose.prod.yml deploy@vps:/srv/capi/docker-compose.prod.yml
 ```
 
 After that, each deploy installs the compose file of the deployed tag itself.
@@ -64,7 +64,7 @@ After that, each deploy installs the compose file of the deployed tag itself.
 Start from [`.env.production.example`](../../.env.production.example), which documents every variable. Copy it to the server the same way (`git show v1.0.0:.env.production.example`), then:
 
 ```bash
-cd /srv/finances
+cd /srv/capi
 install -m 600 /dev/null .env          # create it private before writing secrets
 cat .env.production.example > .env && rm .env.production.example
 # Secrets: generated on the server, URL-safe (POSTGRES_PASSWORD goes into a URL)
@@ -121,7 +121,7 @@ Normally a release does everything: push a `vX.Y.Z` tag. The [deploy runbook](de
 To upgrade by hand (e.g. the pipeline is unavailable):
 
 ```bash
-cd /srv/finances
+cd /srv/capi
 # 1. New compose file of the tag (from the laptop, as in First install § 1), if it changed
 # 2. New variables from .env.production.example of the tag, if any
 sed -i 's/^CAPI_VERSION=.*/CAPI_VERSION=v1.1.0/' .env
@@ -209,18 +209,19 @@ If Caddy's service is renamed, set `WEB_TRUSTED_PROXIES=<new name>` in `.env`, t
 
 ## Running the production stack locally
 
-To check the images and the compose file on a laptop, use a throwaway project name: the dev stack (`docker-compose.yml`) is also called `finances`, and the prod file would otherwise take over its containers. Also create the `proxy` network if it doesn't exist.
+To check the images and the compose file on a laptop, use a throwaway project name: the dev stack (`docker-compose.yml`) is also called `capi`, and the prod file would otherwise take over its containers. Give it its own `DB_VOLUME` too. Also create the `proxy` network if it doesn't exist.
 
 ```bash
 docker network create proxy                       # only if missing; remove it afterwards
-cat > /tmp/finances-local.env <<EOF
+cat > /tmp/capi-local.env <<EOF
 CAPI_VERSION=local
+DB_VOLUME=capi-local_db_data
 POSTGRES_USER=finances
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
 JWT_SECRET=$(openssl rand -hex 32)
 APP_URL=https://capi.example.test
 EOF
-c="docker compose -p finances-local --env-file /tmp/finances-local.env -f docker-compose.prod.yml -f docker-compose.build.yml"
+c="docker compose -p capi-local --env-file /tmp/capi-local.env -f docker-compose.prod.yml -f docker-compose.build.yml"
 $c build
 $c run --rm api node dist/database/migrate.js
 $c run --rm api node dist/database/seed.js
@@ -235,7 +236,7 @@ $c down -v                                         # removes the throwaway volum
 
 | Symptom                                             | Check                                                                                                                                                                                |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `required variable … is missing a value`            | `.env` is incomplete, or the command didn't run from `/srv/finances`.                                                                                                                |
+| `required variable … is missing a value`            | `.env` is incomplete, or the command didn't run from `/srv/capi`.                                                                                                                    |
 | `network proxy declared as external, but not found` | The `infra` bootstrap hasn't created it: `docker network create --ipv6 proxy`.                                                                                                       |
 | `pull access denied` / `unauthorized`               | GHCR login of `deploy` missing or expired ([deploy runbook](deploy.md)).                                                                                                             |
 | Sign-in rate limited on every device at once        | Every device has the same client IP: run the end-to-end check in [Client IPs and trusted proxies](#client-ips-and-trusted-proxies) (`172.18.0.1` = IPv4-only `proxy` network, #251). |

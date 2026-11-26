@@ -18,21 +18,53 @@ mkdir -p "$work/bin"
 # the stack when the installed compose file mentions `capi-mcp` (or
 # `finances-mcp`) and .env sets COMPOSE_PROFILES=remote-mcp, like the real
 # profile; `config --services` and `config` are not recorded (`config`
-# prints the installed compose files). The project given with `-p` (staging) is
-# written to $FAKE_STATE/project.
+# prints `name:` then the installed compose files). The project is the last
+# `name:` line of the installed files (default `finances`, or
+# `finances-staging` next to the staging override), or the one given with
+# `-p`, which is written to $FAKE_STATE/project.
+#
+# Databases (#464's step B): $FAKE_STATE/db lists the projects whose Postgres
+# runs on the shared volume. `run` and `up` start the project's, `down` stops
+# it (and the stack, when it is the running one); starting one while another
+# project's runs is recorded as CONFLICT and fails. `docker volume inspect`
+# succeeds for the volumes listed in $FAKE_STATE/volumes.
 cat >"$work/bin/docker" <<'SHIM'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ $1 == volume && $2 == inspect ]]; then
+  grep -qx -- "$3" "$FAKE_STATE/volumes" 2>/dev/null
+  exit
+fi
 [[ $1 == compose ]] || { echo "fake docker: unexpected $*" >&2; exit 99; }
 shift
 args=()
+project=
 while (($#)); do
   case $1 in
     -f) shift 2 ;;
-    -p) echo "$2" >"$FAKE_STATE/project"; shift 2 ;;
+    -p) project=$2; shift 2 ;;
     *) args+=("$1"); shift ;;
   esac
 done
+files() { cat docker-compose.prod.yml 2>/dev/null || true; [[ ! -f docker-compose.staging.yml ]] || cat docker-compose.staging.yml; }
+if [[ -z $project ]]; then
+  project=$(files | sed -n 's/^name: //p' | tail -n 1)
+  if [[ -z $project ]]; then
+    if [[ -f docker-compose.staging.yml ]]; then project=finances-staging; else project=finances; fi
+  fi
+elif [[ ${args[0]:-} != down ]]; then
+  echo "$project" >"$FAKE_STATE/project"
+fi
+# start_db — this project's Postgres starts; refused while another one runs.
+start_db() {
+  local other
+  other=$(grep -vx -- "$project" "$FAKE_STATE/db" 2>/dev/null || true)
+  if [[ -n $other ]]; then
+    echo "CONFLICT $project+$other" >>"$FAKE_STATE/calls"
+    exit 98
+  fi
+  echo "$project" >"$FAKE_STATE/db"
+}
 var=CAPI_VERSION
 grep -q legacy docker-compose.prod.yml && var=FINANCES_VERSION
 v=$(sed -n "s/^$var=//p" .env | tail -n 1)
@@ -46,16 +78,29 @@ services() {
 }
 case "${args[*]}" in
   "config --services") services | tr ' ' '\n'; exit 0 ;;
-  config) cat docker-compose.prod.yml; [[ ! -f docker-compose.staging.yml ]] || cat docker-compose.staging.yml; exit 0 ;;
+  config)
+    [[ -f docker-compose.prod.yml ]] || { echo "no configuration file provided" >&2; exit 1; }
+    echo "name: $project"; files; exit 0 ;;
   "config --quiet") step=config ;;
+  down | "down --remove-orphans")
+    step="down $project"
+    if [[ $(cat "$FAKE_STATE/running_project" 2>/dev/null) == "$project" ]]; then
+      rm -f "$FAKE_STATE/running" "$FAKE_STATE/mcp" "$FAKE_STATE/running_project"
+    fi
+    if [[ -f $FAKE_STATE/db ]]; then
+      grep -vx -- "$project" "$FAKE_STATE/db" >"$FAKE_STATE/db.tmp" || true
+      mv "$FAKE_STATE/db.tmp" "$FAKE_STATE/db"
+    fi ;;
   "pull api web") step=pull; listed FAKE_PULL_FAIL ;;
   "pull api web capi-mcp" | "pull api web finances-mcp") step=pull+mcp; listed FAKE_PULL_FAIL ;;
-  "run --rm -T api node dist/database/migrate.js") step=migrate; listed FAKE_MIGRATE_FAIL ;;
-  "run --rm -T api node dist/database/seed.js") step=seed ;;
-  "run --rm -T api node dist/database/seed-demo.js --reset") step=demo; listed FAKE_DEMO_FAIL ;;
+  "run --rm -T api node dist/database/migrate.js") start_db; step=migrate; listed FAKE_MIGRATE_FAIL ;;
+  "run --rm -T api node dist/database/seed.js") start_db; step=seed ;;
+  "run --rm -T api node dist/database/seed-demo.js --reset") start_db; step=demo; listed FAKE_DEMO_FAIL ;;
   "up -d --remove-orphans")
+    start_db
     step=up
     echo "$v" >"$FAKE_STATE/running"
+    echo "$project" >"$FAKE_STATE/running_project"
     mcp=$(services | grep -E -- '-mcp$' || true)
     if [[ -n $mcp ]]; then echo "$v $mcp" >"$FAKE_STATE/mcp"; else rm -f "$FAKE_STATE/mcp"; fi ;;
   "exec -T web node -e "*)
@@ -83,11 +128,13 @@ export HEALTH_RETRIES=3 HEALTH_INTERVAL=0
 failures=0
 current=
 
-# setup <running version or ""> [.env lines...] — fresh /srv/finances with
+# setup <running version or ""> [.env lines...] — fresh /srv/capi with
 # .env and compose file. OLD_MCP / NEW_MCP=1: that compose file has the MCP
 # adapter (and the old one runs it when its profile is on). OLD_LEGACY=1: the
 # running compose file is from before #464 (FINANCES_VERSION, finances-mcp),
 # and so is .env. ENV_VERSION_LINES: replaces the version lines of .env.
+# OLD_NAME / NEW_NAME: a `name:` line in that compose file (#464's step B);
+# VOLUMES: the volumes that exist.
 setup() {
   local running=$1
   shift
@@ -111,9 +158,14 @@ setup() {
   local old_mcp=capi-mcp
   [[ -z ${OLD_LEGACY:-} ]] || old_mcp="finances-mcp"
   echo "# compose old${OLD_LEGACY:+ legacy}${OLD_MCP:+ $old_mcp}" >"$srv/docker-compose.prod.yml"
+  [[ -z ${OLD_NAME:-} ]] || echo "name: $OLD_NAME" >>"$srv/docker-compose.prod.yml"
   echo "# compose new${NEW_MCP:+ capi-mcp}" >"$work/new-compose.yml"
+  [[ -z ${NEW_NAME:-} ]] || echo "name: $NEW_NAME" >>"$work/new-compose.yml"
+  printf '%s\n' "${VOLUMES:-}" >"$state/volumes"
   if [[ -n $running ]]; then
     echo "$running" >"$state/running"
+    echo "${OLD_NAME:-finances}" >"$state/running_project"
+    echo "${OLD_NAME:-finances}" >"$state/db"
     if [[ -n ${OLD_MCP:-} ]] && grep -qx 'COMPOSE_PROFILES=remote-mcp' "$srv/.env"; then
       echo "$running $old_mcp" >"$state/mcp"
     fi
@@ -173,8 +225,8 @@ check "compose installed" eq "$(cat "$srv/docker-compose.prod.yml")" "# compose 
 check "no compose backup left" test ! -e "$srv/docker-compose.prod.yml.prev"
 check "other .env lines kept" eq "$(grep -c -e '^POSTGRES_USER=app$' -e '^JWT_SECRET=not-a-secret$' "$srv/.env")" 2
 check ".env stays private" eq "$(stat -c %a "$srv/.env")" 600
-check "deploy.log written" has "$srv/deploy.log" "deployed v1.1.0 (previous: v1.0.0)"
-check "default project" eq "$(project)" none
+check "deploy.log written" has "$srv/deploy.log" "deployed v1.1.0 to finances (previous: v1.0.0)"
+check "project from the compose file" eq "$(project)" finances
 
 test_case "rolls back when the health check fails"
 setup v1.0.0
@@ -231,7 +283,7 @@ check "exit 0" eq "$rc" 0
 check "steps" eq "$(calls)" "config @v1.1.0 pull @v1.1.0 migrate @v1.1.0 seed @v1.1.0 up @v1.1.0 health @v1.1.0"
 check ".env version" eq "$(env_version)" v1.1.0
 check "one line each" eq "$(grep -c -e '^CAPI_VERSION=' -e '^FINANCES_VERSION=' "$srv/.env")" 2
-check "previous version read" has "$srv/deploy.log" "deployed v1.1.0 (previous: v1.0.0)"
+check "previous version read" has "$srv/deploy.log" "deployed v1.1.0 to finances (previous: v1.0.0)"
 
 test_case "rolls back to a compose file from before #464"
 OLD_LEGACY=1 setup v1.0.0
@@ -247,7 +299,83 @@ ENV_VERSION_LINES=$'CAPI_VERSION=v1.1.0\nFINANCES_VERSION=v1.0.0' setup v1.0.0
 deploy v1.2.0
 check "exit 0" eq "$rc" 0
 check ".env version" eq "$(env_version)" v1.2.0
-check "previous version read" has "$srv/deploy.log" "deployed v1.2.0 (previous: v1.0.0)"
+check "previous version read" has "$srv/deploy.log" "deployed v1.2.0 to finances (previous: v1.0.0)"
+
+# --- Project rename (#464's step B) -----------------------------------------
+
+db_running() { cat "$state/db" 2>/dev/null | tr '\n' ' ' | sed 's/ $//'; }
+running_project() { cat "$state/running_project" 2>/dev/null || echo none; }
+MOVE_ENV=(DB_VOLUME=finances_db_data)
+
+test_case "moves from project finances to capi: stops finances before the migrations"
+NEW_NAME=capi VOLUMES=finances_db_data setup v1.0.0 "${MOVE_ENV[@]}"
+deploy v1.1.0 "$work/new-compose.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @v1.1.0 pull @v1.1.0 down finances @v1.1.0 migrate @v1.1.0 seed @v1.1.0 up @v1.1.0 health @v1.1.0"
+check "runs as capi" eq "$(running_project)" capi
+check "one database" eq "$(db_running)" capi
+check "running" eq "$(running)" v1.1.0
+check "says so" has "$work/out" "moving from project finances to capi (volume finances_db_data kept)"
+check "deploy.log written" has "$srv/deploy.log" "deployed v1.1.0 to capi (previous: v1.0.0)"
+
+test_case "refuses to move without DB_VOLUME, before stopping anything"
+NEW_NAME=capi VOLUMES=finances_db_data setup v1.0.0
+deploy v1.1.0 "$work/new-compose.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @v1.1.0"
+check "explains why" has "$work/out" "set DB_VOLUME in .env"
+check "finances untouched" eq "$(running_project) $(running)" "finances v1.0.0"
+check "compose restored" eq "$(cat "$srv/docker-compose.prod.yml")" "# compose old"
+check ".env version restored" eq "$(env_version)" v1.0.0
+
+test_case "refuses to move onto a volume that does not exist (an empty database)"
+NEW_NAME=capi setup v1.0.0 "${MOVE_ENV[@]}"
+deploy v1.1.0 "$work/new-compose.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @v1.1.0"
+check "explains why" has "$work/out" "the volume finances_db_data does not exist"
+check "finances untouched" eq "$(running_project) $(running)" "finances v1.0.0"
+
+test_case "a failed move stops capi before finances starts again (health check)"
+NEW_NAME=capi VOLUMES=finances_db_data setup v1.0.0 "${MOVE_ENV[@]}"
+FAKE_UNHEALTHY=v1.1.0 deploy v1.1.0 "$work/new-compose.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @v1.1.0 pull @v1.1.0 down finances @v1.1.0 migrate @v1.1.0 seed @v1.1.0 up @v1.1.0 health @v1.1.0 health @v1.1.0 health @v1.1.0 down capi @v1.1.0 up @v1.0.0 health @v1.0.0"
+check "finances back" eq "$(running_project) $(running)" "finances v1.0.0"
+check "one database" eq "$(db_running)" finances
+check "compose restored" eq "$(cat "$srv/docker-compose.prod.yml")" "# compose old"
+check "reports rollback" has "$work/out" "rolled back to v1.0.0"
+
+test_case "a failed move stops capi before finances starts again (migrations)"
+NEW_NAME=capi VOLUMES=finances_db_data setup v1.0.0 "${MOVE_ENV[@]}"
+FAKE_MIGRATE_FAIL=v1.1.0 deploy v1.1.0 "$work/new-compose.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @v1.1.0 pull @v1.1.0 down finances @v1.1.0 migrate @v1.1.0 down capi @v1.1.0 up @v1.0.0 health @v1.0.0"
+check "finances back" eq "$(running_project) $(running)" "finances v1.0.0"
+check "one database" eq "$(db_running)" finances
+
+test_case "rolls back across the rename: stops capi before finances"
+OLD_NAME=capi VOLUMES=finances_db_data setup v1.1.0 "${MOVE_ENV[@]}"
+deploy v1.0.0 "$work/new-compose.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @v1.0.0 pull @v1.0.0 down capi @v1.0.0 migrate @v1.0.0 seed @v1.0.0 up @v1.0.0 health @v1.0.0"
+check "runs as finances" eq "$(running_project)" finances
+check "one database" eq "$(db_running)" finances
+
+test_case "redeploys in the same project without stopping it"
+OLD_NAME=capi NEW_NAME=capi VOLUMES=finances_db_data setup v1.1.0 "${MOVE_ENV[@]}"
+deploy v1.2.0 "$work/new-compose.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @v1.2.0 pull @v1.2.0 migrate @v1.2.0 seed @v1.2.0 up @v1.2.0 health @v1.2.0"
+check "runs as capi" eq "$(running_project)" capi
+
+test_case "production refuses a staging project"
+NEW_NAME=capi-staging VOLUMES=finances_db_data setup v1.0.0 "${MOVE_ENV[@]}"
+deploy v1.1.0 "$work/new-compose.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @v1.1.0"
+check "explains why" has "$work/out" "production never runs in a staging project (capi-staging)"
+check "finances untouched" eq "$(running_project) $(running)" "finances v1.0.0"
 
 MCP_ON=(COMPOSE_PROFILES=remote-mcp REMOTE_MCP_ENABLED=true)
 
@@ -330,12 +458,18 @@ release=$work/release
 S1=sha-1111111
 S2=sha-2222222
 
-# setup_staging <running version or ""> [.env lines...] — /srv/finances-staging
+# setup_staging <running version or ""> [.env lines...] — /srv/capi-staging
 # with both compose files, and a release directory with the new ones.
 # NEW_OVERRIDE: content of the new docker-compose.staging.yml.
+# OLD_STAGING_NAME / NEW_STAGING_NAME: a `name:` line in that override.
 setup_staging() {
   setup "$@"
   echo "# staging old" >"$srv/docker-compose.staging.yml"
+  [[ -z ${OLD_STAGING_NAME:-} ]] || echo "name: $OLD_STAGING_NAME" >>"$srv/docker-compose.staging.yml"
+  if [[ -n ${1:-} ]]; then
+    echo "${OLD_STAGING_NAME:-finances-staging}" >"$state/running_project"
+    echo "${OLD_STAGING_NAME:-finances-staging}" >"$state/db"
+  fi
   rm -rf "$release"
   mkdir -p "$release"
   echo "# compose new${NEW_MCP:+ capi-mcp}" >"$release/docker-compose.prod.yml"
@@ -343,6 +477,7 @@ setup_staging() {
         aliases:
           - capi-staging-web
           - finances-staging-web}" >"$release/docker-compose.staging.yml"
+  [[ -z ${NEW_STAGING_NAME:-} ]] || echo "name: $NEW_STAGING_NAME" >>"$release/docker-compose.staging.yml"
 }
 
 staging_files() { cat "$srv/docker-compose.prod.yml" "$srv/docker-compose.staging.yml" | head -n 2 | tr '\n' '|'; }
@@ -422,6 +557,24 @@ for bad in v1.2.3 sha-123456 sha-ABCDEF1 sha-xyz1234 'sha-1234567;id' ''; do
   check "exit 2 for [$bad]" eq "$rc" 2
   check "no docker call for [$bad]" eq "$(calls)" ""
 done
+
+test_case "staging: moves from finances-staging to capi-staging"
+NEW_STAGING_NAME=capi-staging VOLUMES=finances-staging_db_data setup_staging $S1 DB_VOLUME=finances-staging_db_data
+deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @$S2 pull @$S2 down finances-staging @$S2 migrate @$S2 seed @$S2 demo @$S2 up @$S2 health @$S2"
+check "staging project" eq "$(project)" capi-staging
+check "one database" eq "$(db_running)" capi-staging
+check "deploy.log written" has "$srv/deploy.log" "deployed $S2 to capi-staging (previous: $S1)"
+
+test_case "staging: refuses a project that is not *-staging"
+NEW_STAGING_NAME=capi VOLUMES=finances-staging_db_data setup_staging $S1 DB_VOLUME=finances-staging_db_data
+deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @$S2"
+check "explains why" has "$work/out" "staging runs only in a project named *-staging, not capi"
+check "staging untouched" eq "$(running_project) $(running)" "finances-staging $S1"
+check "both compose files restored" eq "$(staging_files)" "# compose old|# staging old|"
 
 test_case "production rejects a staging version"
 setup v1.0.0

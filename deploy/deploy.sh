@@ -5,7 +5,7 @@
 #   deploy.sh --staging sha-<commit> [compose-file]
 #
 # Runs as the `deploy` user in CAPI_DIR (FINANCES_DIR before #464; default
-# /srv/finances), next to docker-compose.prod.yml and .env. Steps: install the
+# /srv/capi), next to docker-compose.prod.yml and .env. Steps: install the
 # release's compose file (when given), set CAPI_VERSION in .env, pull the images, run the
 # migrations then the seed from the new API image, `up -d`, and poll the health
 # endpoint through `web`. If any step fails after .env was changed, the previous
@@ -18,15 +18,24 @@
 # both CAPI_VERSION and FINANCES_VERSION, with the same value, and the adapter
 # is found under either name.
 #
+# The compose project is the one the compose files name (`name:`, the
+# staging override's for staging), passed with `-p`. When a release changes it
+# (#464's step B: `finances` → `capi`, `finances-staging` → `capi-staging`, or
+# back on a rollback), the database volume keeps its name (DB_VOLUME in .env)
+# and two Postgres must never run on it: the script checks that the volume
+# exists, stops the project it replaces (`down`, never `-v`) just before the
+# migrations, and on a failure stops the new project before starting the
+# previous one again.
+#
 # The remote MCP adapter (`capi-mcp`, #328) is part of the release only
 # when the compose file has it and its profile is on (COMPOSE_PROFILES in
 # .env): it is then pulled and health-checked too, and a rollback to a version
 # without it removes its container (`--remove-orphans`).
 #
 # --staging (#421, docs/runbooks/staging.md) deploys a commit of main to the
-# staging project instead: the directory defaults to /srv/finances-staging, the
-# version is an image tag sha-<commit>, the compose project is always
-# `finances-staging` and runs docker-compose.prod.yml with the
+# staging project instead: the directory defaults to /srv/capi-staging, the
+# version is an image tag sha-<commit>, the compose project must end in
+# `-staging` (and must not in production), and it runs docker-compose.prod.yml with the
 # docker-compose.staging.yml override (installed from the compose file's
 # directory along with it). After the seed it wipes the database and fills it
 # with the demo data (seed-demo.js --reset), so staging never holds anything
@@ -44,14 +53,12 @@ if [[ ${1:-} == --staging ]]; then
 fi
 
 if [[ $mode == staging ]]; then
-  DEPLOY_DIR=${CAPI_DIR:-${FINANCES_DIR:-/srv/finances-staging}}
+  DEPLOY_DIR=${CAPI_DIR:-${FINANCES_DIR:-/srv/capi-staging}}
   VERSION_PATTERN='^sha-[0-9a-f]{7,40}$'
-  PROJECT=finances-staging
   COMPOSE_FILES=(docker-compose.prod.yml docker-compose.staging.yml)
 else
-  DEPLOY_DIR=${CAPI_DIR:-${FINANCES_DIR:-/srv/finances}}
+  DEPLOY_DIR=${CAPI_DIR:-${FINANCES_DIR:-/srv/capi}}
   VERSION_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
-  PROJECT=
   COMPOSE_FILES=(docker-compose.prod.yml)
 fi
 HEALTH_RETRIES=${HEALTH_RETRIES:-36}
@@ -108,10 +115,26 @@ exec > >(tee -p -a "$LOG_FILE") 2>&1
 tee_pid=$!
 trap 'exec >&- 2>&-; wait "$tee_pid" 2>/dev/null || true' EXIT
 
-compose_args=()
-if [[ -n $PROJECT ]]; then compose_args+=(-p "$PROJECT"); fi
-for file in "${COMPOSE_FILES[@]}"; do compose_args+=(-f "$file"); done
+file_args=()
+for file in "${COMPOSE_FILES[@]}"; do file_args+=(-f "$file"); done
+compose_args=("${file_args[@]}")
 compose() { docker compose "${compose_args[@]}" "$@"; }
+
+# The project the installed compose files name (`name:`), empty when they are
+# missing or invalid.
+compose_project() {
+  local name
+  name=$(docker compose "${file_args[@]}" config 2>/dev/null | sed -n 's/^name: *//p' | head -n 1) || true
+  printf '%s\n' "${name//[\"\']/}"
+}
+
+# use_project NAME — run every later compose command in that project.
+use_project() {
+  PROJECT=$1
+  compose_args=()
+  if [[ -n $PROJECT ]]; then compose_args+=(-p "$PROJECT"); fi
+  compose_args+=("${file_args[@]}")
+}
 
 # read_env NAME — the last NAME= line of .env, unquoted.
 read_env() {
@@ -178,10 +201,15 @@ wait_healthy() {
 }
 
 previous=$(read_version)
+previous_project=$(compose_project)
+use_project "$previous_project"
 compose_backups=()
 changed=false
 started=false
 with_mcp=false
+# The project changes with this release (and the one it replaces was stopped).
+moving=false
+moved=false
 
 # Put back the previous compose file and version. When containers were
 # (re)started, bring the previous version back up too. Always exits 1.
@@ -189,9 +217,21 @@ rollback() {
   log "FAILED: $1"
   if [[ $changed == true ]]; then
     local backup
+    if [[ $moved == true ]]; then
+      # Migrations or `up` started the new project's database: stop it (with
+      # the new compose files, before they are put back) before the previous
+      # project starts again on the same volume. Never -v.
+      log "stopping $PROJECT before $previous_project starts again"
+      if ! compose down --remove-orphans; then
+        log "could not stop $PROJECT: manual action needed (never two databases on one volume)"
+        log "deploy of $version failed (running: none)"
+        exit 1
+      fi
+    fi
     for backup in "${compose_backups[@]}"; do
       mv -f "$backup" "${backup%.prev}"
     done
+    if [[ -n $previous_project ]]; then use_project "$previous_project"; fi
     if [[ -n $previous ]]; then
       set_version "$previous"
       log "restored CAPI_VERSION=$previous"
@@ -213,7 +253,7 @@ rollback() {
   exit 1
 }
 
-log "deploying $version${PROJECT:+ to $PROJECT} (current: ${previous:-none})"
+log "deploying $version${previous_project:+ to $previous_project} (current: ${previous:-none})"
 
 changed=true
 for i in "${!sources[@]}"; do
@@ -227,7 +267,25 @@ for i in "${!sources[@]}"; do
 done
 set_version "$version"
 
-compose config --quiet || rollback "invalid compose configuration"
+docker compose "${file_args[@]}" config --quiet || rollback "invalid compose configuration"
+project=$(compose_project)
+[[ -n $project ]] || rollback "the compose files name no project"
+if [[ $mode == staging && $project != *-staging ]]; then
+  rollback "staging runs only in a project named *-staging, not $project"
+elif [[ $mode == production && $project == *-staging ]]; then
+  rollback "production never runs in a staging project ($project)"
+fi
+if [[ -n $previous_project && $project != "$previous_project" ]]; then
+  moving=true
+  # The new project must open the database the old one used, never a new
+  # empty volume: DB_VOLUME (.env) names it and it must already exist.
+  db_volume=$(read_env DB_VOLUME)
+  [[ -n $db_volume ]] || rollback "the project changes ($previous_project → $project): set DB_VOLUME in .env to the volume in use"
+  docker volume inspect "$db_volume" >/dev/null 2>&1 ||
+    rollback "the project changes ($previous_project → $project) but the volume $db_volume does not exist"
+  log "moving from project $previous_project to $project (volume $db_volume kept)"
+fi
+use_project "$project"
 
 if [[ $mode == staging ]]; then
   # The override replaces web's alias (`!override`): a Compose that merged the
@@ -256,6 +314,15 @@ fi
 
 log "pulling images"
 compose pull "${images[@]}" || rollback "docker compose pull"
+
+if [[ $moving == true ]]; then
+  # Before anything starts the new project's database: never two Postgres on
+  # one volume. `down` keeps the volumes (never -v).
+  log "stopping $previous_project"
+  started=true
+  docker compose -p "$previous_project" down || rollback "docker compose -p $previous_project down"
+  moved=true
+fi
 
 log "running migrations"
 compose run --rm -T api node dist/database/migrate.js || rollback "migrations"
