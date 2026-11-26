@@ -8,19 +8,25 @@ import {
   Skeleton,
 } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRightIcon, PencilIcon } from 'lucide-react'
+import {
+  ArrowDownToLineIcon,
+  ArrowUpFromLineIcon,
+  LandmarkIcon,
+  PencilIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 import type { EnvelopeDetailDto } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { CategoryAvatar } from '#/components/categories/category-icons'
 import { formatShortMonth } from '#/lib/calendar'
 import { formatCents, formatWholeEuros } from '#/lib/money'
-import { accountsQuery, categoriesQuery, isBankAccount } from '#/lib/queries'
+import { categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { EnvelopeAvatar, Gauge, SplitBar } from './EnvelopeAvatar'
 import { EnvelopeEditor } from './EnvelopeEditor'
 import { dueText, envelopeColor, planText } from './format'
-import { MoveSheet } from './MoveSheet'
+import { AddWithdrawSheet } from './AddWithdrawSheet'
+import type { AddOrWithdraw } from './AddWithdrawSheet'
 import { envelopeErrorMessage, envelopeQuery } from './queries'
 
 const BACK = { label: 'Épargne', to: ROUTES.savings } as const
@@ -37,14 +43,13 @@ const ACCOUNT_COLORS = [
 
 /**
  * An envelope's page (#428, « A. Jauge »): the total over its target with
- * a gauge in its colour and what it takes per month, « Déplacer » and
+ * a gauge in its colour and what it takes per month, « Ajouter », « Retirer » and
  * « Modifier »; then « Par compte », « Évolution » and « Paie pour ». On a
  * computer the first card spans both columns.
  */
 export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
   const detail = useQuery(envelopeQuery(envelopeId))
-  const allAccounts = useQuery(accountsQuery)
-  const [moving, setMoving] = useState(false)
+  const [moving, setMoving] = useState<AddOrWithdraw | null>(null)
   const [editing, setEditing] = useState(false)
 
   if (detail.isPending) {
@@ -74,19 +79,6 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
     ]),
   )
   const plan = planText(envelope)
-  // Where it holds money first, then every other bank account: an empty
-  // envelope is filled from « libre » (#430, the owner).
-  const moveAccounts = [
-    ...envelope.accounts,
-    ...(allAccounts.data ?? [])
-      .filter(
-        (a) =>
-          isBankAccount(a) &&
-          a.archivedAt === null &&
-          !envelope.accounts.some((held) => held.accountId === a.id),
-      )
-      .map((a) => ({ accountId: a.id, accountName: a.name, amountCents: 0 })),
-  ]
 
   return (
     <div className="@container space-y-6">
@@ -132,6 +124,12 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
               />
             )}
             {plan && <p className="text-sm font-medium">{plan}</p>}
+            {envelope.accounts.length === 1 && (
+              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                <LandmarkIcon aria-hidden className="size-[0.8rem]" />
+                Sur {envelope.accounts[0].accountName}
+              </p>
+            )}
             {envelope.paidCents !== 0 && (
               <p className="text-muted-foreground text-sm">
                 A payé {formatWholeEuros(envelope.paidCents)}
@@ -140,82 +138,79 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
             {!envelope.archived && (
               <div className="flex flex-wrap gap-2">
                 <Button
-                  iconStart={<ArrowLeftRightIcon />}
-                  onClick={() => setMoving(true)}
+                  iconStart={<ArrowDownToLineIcon />}
+                  onClick={() => setMoving('add')}
                 >
-                  Déplacer
+                  Ajouter
                 </Button>
                 <Button
                   variant="secondary"
                   outline
-                  iconStart={<PencilIcon />}
-                  onClick={() => setEditing(true)}
+                  iconStart={<ArrowUpFromLineIcon />}
+                  disabled={envelope.totalCents <= 0}
+                  onClick={() => setMoving('withdraw')}
                 >
-                  Modifier
+                  Retirer
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Par compte</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {envelope.accounts.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                Rien de mis de côté pour l’instant.
-              </p>
-            ) : (
-              <>
-                <SplitBar
-                  segments={envelope.accounts.map((a) => ({
-                    id: a.accountId,
-                    label: a.accountName,
-                    cents: a.amountCents,
-                    color: accountColor.get(a.accountId)!,
-                  }))}
-                />
-                <ul className="space-y-2 text-sm">
-                  {envelope.accounts.map((a) => (
-                    <li key={a.accountId} className="flex items-center gap-2.5">
-                      <span
-                        aria-hidden
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ background: accountColor.get(a.accountId) }}
-                      />
-                      <span className="min-w-0 flex-1 truncate">
-                        {a.accountName}
+        {/* One account: « Sur Livret A » in the card above (#430). */}
+        {envelope.accounts.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Par compte</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <SplitBar
+                segments={envelope.accounts.map((a) => ({
+                  id: a.accountId,
+                  label: a.accountName,
+                  cents: a.amountCents,
+                  color: accountColor.get(a.accountId)!,
+                }))}
+              />
+              <ul className="space-y-2 text-sm">
+                {envelope.accounts.map((a) => (
+                  <li key={a.accountId} className="flex items-center gap-2.5">
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: accountColor.get(a.accountId) }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {a.accountName}
+                    </span>
+                    <span className="font-semibold whitespace-nowrap tabular-nums">
+                      {formatCents(a.amountCents)}
+                    </span>
+                    {envelope.totalCents > 0 && (
+                      <span className="text-muted-foreground w-10 text-right text-xs tabular-nums">
+                        {Math.round(
+                          (a.amountCents / envelope.totalCents) * 100,
+                        )}{' '}
+                        %
                       </span>
-                      <span className="font-semibold whitespace-nowrap tabular-nums">
-                        {formatCents(a.amountCents)}
-                      </span>
-                      {envelope.totalCents > 0 && (
-                        <span className="text-muted-foreground w-10 text-right text-xs tabular-nums">
-                          {Math.round(
-                            (a.amountCents / envelope.totalCents) * 100,
-                          )}{' '}
-                          %
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
-        <EvolutionCard envelope={envelope} colors={accountColor} />
+        {envelope.history.some((m) => m.totalCents !== 0) && (
+          <EvolutionCard envelope={envelope} colors={accountColor} />
+        )}
         <PaysForCard envelope={envelope} />
       </div>
 
-      <MoveSheet
-        open={moving}
-        onOpenChange={setMoving}
-        accounts={moveAccounts}
-        envelopeId={envelope.id}
+      <AddWithdrawSheet
+        mode={moving}
+        onClose={() => setMoving(null)}
+        envelope={envelope}
       />
       <EnvelopeEditor
         open={editing}

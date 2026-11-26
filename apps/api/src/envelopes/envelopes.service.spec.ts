@@ -525,7 +525,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('a transfer out carries the envelope to the other account', async () => {
+    it('a transfer out to a checking account carries the envelope to it', async () => {
       await inRollback(
         async ({ tx, envelopes, accounts, checking, livret, move }) => {
           const lisbon = await envelopes.create(
@@ -561,7 +561,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
               counterpartAccountId: livret,
             }),
           )
+          // Towards savings or an investment: not offered (#430).
+          const [pea] = await tx
+            .insert(accountsTable)
+            .values({ name: 'PEA test', type: 'brokerage' })
+            .returning({ id: accountsTable.id })
+          const [invested] = await insert(
+            tx,
+            row(livret, '2026-11-05', -2_000, 'transfer', {
+              categoryId: move,
+              counterpartAccountId: pea.id,
+            }),
+          )
           const offers = await envelopes.offers()
+          expect(
+            offers.transfers.some(
+              (o) => o.transaction.transactionId === invested.id,
+            ),
+          ).toBe(false)
           expect(
             offers.transfers.find((o) => o.transaction.transactionId === out.id)
               ?.envelopes,

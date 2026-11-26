@@ -30,27 +30,16 @@ export function MoveSheet({
   accounts,
   from: initialFrom,
   to: initialTo,
-  envelopeId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** The account the money is on; else chosen among `accounts`. */
   accountId?: string
-  accounts?: readonly {
-    accountId: string
-    accountName: string
-    /** What `envelopeId` holds there. */
-    amountCents?: number
-  }[]
+  accounts?: readonly { accountId: string; accountName: string }[]
   /** The envelope it leaves (null: « libre »). */
   from?: string | null
   /** The envelope it goes to (null: « libre »). */
   to?: string | null
-  /**
-   * From an envelope's page: on an account where it holds money, from it;
-   * elsewhere, from « libre » into it (an empty envelope can be filled).
-   */
-  envelopeId?: string
 }) {
   const id = useId()
   const queryClient = useQueryClient()
@@ -62,21 +51,11 @@ export function MoveSheet({
   const [amount, setAmount] = useState('')
   const [tried, setTried] = useState(false)
 
-  const direct = (account: string | null) => {
-    if (envelopeId === undefined) return
-    const held =
-      accounts?.find((a) => a.accountId === account)?.amountCents ?? 0
-    setFrom(held > 0 ? envelopeId : FREE)
-    setTo(held > 0 ? null : envelopeId)
-  }
-
   useEffect(() => {
     if (!open) return
-    const first = fixedAccountId ?? accounts?.[0]?.accountId ?? null
-    setAccountId(first)
+    setAccountId(fixedAccountId ?? accounts?.[0]?.accountId ?? null)
     setFrom(initialFrom === undefined ? null : (initialFrom ?? FREE))
     setTo(initialTo === undefined ? null : (initialTo ?? FREE))
-    direct(first)
     setAmount('')
     setTried(false)
     // Fresh on every opening.
@@ -170,7 +149,6 @@ export function MoveSheet({
             value={accountId}
             onChange={(next) => {
               setAccountId(next)
-              direct(next)
               setAmount('')
             }}
             choices={accounts.map((a) => ({
