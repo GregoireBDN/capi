@@ -89,18 +89,25 @@
 
 /* A field (#507, the owner's « B · Creusé »): a faint hollow, no border. On
    focus it turns the card's colour with a 1.5px primary edge (≥ 3:1) and a
-   soft glow; invalid, the same in the destructive colour (beside an icon or
-   a message, never colour alone). Box shadows only: nothing moves. */
+   soft glow; invalid, a red tint, a 2px destructive edge and glow (beside an
+   icon or a message, never colour alone). Box shadows only: nothing moves. */
 @utility glass-field {
   background-color: var(--glass-fill);
   box-shadow: var(--glass-field-inset);
+}
+/* A filled field rises out of its hollow: the card's colour, the sheen and
+   a soft shadow, so what has been typed in stands out from what has not
+   (the owner, #507). */
+@utility glass-field-filled {
+  background-color: var(--card);
+  box-shadow: var(--glass-edge), var(--glass-shadow-sm);
 }
 @utility glass-field-focus {
   background-color: var(--card);
   box-shadow: var(--glass-edge), var(--glass-focus);
 }
 @utility glass-field-invalid {
-  background-color: color-mix(in oklch, var(--destructive) 5%, var(--card));
+  background-color: color-mix(in srgb, var(--destructive) 10%, var(--card));
   box-shadow: var(--glass-edge), var(--glass-invalid);
 }
 
@@ -363,8 +370,8 @@
   --glass-focus:
     0 0 0 1.5px var(--ring), 0 0 0 5px oklch(from var(--ring) l c h / 16%);
   --glass-invalid:
-    0 0 0 1.5px var(--destructive),
-    0 0 0 5px oklch(from var(--destructive) l c h / 12%);
+    0 0 0 2px var(--destructive),
+    0 0 0 6px oklch(from var(--destructive) l c h / 16%);
   --glass-overlay: rgb(15 23 42 / 18%);
   --glass-overlay-blur: 2px;
   /* #502's folder tab and the month's band under it: the app's light blue

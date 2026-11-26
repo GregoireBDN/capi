@@ -6,7 +6,7 @@ import { cn } from '../lib/utils'
 type PasswordInputProps = Omit<React.ComponentProps<'input'>, 'type'>
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, placeholder = ' ', ...props }, ref) => {
     const [visible, setVisible] = React.useState(false)
 
     return (
@@ -14,6 +14,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
         <input
           ref={ref}
           type={visible ? 'text' : 'password'}
+          placeholder={placeholder}
           data-slot="input"
           className={cn(
             [

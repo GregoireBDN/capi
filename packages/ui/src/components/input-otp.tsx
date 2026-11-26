@@ -93,6 +93,7 @@ function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
 
           // The glass hollow (#507)
           'glass-field rounded-control',
+          char ? 'glass-field-filled' : '',
 
           // Typography
           'text-sm',

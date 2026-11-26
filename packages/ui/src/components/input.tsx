@@ -18,10 +18,13 @@ type InputProps = React.ComponentProps<'input'>
  * Standard text input with consistent styling across light/dark modes
  * Supports all native input types (text, email, password, etc.)
  */
-function Input({ className, type, ...props }: InputProps) {
+// « » when none is given: `:placeholder-shown` then tells an empty field
+// from a filled one (raised, #507).
+function Input({ className, type, placeholder = ' ', ...props }: InputProps) {
   return (
     <input
       type={type}
+      placeholder={placeholder}
       data-slot="input"
       className={cn(
         [

@@ -18,10 +18,12 @@ type TextareaProps = React.ComponentProps<'textarea'>
  * Multi-line text input with auto-resizing capability
  * Uses field-sizing-content for automatic height adjustment
  */
-function Textarea({ className, ...props }: TextareaProps) {
+// « » when none is given: `:placeholder-shown` tells empty from filled (#507).
+function Textarea({ className, placeholder = ' ', ...props }: TextareaProps) {
   return (
     <textarea
       data-slot="textarea"
+      placeholder={placeholder}
       className={cn(
         [
           // Layout

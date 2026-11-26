@@ -11,7 +11,7 @@ import {
   localDateToDay,
   todayInParis,
 } from '../lib/calendar-day'
-import { fieldSurface } from '../lib/field'
+import { fieldButtonSurface } from '../lib/field'
 import { cn } from '../lib/utils'
 import { Button } from './button'
 import { Calendar } from './calendar'
@@ -243,7 +243,8 @@ function DateField({
           // lit while its calendar is open
           'flex h-9 w-full min-w-0 items-center justify-between gap-2',
           'px-3 py-1',
-          fieldSurface,
+          fieldButtonSurface,
+          value ? 'glass-field-filled' : '',
           'aria-expanded:glass-field-focus data-[state=open]:glass-field-focus',
           'text-left text-base text-foreground md:text-sm',
           'disabled:pointer-events-none',

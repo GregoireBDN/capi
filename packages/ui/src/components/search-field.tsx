@@ -38,6 +38,7 @@ function SearchField({
   clearLabel = 'Effacer la recherche',
   className,
   containerClassName,
+  placeholder = ' ',
   ref,
   ...props
 }: SearchFieldProps) {
@@ -55,6 +56,7 @@ function SearchField({
       <input
         ref={inputRef}
         type="search"
+        placeholder={placeholder}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         className={cn(

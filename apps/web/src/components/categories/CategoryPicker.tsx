@@ -2,7 +2,7 @@ import {
   CategoryIcon,
   ChoiceTiles,
   cn,
-  fieldSurface,
+  fieldButtonSurface,
   OptionGroup,
   OptionRow,
   SearchField,
@@ -477,7 +477,8 @@ export function CategoryField({
         onClick={() => setOpen(true)}
         className={cn(
           // A field's glass hollow (#507), lit while its list is open
-          fieldSurface,
+          fieldButtonSurface,
+          (chosen || none?.selected) && 'glass-field-filled',
           open && 'glass-field-focus',
           'flex h-9 w-full min-w-0 items-center gap-2 px-2.5 text-left text-base md:text-sm',
           'disabled:pointer-events-none',

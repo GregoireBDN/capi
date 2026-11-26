@@ -113,8 +113,8 @@ function Form() {
     <div className="glass-panel rounded-t-sheet space-y-4 px-4 pt-4 pb-6">
       <div className="text-[18px] font-semibold">Nouvelle opération</div>
       <Field>
-        <FieldLabel htmlFor="gf-label">Libellé (focus)</FieldLabel>
-        <Input id="gf-label" defaultValue="Boulangerie test" autoFocus />
+        <FieldLabel htmlFor="gf-label">Libellé (rempli)</FieldLabel>
+        <Input id="gf-label" defaultValue="Boulangerie test" />
       </Field>
       <Field data-invalid>
         <FieldLabel htmlFor="gf-amount">Montant (invalide)</FieldLabel>
@@ -155,8 +155,8 @@ function Form() {
         aria-label="Rechercher une catégorie"
       />
       <Field>
-        <FieldLabel htmlFor="gf-note">Note</FieldLabel>
-        <Textarea id="gf-note" placeholder="Facultatif" />
+        <FieldLabel htmlFor="gf-note">Note (focus)</FieldLabel>
+        <Textarea id="gf-note" placeholder="Facultatif" autoFocus />
       </Field>
       <Field>
         <FieldLabel htmlFor="gf-pass">Mot de passe</FieldLabel>

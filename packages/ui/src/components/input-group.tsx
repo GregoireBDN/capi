@@ -263,10 +263,15 @@ function InputGroupText({ className, ...props }: InputGroupTextProps) {
  * Input element styled to integrate seamlessly within input group
  * Removes individual borders and focus rings (handled by container)
  */
-function InputGroupInput({ className, ...props }: InputGroupInputProps) {
+function InputGroupInput({
+  className,
+  placeholder = ' ',
+  ...props
+}: InputGroupInputProps) {
   return (
     <input
       data-slot="input-group-control"
+      placeholder={placeholder}
       className={cn(
         [
           // Layout: the group draws the hollow, the focus and the invalid
@@ -290,10 +295,15 @@ function InputGroupInput({ className, ...props }: InputGroupInputProps) {
  * Textarea element styled to integrate seamlessly within input group
  * The group draws the hollow, the focus and the invalid state
  */
-function InputGroupTextarea({ className, ...props }: InputGroupTextareaProps) {
+function InputGroupTextarea({
+  className,
+  placeholder = ' ',
+  ...props
+}: InputGroupTextareaProps) {
   return (
     <textarea
       data-slot="input-group-control"
+      placeholder={placeholder}
       className={cn(
         [
           'flex field-sizing-content min-h-16 w-full flex-1 resize-none',

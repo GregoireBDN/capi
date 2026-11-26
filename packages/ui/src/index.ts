@@ -1,5 +1,9 @@
 export { cn } from './lib/utils'
-export { fieldGroupSurface, fieldSurface } from './lib/field'
+export {
+  fieldButtonSurface,
+  fieldGroupSurface,
+  fieldSurface,
+} from './lib/field'
 export { useIsMobile } from './hooks/use-mobile'
 
 export * from './components/alert'
