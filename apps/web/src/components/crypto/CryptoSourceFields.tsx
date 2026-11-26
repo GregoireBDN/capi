@@ -283,7 +283,10 @@ export function NewWalletKeys({
             {fields}
           </div>
         ) : (
-          <div key={index} className="space-y-4 rounded-lg border p-3">
+          <div
+            key={index}
+            className="bg-muted/40 rounded-control space-y-4 p-3"
+          >
             {fields}
           </div>
         )

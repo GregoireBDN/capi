@@ -50,7 +50,7 @@ export function DeleteAccountCard({
   }
 
   return (
-    <Card className="ring-destructive/30">
+    <Card className="bg-[color-mix(in_oklch,var(--destructive)_4%,var(--card))]">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <TriangleAlertIcon className="size-4" />

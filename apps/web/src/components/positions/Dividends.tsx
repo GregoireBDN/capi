@@ -55,7 +55,7 @@ export function SecuritiesFacts({ accountId }: { accountId: string }) {
   const dividends = useQuery(dividendsQuery(accountId))
   const data = dividends.data
   return (
-    <div className="space-y-2 border-t pt-4">
+    <div className="space-y-2 pt-4">
       {data && (
         <p className="flex items-baseline gap-x-3 text-sm">
           <span className="text-muted-foreground min-w-0 break-normal">

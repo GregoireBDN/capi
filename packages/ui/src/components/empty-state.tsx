@@ -1,6 +1,6 @@
-import * as React from "react";
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 import {
   Empty,
   EmptyContent,
@@ -8,27 +8,27 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "./empty";
+} from './empty'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type EmptyStateProps = Omit<React.ComponentProps<"div">, "title"> & {
+type EmptyStateProps = Omit<React.ComponentProps<'div'>, 'title'> & {
   /** A lucide icon, shown in a small muted tile. */
-  icon?: React.ReactNode;
+  icon?: React.ReactNode
   /** One short line saying what is missing. */
-  title: React.ReactNode;
+  title: React.ReactNode
   /** Why, or what will show up here once it is fixed. */
-  description?: React.ReactNode;
+  description?: React.ReactNode
   /** The actions leading to the fix, the main one first. */
-  actions?: React.ReactNode;
+  actions?: React.ReactNode
   /**
    * `page`: a dashed frame standing on its own in a page.
    * `inline`: inside a card or a chart area, no frame, tighter.
    */
-  variant?: "page" | "inline";
-};
+  variant?: 'page' | 'inline'
+}
 
 /* ============================================================================
  * COMPONENT
@@ -45,17 +45,14 @@ function EmptyState({
   title,
   description,
   actions,
-  variant = "page",
+  variant = 'page',
   className,
   ...props
 }: EmptyStateProps) {
   return (
     <Empty
       data-variant={variant}
-      className={cn(
-        variant === "page" ? "border" : "gap-3 p-3",
-        className,
-      )}
+      className={cn(variant === 'page' ? 'glass-card' : 'gap-3 p-3', className)}
       {...props}
     >
       <EmptyHeader>
@@ -69,12 +66,12 @@ function EmptyState({
         </EmptyContent>
       )}
     </Empty>
-  );
+  )
 }
 
 /* ============================================================================
  * EXPORTS
  * ========================================================================= */
 
-export { EmptyState };
-export type { EmptyStateProps };
+export { EmptyState }
+export type { EmptyStateProps }

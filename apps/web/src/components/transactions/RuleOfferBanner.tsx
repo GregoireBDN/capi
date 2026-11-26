@@ -30,7 +30,7 @@ export function RuleOfferBanner({
     <div
       role="region"
       aria-label="Créer une règle"
-      className="bg-card sticky top-4 z-10 flex flex-col gap-3 rounded-xl border p-3 shadow-sm lg:flex-row lg:items-center"
+      className="glass-panel sticky top-4 z-10 flex flex-col gap-3 rounded-card p-3 lg:flex-row lg:items-center"
     >
       <p className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
         <span className="break-words">

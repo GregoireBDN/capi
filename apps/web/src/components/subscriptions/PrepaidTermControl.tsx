@@ -46,7 +46,7 @@ export function PrepaidTermControl({
       <div
         role="radiogroup"
         aria-labelledby={`${id}-label`}
-        className="bg-muted/40 divide-y overflow-hidden rounded-md"
+        className="bg-muted/40 overflow-hidden rounded-control py-1"
       >
         {allowNone && (
           <OptionRow

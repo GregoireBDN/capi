@@ -62,24 +62,24 @@ function RadioCard({
           'p-3 text-left text-sm',
 
           // Styling
-          'rounded-xl border border-input bg-card text-card-foreground',
-          'transition-[color,background-color,border-color,box-shadow]',
+          'rounded-card glass-well text-card-foreground',
+          'transition-[color,background-color,box-shadow]',
 
           // Interactivity
           'cursor-pointer outline-none hover:bg-muted/50',
 
           // Focus States
-          'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+          'focus-visible:ring-3 focus-visible:ring-ring/50',
 
           // Checked States
-          'data-[state=checked]:border-primary data-[state=checked]:bg-primary/5',
-          'data-[state=checked]:ring-1 data-[state=checked]:ring-primary',
+          'data-[state=checked]:bg-primary/5',
+          'data-[state=checked]:ring-2 data-[state=checked]:ring-primary',
 
           // Disabled States
           'disabled:cursor-not-allowed disabled:opacity-50',
 
           // Invalid States
-          'aria-invalid:border-destructive',
+          'aria-invalid:ring-2 aria-invalid:ring-destructive',
 
           // Icons inside the card
           '[&_svg:not([class*=size-])]:size-5',

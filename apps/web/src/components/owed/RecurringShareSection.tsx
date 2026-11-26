@@ -69,7 +69,7 @@ export function RecurringShareSection({ item }: { item: RecurringItemDto }) {
 
   if (!editing) {
     return (
-      <div className="space-y-2 rounded-md border p-3">
+      <div className="bg-muted/40 rounded-control space-y-2 p-3">
         <p className="text-sm font-medium">Partager avec quelqu’un</p>
         <p className="text-muted-foreground text-xs">
           {share
@@ -88,7 +88,7 @@ export function RecurringShareSection({ item }: { item: RecurringItemDto }) {
     )
   }
   return (
-    <div className="space-y-3 rounded-md border p-3">
+    <div className="bg-muted/40 rounded-control space-y-3 p-3">
       <PeoplePicker
         single
         label="Avec qui ?"

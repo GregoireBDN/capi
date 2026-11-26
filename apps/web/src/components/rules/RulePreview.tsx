@@ -108,10 +108,7 @@ export function RulePreview({
           <p key={line}>{line}</p>
         ))}
         {preview.transactions.length > 0 && (
-          <ul
-            className="divide-border divide-y"
-            aria-label="Opérations modifiées"
-          >
+          <ul className="space-y-1" aria-label="Opérations modifiées">
             {preview.transactions.map((transaction) => (
               <li key={transaction.id} className="space-y-1 py-2">
                 <div className="flex flex-wrap items-baseline gap-x-2">
@@ -157,7 +154,7 @@ export function RulePreview({
             return (
               <div
                 key={conflict.winnerRuleId}
-                className="space-y-2 rounded-lg border p-3 text-sm"
+                className="bg-muted/40 rounded-control space-y-2 p-3 text-sm"
               >
                 <p>
                   {plural(

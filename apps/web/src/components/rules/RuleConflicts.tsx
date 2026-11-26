@@ -58,7 +58,7 @@ export function RuleConflicts({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ul aria-label="Règles qui se recouvrent" className="divide-y">
+        <ul aria-label="Règles qui se recouvrent" className="space-y-1">
           {shown.map((conflict) => {
             const winner = byId.get(conflict.winnerRuleId)!
             const loser = byId.get(conflict.loserRuleId)!

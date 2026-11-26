@@ -24,10 +24,7 @@ export function SettingsGroup({
   return (
     <ul
       aria-label={label}
-      className={cn(
-        'bg-card divide-border divide-y overflow-hidden rounded-xl border',
-        className,
-      )}
+      className={cn('glass-card rounded-card overflow-hidden py-1', className)}
     >
       {children}
     </ul>

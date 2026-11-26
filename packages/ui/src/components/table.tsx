@@ -100,13 +100,13 @@ function Table({ className, ...props }: TableProps) {
 
 /**
  * Table Header
- * Semantic table header (thead) with bottom borders on rows
+ * Semantic table header (thead), muted; no lines between rows (#508)
  */
 function TableHeader({ className, ...props }: TableHeaderProps) {
   return (
     <thead
       data-slot="table-header"
-      className={cn('[&_tr]:border-b', className)}
+      className={cn('text-muted-foreground', className)}
       {...props}
     />
   )
@@ -115,21 +115,14 @@ function TableHeader({ className, ...props }: TableHeaderProps) {
 /**
  * Table Body
  * Main content area of the table
- * Removes border from last row
  */
 function TableBody({ className, ...props }: TableBodyProps) {
-  return (
-    <tbody
-      data-slot="table-body"
-      className={cn('[&_tr:last-child]:border-0', className)}
-      {...props}
-    />
-  )
+  return <tbody data-slot="table-body" className={cn(className)} {...props} />
 }
 
 /**
  * Table Footer
- * Footer section with subtle background and top border
+ * Footer section with a subtle background
  */
 function TableFooter({ className, ...props }: TableFooterProps) {
   return (
@@ -138,13 +131,10 @@ function TableFooter({ className, ...props }: TableFooterProps) {
       className={cn(
         [
           // Styling
-          'border-t bg-muted/50',
+          'bg-muted/50',
 
           // Typography
           'font-medium',
-
-          // Remove border from last row
-          '[&>tr]:last:border-b-0',
         ].join(' '),
         className,
       )}
@@ -163,9 +153,6 @@ function TableRow({ className, ...props }: TableRowProps) {
       data-slot="table-row"
       className={cn(
         [
-          // Styling
-          'border-b',
-
           // Transitions
           'transition-colors',
 

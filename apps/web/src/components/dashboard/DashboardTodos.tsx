@@ -168,7 +168,7 @@ export function DashboardTodos({
     <Card
       role="region"
       aria-labelledby="dashboard-todos-title"
-      className="ring-warning/60 min-w-0 gap-0 px-2 pt-1 pb-2"
+      className="min-w-0 bg-[color-mix(in_oklch,var(--warning)_7%,var(--card))] gap-0 px-2 pt-1 pb-2"
     >
       <div className="flex min-h-8 items-center justify-between gap-2 px-2">
         <h2

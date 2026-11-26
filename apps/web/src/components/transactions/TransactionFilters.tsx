@@ -163,7 +163,7 @@ function SheetFilters({
   const oneOffId = useId()
   return (
     <>
-      <div className="divide-y border-b">
+      <div className="space-y-1">
         <div className="flex min-h-[56px] items-center gap-3 px-4">
           <FilterBadge icon={ZapIcon} />
           <label htmlFor={oneOffId} className="flex-1 text-[16px]">

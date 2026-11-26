@@ -156,7 +156,7 @@ export function ShareFields({
             </SegmentedControlItem>
             <SegmentedControlItem value="amount">Montants</SegmentedControlItem>
           </SegmentedControl>
-          <ul className="divide-y rounded-xl border">
+          <ul className="bg-muted/40 rounded-control space-y-1 py-1">
             {draft.people.map((person, index) => (
               <li
                 key={person.contactId ?? person.name}

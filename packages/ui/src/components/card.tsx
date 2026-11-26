@@ -38,9 +38,12 @@ function Card({ className, size = 'default', ...props }: CardProps) {
           'gap-4 py-4',
           'data-[size=sm]:gap-3 data-[size=sm]:py-3',
 
-          // Styling
-          'rounded-xl bg-card text-sm text-card-foreground',
-          'ring-1 ring-foreground/10',
+          // Styling: a glass card (#503 « A · Givré », #508), opaque with
+          // the sheen and a soft shadow, no ring or border.
+          // `glass-card` spelled out, so a page can still tint the card
+          // with a `bg-*` class (tailwind-merge drops `bg-card`).
+          'rounded-card bg-card text-sm text-card-foreground',
+          'shadow-[var(--glass-edge),var(--glass-shadow-md)]',
 
           // Footer spacing adjustment
           'has-data-[slot=card-footer]:pb-0',
@@ -48,8 +51,8 @@ function Card({ className, size = 'default', ...props }: CardProps) {
 
           // Image handling (first/last child)
           'has-[>img:first-child]:pt-0',
-          '*:[img:first-child]:rounded-t-xl',
-          '*:[img:last-child]:rounded-b-xl',
+          '*:[img:first-child]:rounded-t-card',
+          '*:[img:last-child]:rounded-b-card',
         ].join(' '),
         className,
       )}
@@ -75,7 +78,7 @@ function CardHeader({ className, ...props }: CardHeaderProps) {
           'grid auto-rows-min items-start',
 
           // Spacing
-          'gap-1 rounded-t-xl px-4',
+          'gap-1 rounded-t-card px-4',
           'group-data-[size=sm]/card:px-3',
 
           // Grid configuration
@@ -203,7 +206,7 @@ function CardFooter({ className, ...props }: CardFooterProps) {
           'group-data-[size=sm]/card:p-3',
 
           // Styling
-          'rounded-b-xl border-t bg-muted/50',
+          'rounded-b-card bg-muted/50',
         ].join(' '),
         className,
       )}
