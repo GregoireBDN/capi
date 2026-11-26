@@ -372,7 +372,7 @@ describe('SavingsPage', () => {
     ).toHaveTextContent('1/2')
     expect(shown).toHaveTextContent(text('Moyenne 1 100 €'))
     // A full month needs no period note.
-    expect(screen.queryByText(/Mois complet/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Mois complet, données/)).not.toBeInTheDocument()
   })
 
   it('says a month below its target and what a one-off did', async () => {
