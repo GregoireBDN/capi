@@ -1,4 +1,5 @@
-import { Card, cn, formatWholeEuros, Skeleton } from '@capi/ui'
+import { AnswerFigure, cn, formatWholeEuros, Skeleton } from '@capi/ui'
+import { WalletIcon } from 'lucide-react'
 import type { SpendingByCategoryDto, SpendingKind } from '#/api/types.gen'
 import { Delta } from './Delta'
 import { INCREASE_IS_GOOD, KIND_COLOR, KIND_LABEL, KINDS } from './kinds'
@@ -54,11 +55,13 @@ function Tile({
       data-slot="month-flow-tile"
       // The part's colour as a strip along the top: the label keeps the
       // tile's whole width at 320px.
-      style={{ boxShadow: `inset 0 3px 0 ${KIND_COLOR[kind]}` }}
+      style={{
+        boxShadow: `inset 0 3px 0 ${KIND_COLOR[kind]}, var(--glass-edge), var(--glass-shadow-md)`,
+      }}
       className={cn(
-        '@container min-w-0 rounded-xl border px-2 pt-2.5 pb-2 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-3 md:pt-3.5 md:pb-3',
+        '@container min-w-0 rounded-card px-2 pt-2.5 pb-2 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-3 md:pt-3.5 md:pb-3',
         selected
-          ? 'border-primary bg-primary/5 ring-primary ring-1'
+          ? 'bg-[color-mix(in_oklch,var(--primary)_6%,var(--card))] ring-primary ring-2'
           : 'bg-card hover:bg-muted/60',
       )}
     >
@@ -98,14 +101,16 @@ function Tile({
 }
 
 /**
- * Where the month's income went (#410, the owner's « B. Le mois en tête »):
- * income on one bar, expenses then set aside on the one under it, and what
- * stayed on the accounts (or was taken from them).
+ * The page's answer (#434, the owner's « A. Le chiffre réponse »): what
+ * stayed on the accounts (or was taken from them) as the big figure, and
+ * where the income went under it (#410): income on one bar, expenses then
+ * set aside on the one under it. The tiles below give the amounts, in the
+ * bars' colours.
  */
-function FlowBar({ parts }: { parts: MonthParts }) {
+function KeptAnswer({ parts }: { parts: MonthParts }) {
   const kept = keptCents(parts)
   if (kept === null || !parts.income || !parts.expense || !parts.savings) {
-    return <Skeleton className="h-11 w-full" />
+    return <Skeleton className="h-36 w-full rounded-xl" />
   }
   const { income, expense, savings } = parts
   if (expense.period.status === 'empty') return null
@@ -117,11 +122,29 @@ function FlowBar({ parts }: { parts: MonthParts }) {
   const scale = Math.max(1, inCents, outParts[0].cents + outParts[1].cents)
   const partial = expense.period.status === 'partial'
   return (
-    <div className="space-y-2" data-slot="month-flow-bar">
+    <AnswerFigure
+      data-slot="month-flow-answer"
+      icon={<WalletIcon />}
+      label={
+        kept >= 0
+          ? partial
+            ? 'Gardé à ce jour'
+            : 'Gardé ce mois'
+          : `Pris sur le compte courant${partial ? ' à ce jour' : ''}`
+      }
+      tone={kept >= 0 ? 'good' : 'bad'}
+      value={
+        <span data-slot="month-flow-kept">
+          {kept > 0 ? '+' : kept < 0 ? '−' : ''}
+          {formatWholeEuros(Math.abs(kept))}
+        </span>
+      }
+    >
       <div
         role="img"
         aria-label={`Reçu ${formatWholeEuros(inCents)} ; dépensé ${formatWholeEuros(outParts[0].cents)}, mis de côté ${formatWholeEuros(outParts[1].cents)}`}
         className="space-y-1"
+        data-slot="month-flow-bar"
       >
         <div className="bg-muted h-2 overflow-hidden rounded-full">
           <div
@@ -147,38 +170,20 @@ function FlowBar({ parts }: { parts: MonthParts }) {
             ))}
         </div>
       </div>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-        <span className="min-w-[7rem] flex-1 break-normal">
-          {kept >= 0
-            ? 'Resté sur le compte courant'
-            : 'Pris sur le compte courant'}
-          {partial && ' à ce jour'}
-        </span>
-        <span
-          data-slot="month-flow-kept"
-          className={cn(
-            'ml-auto font-semibold whitespace-nowrap tabular-nums',
-            kept < 0 && 'text-chart-delta-bad',
-          )}
-        >
-          {kept > 0 ? '+' : kept < 0 ? '−' : ''}
-          {formatWholeEuros(Math.abs(kept))}
-        </span>
-      </div>
       {income.expectedCents > 0 && (
         <p className="text-muted-foreground text-xs">
           {formatWholeEuros(income.expectedCents)} de revenus attendus d’ici la
           fin du mois.
         </p>
       )}
-    </div>
+    </AnswerFigure>
   )
 }
 
 /**
- * The month at the top of Mouvements: Revenus, Dépenses and Épargne as
- * three tiles (their total and change) that are also the page's tabs, then
- * the flow bar.
+ * The month at the top of Mouvements: what was kept, the page's answer
+ * (#434), then Revenus, Dépenses and Épargne as three tiles (their total
+ * and change) that are also the page's tabs.
  */
 export function MonthFlow({
   parts,
@@ -196,7 +201,8 @@ export function MonthFlow({
     document.getElementById(tabId(next))?.focus()
   }
   return (
-    <Card size="sm" className="gap-3 px-2 md:px-3" data-slot="month-flow">
+    <div className="space-y-3" data-slot="month-flow">
+      <KeptAnswer parts={parts} />
       <div
         role="tablist"
         aria-label="Mouvements du mois"
@@ -218,7 +224,6 @@ export function MonthFlow({
           />
         ))}
       </div>
-      <FlowBar parts={parts} />
-    </Card>
+    </div>
   )
 }

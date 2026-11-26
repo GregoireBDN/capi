@@ -7,11 +7,11 @@ import { Switch } from './switch'
 
 /**
  * A group of settings, iPhone style (#280, the transaction editor): a tinted
- * block without border, square rows and straight full-width hairlines
- * between them.
+ * block without border or lines between its rows (#508, « verre »: rows
+ * separated by their own height, not hairlines).
  */
 export const SETTING_GROUP_CLASS =
-  'bg-muted/60 divide-border divide-y overflow-hidden rounded-md'
+  'bg-muted/60 overflow-hidden rounded-control py-1'
 
 /** A row of a group: square, hover and focus inside its block. */
 export const SETTING_ROW_CLASS =

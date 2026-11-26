@@ -122,6 +122,8 @@ function Calendar({
           // Transparent background in specific slots
           'in-data-[slot=card-content]:bg-transparent',
           'in-data-[slot=popover-content]:bg-transparent',
+          'in-data-[slot=sheet-content]:bg-transparent',
+          'in-data-[slot=dialog-content]:bg-transparent',
 
           // RTL support for navigation buttons
           String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,

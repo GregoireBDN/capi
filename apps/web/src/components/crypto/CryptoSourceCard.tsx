@@ -420,7 +420,7 @@ export function WalletTokenList({
         vos adresses.
       </p>
       {tokens.data.length > 0 && (
-        <ul className="divide-y" aria-label="Jetons lus">
+        <ul className="space-y-1" aria-label="Jetons lus">
           {tokens.data.map((token) => (
             <li
               key={token.id}

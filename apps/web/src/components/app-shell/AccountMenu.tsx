@@ -66,9 +66,7 @@ export function AccountMenu({ user }: { user: UserDto }) {
             type="button"
             aria-label={`Compte, ${user.name}`}
             className={cn(
-              // A 44px button like the header's « ⋮ »; its disc a little
-              // smaller (40px), a solid circle reading bigger than the light
-              // tile (the owner, #393).
+              // A 44px disc like the header's « ⋮ » (#393, #434).
               'flex size-8 shrink-0 items-center justify-center rounded-full outline-none',
               'hover:opacity-90 focus-visible:ring-ring/50 focus-visible:ring-[3px]',
               'aria-expanded:ring-ring/50 aria-expanded:ring-[3px]',
@@ -131,17 +129,21 @@ export function AccountMenu({ user }: { user: UserDto }) {
   )
 }
 
-/** The owner's initials on the primary colour, 40px (in the header's 44px button) or 56px. */
+/** The owner's initials on the primary colour, 44px (the header's button) or 56px. */
 function Avatar({ name, size }: { name: string; size: 'sm' | 'lg' }) {
   return (
     <span
       aria-hidden
       className={cn(
+        // The capitals trimmed to their own height, so they sit on the
+        // disc's centre, not the font's line box (#434).
         'bg-primary text-primary-foreground flex shrink-0 items-center justify-center rounded-full font-semibold select-none',
-        size === 'sm' ? 'size-[40px] text-[15px]' : 'size-[56px] text-[20px]',
+        size === 'sm' ? 'size-[44px] text-[15px]' : 'size-[56px] text-[20px]',
       )}
     >
-      {initials(name)}
+      <span className="block [text-box:trim-both_cap_alphabetic]">
+        {initials(name)}
+      </span>
     </span>
   )
 }

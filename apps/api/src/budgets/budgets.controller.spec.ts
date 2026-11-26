@@ -128,12 +128,22 @@ describe('BudgetsController (HTTP)', () => {
     it('leaves the default (current Paris) month to the service', async () => {
       const response = await request('GET', '/budgets/envelopes')
       expect(response.statusCode).toBe(200)
-      expect(service.envelopes).toHaveBeenCalledWith(undefined)
+      expect(service.envelopes).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        undefined,
+        { all: false },
+      )
     })
 
     it('reads the month', async () => {
       await request('GET', '/budgets/envelopes?month=2026-09')
-      expect(service.envelopes).toHaveBeenCalledWith('2026-09')
+      expect(service.envelopes).toHaveBeenCalledWith(
+        '2026-09',
+        undefined,
+        undefined,
+        { all: false },
+      )
     })
 
     it.each([['month=2026-13'], ['month=2026-9'], ['x=1']])(

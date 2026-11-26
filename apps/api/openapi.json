@@ -5656,7 +5656,7 @@
     },
     "/api/budgets/envelopes": {
       "get": {
-        "description": "Budget lines flagged `tracked` for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
+        "description": "Budget lines flagged `tracked` (every expense line with `all`) for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
         "operationId": "BudgetsController_envelopes",
         "parameters": [
           {
@@ -5668,6 +5668,15 @@
               "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
               "example": "2026-11",
               "type": "string"
+            }
+          },
+          {
+            "description": "Every expense budget line of the month, tracked or not (`tracked` says which), for the dashboard’s « Budgets suivis » on chosen categories (#495). Default: the tracked lines only.",
+            "required": false,
+            "name": "all",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -5968,6 +5977,110 @@
         ]
       }
     },
+    "/api/dashboard/layout": {
+      "get": {
+        "description": "The elements in their order, hidden ones included, with their accounts, envelopes and settings. While nothing was saved, today’s default layout (`custom: false`).",
+        "operationId": "DashboardLayoutController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardLayoutDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "The dashboard’s elements",
+        "tags": [
+          "Dashboard"
+        ]
+      },
+      "put": {
+        "description": "Replaces the whole layout in one transaction. Each element at most once; accounts only on the elements that show accounts, envelopes only on `envelopes`, each element only its own settings.",
+        "operationId": "DashboardLayoutController_replace",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDashboardLayoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardLayoutDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An element twice, accounts or envelopes or a setting it does not take, an unknown account or envelope."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Save the dashboard’s elements",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/api/dashboard/layout/reset": {
+      "post": {
+        "description": "Deletes the saved layout: the dashboard is today’s again.",
+        "operationId": "DashboardLayoutController_reset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardLayoutDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Back to the default dashboard",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
     "/api/dashboard/overview": {
       "get": {
         "description": "Net worth now (per account, cash vs investments, with the date each account’s data goes up to) and at the end of the previous month; income, expenses, net and savings rate of `month` and of the month before (transfers excluded, one-offs reported); review queue size. Without `month`: the current month when it has data, else the month the data stops in. While the month is partial, the previous month only counts the same first days (`period`).",
@@ -6026,7 +6139,7 @@
             "in": "query",
             "schema": {
               "minimum": 1,
-              "maximum": 60,
+              "maximum": 121,
               "default": 12,
               "type": "integer"
             }
@@ -12460,11 +12573,6 @@
             "minimum": 0,
             "description": "Categorization rules limited to this account."
           },
-          "savingsGoals": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Savings goals counting this account (the goals themselves stay)."
-          },
           "envelopeMovements": {
             "type": "integer",
             "minimum": 0,
@@ -12486,7 +12594,6 @@
           "walletKeys",
           "recurringItems",
           "rules",
-          "savingsGoals",
           "envelopeMovements",
           "closedMonths"
         ]
@@ -17144,6 +17251,10 @@
             "type": "integer",
             "description": "Monthly target in cents."
           },
+          "tracked": {
+            "type": "boolean",
+            "description": "Flagged « suivre pendant le mois »; always true unless `all` was asked."
+          },
           "spentCents": {
             "type": "integer",
             "description": "Spent during the month (so far for the current one), in positive cents: imported and manual `expense` transactions of the category (refunds reduce it)."
@@ -17184,6 +17295,7 @@
           "color",
           "icon",
           "targetCents",
+          "tracked",
           "spentCents",
           "manualCents",
           "envelopePaidCents",
@@ -17700,6 +17812,156 @@
           "monthlyTargetCents",
           "note",
           "tracked"
+        ]
+      },
+      "DashboardWidgetType": {
+        "type": "string",
+        "enum": [
+          "todo",
+          "left_to_spend",
+          "forecast",
+          "net_worth",
+          "tracked_budgets",
+          "balances",
+          "owed",
+          "upcoming_debits",
+          "month_flows",
+          "envelopes",
+          "investments"
+        ]
+      },
+      "DashboardOwedSide": {
+        "type": "string",
+        "enum": [
+          "both",
+          "owed_to_me",
+          "i_owe"
+        ],
+        "description": "`owed`: both sides, what I am owed or what I owe."
+      },
+      "DashboardBalancesSort": {
+        "type": "string",
+        "enum": [
+          "order",
+          "desc",
+          "asc"
+        ],
+        "description": "`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first)."
+      },
+      "DashboardWidgetSettingsDto": {
+        "type": "object",
+        "properties": {
+          "upcomingDays": {
+            "type": "number",
+            "enum": [
+              7,
+              30
+            ],
+            "description": "`upcoming_debits`: the next 7 or 30 days."
+          },
+          "owedSide": {
+            "description": "`owed`: both sides, what I am owed or what I owe.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardOwedSide"
+              }
+            ]
+          },
+          "balancesSort": {
+            "description": "`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardBalancesSort"
+              }
+            ]
+          }
+        }
+      },
+      "DashboardWidgetDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardWidgetType"
+              }
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "accountIds": {
+            "nullable": true,
+            "description": "The accounts shown, in no order; null = all of them. Only on the elements that show accounts (`forecast`, `net_worth`, `balances`, `upcoming_debits`, `investments`); an empty list = every chosen account was deleted.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "envelopeIds": {
+            "nullable": true,
+            "description": "`envelopes` only: the envelopes shown; null = all of them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "categoryIds": {
+            "nullable": true,
+            "description": "`tracked_budgets` only: the expense categories shown, in their order; null = the budget lines flagged « suivre pendant le mois ».",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DashboardWidgetSettingsDto"
+          }
+        },
+        "required": [
+          "type",
+          "hidden",
+          "accountIds",
+          "envelopeIds",
+          "settings"
+        ]
+      },
+      "DashboardLayoutDto": {
+        "type": "object",
+        "properties": {
+          "custom": {
+            "type": "boolean",
+            "description": "False while the owner has saved nothing: `widgets` is then the default layout (today’s dashboard)."
+          },
+          "widgets": {
+            "description": "The elements in their order, hidden ones included.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardWidgetDto"
+            }
+          }
+        },
+        "required": [
+          "custom",
+          "widgets"
+        ]
+      },
+      "UpdateDashboardLayoutDto": {
+        "type": "object",
+        "properties": {
+          "widgets": {
+            "description": "The whole layout, in order; each type at most once.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardWidgetDto"
+            }
+          }
+        },
+        "required": [
+          "widgets"
         ]
       },
       "NetWorthDto": {

@@ -42,7 +42,6 @@ import {
   monthClosesTable,
   positionStatementsTable,
   recurringItemsTable,
-  savingsGoalAccountsTable,
   envelopeMovementsTable,
   transactionSplitsTable,
 } from '#/database/schema'
@@ -84,7 +83,6 @@ export interface AccountDeletionPreview {
   walletKeys: number
   recurringItems: number
   rules: number
-  savingsGoals: number
   envelopeMovements: number
   closedMonths: number
 }
@@ -373,7 +371,6 @@ export class AccountsService {
         walletKeys: sql<number>`${countOf(cryptoWalletKeysTable)} + ${countOf(cryptoWalletTokensTable)}`,
         recurringItems: countOf(recurringItemsTable),
         rules: countOf(categorizationRulesTable),
-        savingsGoals: countOf(savingsGoalAccountsTable),
         envelopeMovements: countOf(envelopeMovementsTable),
         closedMonths: sql<number>`(
           select count(*)::int from ${monthClosesTable}
@@ -451,9 +448,6 @@ export class AccountsService {
       await tx
         .delete(balanceSnapshotsTable)
         .where(eq(balanceSnapshotsTable.accountId, id))
-      await tx
-        .delete(savingsGoalAccountsTable)
-        .where(eq(savingsGoalAccountsTable.accountId, id))
       await tx.delete(accountsTable).where(eq(accountsTable.id, id))
     })
   }

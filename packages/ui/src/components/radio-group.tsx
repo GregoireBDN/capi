@@ -54,8 +54,10 @@ function RadioGroupItem({ className, ...props }: RadioGroupItemProps) {
           // Layout
           'relative flex aspect-square size-4 shrink-0',
 
-          // Styling
-          'rounded-full border border-input',
+          // Styling: a small glass disc, its edge drawn inside (#507)
+          'rounded-full bg-card',
+          'shadow-[inset_0_0_0_1.5px_oklch(from_var(--foreground)_l_c_h/35%)]',
+          'transition-[background-color,box-shadow]',
 
           // Interactivity
           'outline-none',
@@ -63,35 +65,21 @@ function RadioGroupItem({ className, ...props }: RadioGroupItemProps) {
           // Expanded clickable area
           'touch-hitbox',
 
-          // Focus States
-          'focus-visible:border-ring',
-          'focus-visible:ring-3',
-          'focus-visible:ring-ring/50',
+          // Focus States: the fields' glow
+          'focus-visible:shadow-(--glass-focus)',
 
           // Disabled States
           'disabled:cursor-not-allowed',
           'disabled:opacity-50',
 
-          // Invalid States (Light)
-          'aria-invalid:border-destructive',
-          'aria-invalid:ring-3',
-          'aria-invalid:ring-destructive/20',
-          'aria-invalid:data-[state=checked]:border-primary',
-
           // Checked States
-          'data-[state=checked]:border-primary',
           'data-[state=checked]:bg-primary',
           'data-[state=checked]:text-primary-foreground',
+          'data-[state=checked]:shadow-glass-primary',
+          'data-[state=checked]:focus-visible:shadow-(--glass-focus)',
 
-          // Dark Mode - Background
-          'dark:bg-input/30',
-
-          // Dark Mode - Checked
-          'dark:data-[state=checked]:bg-primary',
-
-          // Dark Mode - Invalid
-          'dark:aria-invalid:border-destructive/50',
-          'dark:aria-invalid:ring-destructive/40',
+          // Invalid States (win)
+          'aria-invalid:shadow-(--glass-invalid)',
         ].join(' '),
         className,
       )}

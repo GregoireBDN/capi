@@ -82,7 +82,10 @@ export function ReduceSheet({
       disabled={left !== 0}
       onSubmit={() => reduce.mutate()}
     >
-      <ul className="divide-y rounded-xl border" aria-label="Enveloppes">
+      <ul
+        className="bg-muted/40 rounded-control space-y-1 py-1"
+        aria-label="Enveloppes"
+      >
         {split.envelopes
           .filter((e) => e.amountCents > 0)
           .map((envelope) => {

@@ -95,7 +95,7 @@ export function RuleMatches({
         </p>
       )}
       {transactions.length > 0 && (
-        <ul className="divide-y rounded-lg border">
+        <ul className="bg-muted/40 rounded-control space-y-1 py-1">
           {transactions.map((transaction) => {
             const category = categories.find(
               (c) => c.id === transaction.categoryId,

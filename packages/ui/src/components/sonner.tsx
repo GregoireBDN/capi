@@ -27,7 +27,7 @@ type ToasterComponentProps = ToasterProps
  * STYLE
  * The owner's « B. Teinte douce » (#380): the app's card, the icon on a tile
  * of its tone (like `CategoryIcon`), the message in the text colour, its
- * second line muted, the action an outline button. Errors add a red border;
+ * second line muted, the action a glass-fill button. Errors add a red edge (a ring);
  * no toast is filled with its colour.
  * ========================================================================= */
 
@@ -37,7 +37,7 @@ const TONE = {
     '[&_[data-icon]]:bg-chart-delta-good/14 [&_[data-icon]]:text-chart-delta-good',
   error: cn(
     '[&_[data-icon]]:bg-destructive/14 [&_[data-icon]]:text-destructive',
-    '!border-destructive/50',
+    '!ring-1 !ring-destructive/50',
   ),
   warning: cn(
     '[&_[data-icon]]:bg-warning/25 [&_[data-icon]]:text-warning-foreground',
@@ -53,24 +53,28 @@ const TONE = {
 const CLASS_NAMES: NonNullable<ToasterProps['toastOptions']>['classNames'] = {
   // Sonner's own sizes are 13px; these are the app's (22px root).
   toast: cn(
-    'font-sans !items-center !gap-2.5 !rounded-xl !px-3 !py-2.5 !shadow-lg',
-    '!border-border !bg-popover !text-popover-foreground',
+    'font-sans !items-center !gap-2.5 !rounded-card !px-3 !py-2.5',
+    // A frosted panel (#509): no line (errors keep a red edge, a ring), sheen and
+    // a large soft shadow.
+    '!border-0 !bg-(--glass-panel) !text-popover-foreground',
+    '!shadow-[var(--glass-edge),var(--glass-shadow-lg)]',
+    '!backdrop-blur-(--glass-blur)',
   ),
   content: '!min-w-0 !flex-1',
   title: '!text-[0.75rem] !font-medium !leading-snug',
-  description: '!text-[0.68rem] !leading-snug !text-muted-foreground',
+  description: '!text-[0.68rem] !leading-snug !text-glass-muted-foreground',
   icon: '!m-0 !size-[1.6rem] !justify-center !rounded-lg',
-  // `Button` outline secondary, 44px high on touch screens.
+  // `Button` secondary (a glass fill, no border), 44px high on touch screens.
   actionButton: cn(
     '!h-[1.6rem] !shrink-0 !rounded-lg !px-3 !text-[0.75rem] !font-medium',
-    '!border !border-secondary-foreground/30 !bg-background',
-    '!text-secondary-foreground hover:!bg-secondary',
+    '!border-0 !bg-glass-fill',
+    '!text-foreground hover:!bg-secondary',
     'focus-visible:!ring-3 focus-visible:!ring-ring/50',
     'pointer-coarse:!h-[44px]',
   ),
   cancelButton: cn(
     '!h-[1.6rem] !shrink-0 !rounded-lg !px-3 !text-[0.75rem] !font-medium',
-    '!bg-transparent !text-muted-foreground hover:!bg-secondary',
+    '!bg-transparent !text-glass-muted-foreground hover:!bg-secondary',
     'pointer-coarse:!h-[44px]',
   ),
   ...TONE,

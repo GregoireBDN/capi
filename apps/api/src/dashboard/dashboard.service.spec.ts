@@ -937,11 +937,11 @@ describe('dashboard query validation', () => {
     }
   })
 
-  it('parses months between 1 and 60', async () => {
+  it('parses months between 1 and 121', async () => {
     await expect(
       validate(DashboardHistoryQueryDto, { months: '24' }),
     ).resolves.toMatchObject({ months: 24 })
-    for (const months of ['0', '61', '1.5', 'abc']) {
+    for (const months of ['0', '122', '1.5', 'abc']) {
       await expect(
         validate(DashboardHistoryQueryDto, { months }),
       ).rejects.toThrow()

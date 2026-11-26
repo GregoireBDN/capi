@@ -103,6 +103,18 @@ export class EnvelopesQueryDto {
   })
   @OptionalMonth()
   month?: string
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'Every expense budget line of the month, tracked or not (`tracked` says which), for the dashboard’s « Budgets suivis » on chosen categories (#495). Default: the tracked lines only.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  all?: boolean
 }
 
 export class BudgetHistoryQueryDto {
@@ -807,6 +819,13 @@ export class IncomeSuggestionsDto {
 export class EnvelopeDto extends BudgetCategoryFields {
   @ApiProperty({ type: 'integer', description: 'Monthly target in cents.' })
   targetCents!: number
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Flagged « suivre pendant le mois »; always true unless `all` was asked.',
+  })
+  tracked!: boolean
 
   @ApiProperty({
     type: 'integer',

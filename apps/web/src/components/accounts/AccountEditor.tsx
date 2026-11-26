@@ -651,7 +651,7 @@ export function AccountEditor({
                 {!creating && (
                   <section
                     aria-labelledby={`${id}-end`}
-                    className="space-y-3 border-t pt-4"
+                    className="space-y-3 pt-4"
                   >
                     <h3 id={`${id}-end`} className="text-sm font-medium">
                       {archived

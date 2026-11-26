@@ -8,12 +8,6 @@ interface CapiWordmarkProps {
    * (`env-banner`, #454) the light ones would vanish.
    */
   onBanner?: boolean
-  /**
-   * Below `md`, the mark alone (the « C »): staging's header has the
-   * « Staging » badge beside it, and the whole wordmark would push the avatar
-   * out at 320px.
-   */
-  markOnPhones?: boolean
 }
 
 interface BrandImage {
@@ -30,13 +24,6 @@ const WORDMARK: BrandImage = {
   height: 513,
 }
 
-const MARK: BrandImage = {
-  light: '/brand/capi-mark.svg',
-  dark: '/brand/capi-mark-clair.svg',
-  width: 416,
-  height: 416,
-}
-
 /**
  * The « Capi » wordmark (#464): the mark followed by « api »
  * (`public/brand/`, cropped to the drawing by `scripts/generate-icons.mjs`:
@@ -48,7 +35,6 @@ const MARK: BrandImage = {
 export function CapiWordmark({
   className,
   onBanner = false,
-  markOnPhones = false,
 }: CapiWordmarkProps) {
   return (
     <span
@@ -56,18 +42,7 @@ export function CapiWordmark({
       aria-label="Capi"
       className={cn('inline-flex shrink-0', className)}
     >
-      {markOnPhones ? (
-        <>
-          <span className="flex h-full md:hidden">
-            <Themed image={MARK} onBanner={onBanner} />
-          </span>
-          <span className="flex h-full max-md:hidden">
-            <Themed image={WORDMARK} onBanner={onBanner} />
-          </span>
-        </>
-      ) : (
-        <Themed image={WORDMARK} onBanner={onBanner} />
-      )}
+      <Themed image={WORDMARK} onBanner={onBanner} />
     </span>
   )
 }

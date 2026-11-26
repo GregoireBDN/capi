@@ -47,7 +47,9 @@ export const Playground: Story = {
 }
 
 export const Variants: Story = {
-  parameters: { docs: { description: { story: 'Variant + size combinations.' } } },
+  parameters: {
+    docs: { description: { story: 'Variant + size combinations.' } },
+  },
   render: () => (
     <div className="flex flex-wrap items-center gap-3">
       <Toggle aria-label="Bold">
@@ -65,6 +67,25 @@ export const Variants: Story = {
       </Toggle>
     </div>
   ),
+}
+
+/** On: tinted in the primary colour; outline: the glass fill (#506). */
+export const Chips: Story = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Toggle defaultPressed variant="outline">
+        Tous
+      </Toggle>
+      <Toggle variant="outline">Confirmés</Toggle>
+      <Toggle variant="outline">Suggérés</Toggle>
+    </div>
+  ),
+}
+
+export const ChipsDark: Story = {
+  name: 'Chips (dark)',
+  globals: { theme: 'dark' },
+  render: Chips.render,
 }
 
 export const ToggleInteraction: Story = {

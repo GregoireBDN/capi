@@ -258,7 +258,7 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
           )}
         </div>
         {(recent.length > 0 || average !== null) && (
-          <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs">
+          <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-3 text-xs">
             {target !== null && <ReachedDots months={recent} target={target} />}
             {average !== null && (
               <span className="ml-auto">

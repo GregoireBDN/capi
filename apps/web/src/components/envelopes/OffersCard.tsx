@@ -55,7 +55,7 @@ export function OffersCard() {
         <CardTitle id="envelope-offers">À ranger</CardTitle>
       </CardHeader>
       <CardContent>
-        <ul className="divide-y" aria-label="À ranger">
+        <ul className="space-y-1" aria-label="À ranger">
           {(all ? items : items.slice(0, SHOWN)).map(({ kind, offer }) => (
             <OfferRow
               key={`${kind}-${offer.transaction.transactionId}`}

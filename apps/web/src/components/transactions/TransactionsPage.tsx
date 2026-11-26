@@ -61,7 +61,7 @@ import type { TransactionsSearch } from './search'
 import { TransactionFilters } from './TransactionFilters'
 import type { SearchChangeOptions } from './TransactionFilters'
 import { TransactionList } from './TransactionList'
-import { TransactionSummary } from './TransactionSummary'
+import { FilterSum, ReviewAnswer } from './TransactionSummary'
 import { useTransactionActions } from './use-transaction-actions'
 
 interface TransactionsPageProps {
@@ -77,7 +77,7 @@ interface TransactionsPageProps {
 /** Rows being loaded, inside the list's card. */
 function ListSkeleton() {
   return (
-    <div className="divide-y" aria-busy="true" aria-label="Chargement">
+    <div className="space-y-1" aria-busy="true" aria-label="Chargement">
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="flex items-center gap-3 px-3 py-2.5">
           <Skeleton className="size-8 shrink-0 rounded-full" />
@@ -232,6 +232,11 @@ function leavesReview(changes: TransactionChanges | BulkChanges): boolean {
 }
 
 /**
+ * Opérations answers « Quelle opération, et est-elle juste ? » (#434, one
+ * question per page): find a transaction and fix it. Its big figure is what
+ * is left to review; the month's income, expenses and what was kept are
+ * Mouvements', never repeated here; a search or a filter shows its own sum.
+ *
  * Browse and correct transactions: URL-synced filters, totals for the
  * filters, the list grouped by day, and corrections one by one or in bulk.
  * Filtered on « À revoir » (#322, the former review queue), the list counts
@@ -324,23 +329,18 @@ export function TransactionsPage({
 
   const visibleAccounts = (accounts.data ?? []).filter(isTransactional)
   const filtered = activeFilterCount(search) > 0
+  // The big « À revoir » figure: the whole month shown, some to review.
+  const reviewAnswer =
+    !reviewing && !filtered && reviewCount !== null && reviewCount > 0
   // Only « À revoir » is on (besides the month): its own empty state.
   const reviewOnly = reviewing && activeFilterCount(search) === 1
   return (
     <div className="@container space-y-6">
       <PageHeader
-        title="Opérations"
-        description="Filtrez, recherchez et corrigez vos opérations."
-        // A sub-page of Mouvements (#393), reached from its « ⋮ »: back to it
-        // on the month shown (none for every date).
-        back={{
-          label: 'Mouvements',
-          to: ROUTES.spending,
-          search:
-            search.month && search.month !== ALL_MONTHS
-              ? { month: search.month }
-              : {},
-        }}
+        // Mouvements' second tab (#498): the page's title is theirs, the
+        // tabs under it say which one is shown.
+        title="Mouvements"
+        description="Trouver, corriger."
         actions={[
           {
             label: 'Ajouter une dépense',
@@ -383,13 +383,32 @@ export function TransactionsPage({
         categories={categoryList}
         defaultMonth={shownMonth}
         reviewCount={reviewCount}
+        reviewInAnswer={reviewAnswer}
       />
 
-      {/* No block of 0,00 € tiles above an empty list; no totals while
-          reviewing: the count is in the list's header. */}
-      {reviewing || summary.isError || summary.data?.count === 0 ? null : (
-        <TransactionSummary summary={summary.data} />
+      {/* The page's answer (#434): what is left to fix, while some wait
+          and the list isn't narrowed by a filter. */}
+      {reviewAnswer && (
+        <ReviewAnswer
+          count={reviewCount}
+          onReview={() =>
+            onSearchChange(
+              compactSearch({ ...search, review: true, month: ALL_MONTHS }),
+            )
+          }
+        />
       )}
+
+      {/* A search or filter's sum (#434): the month's totals are
+          Mouvements'; transfers count in neither, so a list of them has no
+          sum. */}
+      {filtered &&
+      !reviewing &&
+      search.kind !== 'transfer' &&
+      summary.data &&
+      summary.data.count > 0 ? (
+        <FilterSum summary={summary.data} />
+      ) : null}
 
       {/* Transfers that look like someone's repayment (#359), first. */}
       {reviewing && <RepaymentSuggestions />}
@@ -450,7 +469,7 @@ export function TransactionsPage({
                 the rows' icons, the count, then the sort filling the rest of
                 the row (a row of its own on phones when it doesn't fit);
                 « Tout sélectionner » is spelled out from 672px. */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 @[672px]:gap-x-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1 @[672px]:gap-x-3">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="flex size-8 shrink-0 items-center justify-center">
                   <Checkbox

@@ -6,7 +6,8 @@ import { ACCOUNT_TYPES, type AccountType } from '#/database/schema/domain-enums'
 import { MONTH_PATTERN } from '../calendar'
 
 export const HISTORY_MONTHS_DEFAULT = 12
-export const HISTORY_MONTHS_MAX = 60
+/** Ten years and the month before (« Patrimoine » over 10 years, #495). */
+export const HISTORY_MONTHS_MAX = 121
 
 export const ACCOUNT_GROUPS = ['cash', 'investments'] as const
 export type AccountGroup = (typeof ACCOUNT_GROUPS)[number]

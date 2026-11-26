@@ -278,8 +278,8 @@ export function CreateEnvelopeSheet({
               aria-pressed={template?.key === t.key}
               onClick={() => pickTemplate(t)}
               className={cn(
-                'bg-card hover:bg-muted/60 focus-visible:ring-ring flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium outline-none focus-visible:ring-2',
-                template?.key === t.key && 'border-primary',
+                'glass-well hover:bg-muted/60 focus-visible:ring-ring flex min-h-24 flex-col items-center justify-center gap-2 rounded-card p-3 text-sm font-medium outline-none focus-visible:ring-2',
+                template?.key === t.key && 'ring-primary ring-2',
               )}
             >
               <EnvelopeAvatar envelope={t} size="lg" />
@@ -351,9 +351,9 @@ export function CreateEnvelopeSheet({
                   if (choice.none) setWhen(null)
                 }}
                 className={cn(
-                  'bg-card hover:bg-muted/60 focus-visible:ring-ring flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center outline-none focus-visible:ring-2 [&_svg]:size-6',
+                  'glass-well hover:bg-muted/60 focus-visible:ring-ring flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-card p-3 text-center outline-none focus-visible:ring-2 [&_svg]:size-6',
                   noTarget === choice.none &&
-                    'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] [&_svg]:text-primary',
+                    'ring-primary ring-2 bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] [&_svg]:text-primary',
                 )}
               >
                 {choice.icon}
@@ -487,7 +487,7 @@ export function CreateEnvelopeSheet({
       break
     case 'review':
       body = (
-        <ul className="divide-y rounded-xl border">
+        <ul className="bg-muted/40 rounded-control space-y-1 py-1">
           <RecapRow label="Nom" onEdit={() => setStep('name')}>
             <span className="flex items-center gap-2">
               <EnvelopeAvatar envelope={{ icon, color }} size="sm" />

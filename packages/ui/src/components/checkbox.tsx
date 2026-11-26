@@ -28,38 +28,31 @@ function Checkbox({ className, ...props }: CheckboxProps) {
           // Layout
           'flex size-4 shrink-0 items-center justify-center',
 
-          // Styling
-          'rounded-[4px] border border-input',
-          'dark:bg-input/30',
+          // Styling: a small glass box, its edge drawn inside (#507)
+          'rounded-[5px] bg-card',
+          'shadow-[inset_0_0_0_1.5px_oklch(from_var(--foreground)_l_c_h/35%)]',
 
           // Transitions
-          'transition-colors outline-none',
+          'transition-[background-color,box-shadow] outline-none',
 
           // Click area expansion
           'touch-hitbox',
 
-          // Focus states
-          'focus-visible:border-ring',
-          'focus-visible:ring-3 focus-visible:ring-ring/50',
+          // Focus states: the fields' glow
+          'focus-visible:shadow-(--glass-focus)',
 
           // Disabled states
           'disabled:cursor-not-allowed disabled:opacity-50',
           'group-has-disabled/field:opacity-50',
 
-          // Invalid states (Light)
-          'aria-invalid:border-destructive',
-          'aria-invalid:ring-3 aria-invalid:ring-destructive/20',
-          'aria-invalid:aria-checked:border-primary',
-
-          // Invalid states (Dark)
-          'dark:aria-invalid:border-destructive/50',
-          'dark:aria-invalid:ring-destructive/40',
-
           // Checked states
-          'data-[state=checked]:border-primary',
           'data-[state=checked]:bg-primary',
           'data-[state=checked]:text-primary-foreground',
-          'dark:data-[state=checked]:bg-primary',
+          'data-[state=checked]:shadow-glass-primary',
+          'data-[state=checked]:focus-visible:shadow-(--glass-focus)',
+
+          // Invalid states (win)
+          'aria-invalid:shadow-(--glass-invalid)',
         ].join(' '),
         className,
       )}

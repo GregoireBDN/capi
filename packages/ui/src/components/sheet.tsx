@@ -129,11 +129,8 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
           // Positioning
           'fixed inset-0 z-50',
 
-          // Styling
-          'bg-black/10',
-
-          // Backdrop Blur (when supported)
-          'supports-backdrop-filter:backdrop-blur-xs',
+          // Styling: a light veil, the page faintly blurred (#509)
+          'glass-overlay',
 
           // Transitions
           'duration-100 motion-reduce:duration-0',
@@ -379,9 +376,7 @@ function SheetContent({
           moves things around the keyboard. */}
       <SheetOverlay
         className={
-          side === 'screen'
-            ? 'bg-popover supports-backdrop-filter:backdrop-blur-none'
-            : undefined
+          side === 'screen' ? 'bg-popover backdrop-blur-none' : undefined
         }
       />
       <SheetPrimitive.Content
@@ -396,9 +391,11 @@ function SheetContent({
             // Layout
             'flex flex-col gap-4',
 
-            // Styling
-            'bg-popover bg-clip-padding text-popover-foreground',
-            'shadow-lg',
+            // Styling: a frosted panel (#509): translucent, blurred, sheen
+            // on top, a large soft shadow, no line. Nothing inside it blurs
+            // again. The full-screen editor hides the page: opaque.
+            'glass-panel text-popover-foreground',
+            'data-[side=screen]:bg-popover data-[side=screen]:backdrop-blur-none data-[side=screen]:shadow-none',
 
             // Typography
             'text-sm',
@@ -416,7 +413,7 @@ function SheetContent({
             'data-[side=bottom]:inset-x-0',
             'data-[side=bottom]:bottom-0',
             'data-[side=bottom]:h-auto',
-            'data-[side=bottom]:border-t',
+            'data-[side=bottom]:rounded-t-sheet',
             // Clear of the home indicator and, in landscape, of the notch
             'data-[side=bottom]:pb-[env(safe-area-inset-bottom)]',
             'data-[side=bottom]:px-[env(safe-area-inset-left)]',
@@ -460,17 +457,14 @@ function SheetContent({
             'data-[side=center]:max-h-[min(44rem,calc(100svh-2rem))]',
             'data-[side=center]:overflow-y-auto',
             'data-[side=center]:gap-0',
-            'data-[side=center]:rounded-xl',
-            'data-[side=center]:shadow-xl',
-            'data-[side=center]:ring-1',
-            'data-[side=center]:ring-foreground/10',
+            'data-[side=center]:rounded-sheet',
 
             // Side: Left
             'data-[side=left]:inset-y-0',
             'data-[side=left]:left-0',
             'data-[side=left]:h-full',
             'data-[side=left]:w-3/4',
-            'data-[side=left]:border-r',
+            'data-[side=left]:rounded-r-sheet',
             'data-[side=left]:sm:max-w-sm',
             // Scrolls when taller than the screen (phone in landscape)
             'data-[side=left]:overflow-y-auto',
@@ -483,7 +477,7 @@ function SheetContent({
             'data-[side=right]:right-0',
             'data-[side=right]:h-full',
             'data-[side=right]:w-3/4',
-            'data-[side=right]:border-l',
+            'data-[side=right]:rounded-l-sheet',
             'data-[side=right]:sm:max-w-sm',
             // Scrolls when taller than the screen (phone in landscape)
             'data-[side=right]:overflow-y-auto',
@@ -495,7 +489,7 @@ function SheetContent({
             'data-[side=top]:inset-x-0',
             'data-[side=top]:top-0',
             'data-[side=top]:h-auto',
-            'data-[side=top]:border-b',
+            'data-[side=top]:rounded-b-sheet',
             'data-[side=top]:pt-[env(safe-area-inset-top)]',
 
             // Open Animations
@@ -629,7 +623,17 @@ function SheetBar({
   return (
     <div
       data-slot="sheet-bar"
-      className={cn('shrink-0 border-b', className)}
+      className={cn(
+        'relative z-10 shrink-0',
+        // On a full-screen editor the bar is the app's chrome (#509): its
+        // colour and the soft shadow below, no line.
+        'group-data-[side=screen]/sheet:bg-glass-chrome',
+        'group-data-[side=screen]/sheet:shadow-glass-chrome',
+        // Under the notch, the bar's colour reaches the top of the screen.
+        'group-data-[side=screen]/sheet:-mt-[env(safe-area-inset-top)]',
+        'group-data-[side=screen]/sheet:pt-[env(safe-area-inset-top)]',
+        className,
+      )}
       {...props}
     >
       <div className="flex min-h-[56px] items-center gap-2 px-3 py-2">
@@ -753,7 +757,7 @@ function SheetDescription({ className, ...props }: SheetDescriptionProps) {
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('text-sm text-glass-muted-foreground', className)}
       {...props}
     />
   )

@@ -21,7 +21,8 @@
  * Paints a bar in the staging yellow (`--env-banner`) and maps the tokens its
  * content reads (text, muted text, hovers, borders, the header's backdrop)
  * onto the dark `--env-banner-foreground`, so icons, the breadcrumb and ghost
- * buttons stay readable (≥ 4.5:1) in light and dark. Portalled menus opened
+ * buttons stay readable (≥ 4.5:1) in light and dark. Its glass is opaque
+ * yellow (`--glass-chrome`), the chrome's shadow stays. Portalled menus opened
  * from it keep the page's colours.
  * Usage: env-banner (the app header and the phone sheet's top on staging)
  */
@@ -33,9 +34,102 @@
   --sidebar-foreground: var(--env-banner-foreground);
   --border: oklch(from var(--env-banner-foreground) l c h / 18%);
   --sidebar-border: var(--border);
-  --header-bg: var(--env-banner);
+  --glass-chrome: var(--env-banner);
+  --glass-muted-foreground: var(--env-banner-muted-foreground);
+  --glass-fill: oklch(from var(--env-banner-foreground) l c h / 6%);
+  --month-band: color-mix(in oklab, white 45%, var(--env-banner));
   background-color: var(--env-banner);
   color: var(--env-banner-foreground);
+}
+
+/* =============================================================================
+ * GLASS (« verre », #503 recipe A · Givré, #504)
+ * =============================================================================
+ * One blurred layer at a time: the app chrome (header, month bar, sidebar)
+ * and floating panels (sheets, dialogs, popovers, menus, toasts) are
+ * translucent and blur what scrolls under them; cards, fields and buttons on
+ * the page are opaque, with the sheen (`--glass-edge`) and a soft shadow. No
+ * lines between or around surfaces: depth comes from the shadow. Without
+ * `backdrop-filter`, or with `prefers-reduced-transparency`, the chrome and
+ * the panels turn opaque (same colours, see the end of the themes).
+ * Solid buttons: `glass-solid` (#506).
+ * Tokens: `--glass-*` in the themes; Tailwind also gets `bg-glass-fill`,
+ * `text-glass-muted-foreground`, `shadow-glass-{chrome,sm,md,lg,primary}`,
+ * `rounded-card`, `rounded-sheet`, `rounded-control`.
+ */
+
+/* The app chrome: header, month bar, sidebar. No sheen (two chrome blocks
+   meet without a line, #434); the shadow below ends the block. */
+@utility glass-chrome {
+  background-color: var(--glass-chrome);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow-chrome);
+}
+
+/* A floating panel: sheet, dialog, popover, menu, toast. Nothing inside it
+   blurs again. */
+@utility glass-panel {
+  background-color: var(--glass-panel);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-edge), var(--glass-shadow-lg);
+}
+
+/* A card on the page: opaque, sheen and shadow, no blur, no ring. */
+@utility glass-card {
+  background-color: var(--card);
+  box-shadow: var(--glass-edge), var(--glass-shadow-md);
+}
+
+/* A raised well: the segmented control's thumb. */
+@utility glass-well {
+  background-color: var(--card);
+  box-shadow: var(--glass-edge), var(--glass-shadow-sm);
+}
+
+/* A field (#507, the owner's « B · Creusé »): a faint hollow, no border. On
+   focus it turns the card's colour with a 1.5px primary edge (≥ 3:1) and a
+   soft glow; invalid, a red tint, a 2px destructive edge and glow (beside an
+   icon or a message, never colour alone). Box shadows only: nothing moves. */
+@utility glass-field {
+  background-color: var(--glass-fill);
+  box-shadow: var(--glass-field-inset);
+}
+/* A filled field rises out of its hollow: the card's colour, the sheen and
+   a soft shadow, so what has been typed in stands out from what has not
+   (the owner, #507). */
+@utility glass-field-filled {
+  background-color: var(--card);
+  box-shadow: var(--glass-edge), var(--glass-shadow-sm);
+}
+@utility glass-field-focus {
+  background-color: var(--card);
+  box-shadow: var(--glass-edge), var(--glass-focus);
+}
+@utility glass-field-invalid {
+  background-color: color-mix(in srgb, var(--destructive) 10%, var(--card));
+  box-shadow: var(--glass-edge), var(--glass-invalid);
+}
+
+/* A solid button (#506): the sheen on top, a soft shadow in its own colour
+   (`--glass-tint`, the primary colour unless the button sets another).
+   Written as Tailwind's shadow, so a focus ring and `shadow-none` (pressed)
+   compose with it. */
+@utility glass-solid {
+  --tw-shadow:
+    var(--glass-solid-edge),
+    0 6px 14px -8px oklch(from var(--glass-tint, var(--primary)) l c h / 70%);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+/* Behind a sheet or a dialog. */
+@utility glass-overlay {
+  background-color: var(--glass-overlay);
+  -webkit-backdrop-filter: blur(var(--glass-overlay-blur));
+  backdrop-filter: blur(var(--glass-overlay-blur));
 }
 
 /**
@@ -89,6 +183,11 @@
   /* State Colors */
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-glass-muted-foreground: var(--glass-muted-foreground);
+  --color-glass-fill: var(--glass-fill);
+  --color-glass-chrome: var(--glass-chrome);
+  --color-glass-panel: var(--glass-panel);
+  --color-month-band: var(--month-band);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
 
@@ -144,6 +243,19 @@
   --radius-2xl: calc(var(--radius) * 1.8); /* 18px (1.125rem) */
   --radius-3xl: calc(var(--radius) * 2.2); /* 22px (1.375rem) */
   --radius-4xl: calc(var(--radius) * 2.6); /* 26px (1.625rem) */
+
+  /* Glass radii (#503): cards, a sheet's top corners, fields and buttons
+     (icon buttons stay round). */
+  --radius-card: 1.1rem;
+  --radius-sheet: 1.4rem;
+  --radius-control: 0.8rem;
+
+  /* Glass shadows (#503), from the themes' `--glass-shadow-*`. */
+  --shadow-glass-chrome: var(--glass-shadow-chrome);
+  --shadow-glass-sm: var(--glass-shadow-sm);
+  --shadow-glass-md: var(--glass-shadow-md);
+  --shadow-glass-lg: var(--glass-shadow-lg);
+  --shadow-glass-primary: var(--glass-shadow-primary);
 }
 
 /* =============================================================================
@@ -251,7 +363,42 @@
 
   --radius: 0.75rem;
 
-  --header-bg: oklch(0.975 0.007 260 / 80%);
+  /* Glass (#503 A · Givré, #504). The alphas turn 100 % in the fallbacks
+     below; the colours are the same either way. */
+  --glass-chrome-alpha: 90%;
+  --glass-panel-alpha: 94%;
+  --glass-blur: 16px;
+  --glass-chrome: oklch(0.975 0.007 260 / var(--glass-chrome-alpha));
+  --glass-panel: oklch(from var(--popover) l c h / var(--glass-panel-alpha));
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 70%);
+  --glass-solid-edge: inset 0 1px 0 rgb(255 255 255 / 25%);
+  --glass-shadow: rgb(15 23 42 / 35%);
+  --glass-shadow-chrome: 0 10px 24px -14px var(--glass-shadow);
+  --glass-shadow-sm:
+    0 0 0 1px rgb(15 23 42 / 6%), 0 4px 12px -8px rgb(15 23 42 / 25%);
+  --glass-shadow-md:
+    0 1px 2px rgb(15 23 42 / 4%), 0 10px 24px -14px rgb(15 23 42 / 30%);
+  --glass-shadow-lg: 0 16px 40px -12px rgb(15 23 42 / 30%);
+  --glass-shadow-primary: 0 6px 14px -8px oklch(from var(--primary) l c h / 70%);
+  --glass-fill: oklch(from var(--foreground) l c h / 6%);
+  --glass-field-inset: inset 0 1px 2px rgb(15 23 42 / 10%);
+  --glass-focus:
+    0 0 0 1.5px var(--ring), 0 0 0 5px oklch(from var(--ring) l c h / 16%);
+  --glass-invalid:
+    0 0 0 2px var(--destructive),
+    0 0 0 6px oklch(from var(--destructive) l c h / 16%);
+  --glass-overlay: rgb(15 23 42 / 18%);
+  --glass-overlay-blur: 2px;
+  /* #502's folder tab and the month's band under it: the app's light blue
+     (a pale yellow on staging, `env-banner`). */
+  --month-band: color-mix(in oklab, var(--primary) 9%, transparent);
+  /* Muted text on the chrome and on panels: `muted-foreground` drops under
+     4.5:1 once content scrolls under them; 5.6:1 at worst. */
+  --glass-muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 75%,
+    transparent
+  );
   --line: var(--border);
 
   /* Staging's header (#454, `env-banner`): yellow, dark text 11:1, muted 6:1 */
@@ -352,7 +499,16 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 
-  --header-bg: oklch(0.16 0.03 272 / 80%);
+  --glass-chrome: oklch(0.16 0.03 272 / var(--glass-chrome-alpha));
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --glass-solid-edge: inset 0 1px 0 rgb(255 255 255 / 20%);
+  --glass-shadow: rgb(0 0 0 / 60%);
+  --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
+  --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
+  --glass-shadow-lg:
+    0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
+  --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
+  --glass-overlay: rgb(0 0 0 / 40%);
   --line: var(--border);
 
   /* Staging's header: a deeper yellow, dark text 9.7:1, muted 6:1 */
@@ -438,13 +594,46 @@
     --sidebar-border: var(--border);
     --sidebar-ring: var(--ring);
 
-    --header-bg: oklch(0.16 0.03 272 / 80%);
+    --glass-chrome: oklch(0.16 0.03 272 / var(--glass-chrome-alpha));
+    --glass-edge: inset 0 1px 0 rgb(255 255 255 / 6%);
+    --glass-solid-edge: inset 0 1px 0 rgb(255 255 255 / 20%);
+    --glass-shadow: rgb(0 0 0 / 60%);
+    --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
+    --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
+    --glass-shadow-lg:
+      0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
+    --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
+    --glass-overlay: rgb(0 0 0 / 40%);
     --line: var(--border);
 
     /* Staging's header: a deeper yellow, dark text 9.7:1, muted 6:1 */
     --env-banner: oklch(0.8 0.15 90); /* #e3b831 */
     --env-banner-foreground: oklch(0.2 0.04 80);
     --env-banner-muted-foreground: oklch(0.35 0.06 80);
+  }
+}
+
+/*
+ * Glass fallbacks (#503): no `backdrop-filter`, or the system asks for less
+ * transparency → the chrome and the panels are opaque, no blur. Every theme
+ * reads the alphas, so one rule covers light and dark.
+ */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  :root {
+    --glass-chrome-alpha: 100%;
+    --glass-panel-alpha: 100%;
+    --glass-blur: 0px;
+    --glass-overlay-blur: 0px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-chrome-alpha: 100%;
+    --glass-panel-alpha: 100%;
+    --glass-blur: 0px;
+    --glass-overlay-blur: 0px;
   }
 }
 
