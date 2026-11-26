@@ -16,10 +16,19 @@ import { GlanceRow } from './GlanceRow'
  * alarm then, `belowThreshold` is null). Opens the forecast page. Nothing
  * while loading or on error: the dashboard does not depend on it.
  */
-export function ForecastRow() {
+export function ForecastRow({
+  accountIds,
+}: {
+  /** The accounts projected (#495); all the bank accounts by default. */
+  accountIds?: string[] | null
+} = {}) {
   const [thresholdCents] = useForecastThreshold()
   const { data } = useQuery(
-    forecastQuery({ thresholdCents, includeVariable: true }),
+    forecastQuery({
+      thresholdCents,
+      includeVariable: true,
+      ...(accountIds ? { accountIds } : {}),
+    }),
   )
   if (!data || data.accounts.length === 0) return null
   const below = data.belowThreshold

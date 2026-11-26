@@ -66,6 +66,7 @@ export function GlanceCard({
   today,
   dataUntil,
   stale,
+  rows = ['forecast', 'net_worth'],
 }: {
   /** The current month's review. */
   review: MonthReviewDto
@@ -74,6 +75,11 @@ export function GlanceCard({
   /** The latest bank data (`GET /coverage`). */
   dataUntil: string | null
   stale: boolean
+  /**
+   * The rows under the figure, in order (#495): « Fin de mois » and
+   * « Patrimoine » by default, as the owner's layout places them.
+   */
+  rows?: readonly ('forecast' | 'net_worth')[]
 }) {
   const { budget } = review
   const month = formatMonthName(review.month)
@@ -87,10 +93,6 @@ export function GlanceCard({
   })
   const tone = paceText(pace, day, days)
   const year = today.slice(0, 4)
-  const change =
-    netWorth.previousMonthEndCents === null
-      ? null
-      : netWorth.totalCents - netWorth.previousMonthEndCents
 
   return (
     <Card className="min-w-0 gap-2 px-2 pt-3 pb-2">
@@ -146,25 +148,57 @@ export function GlanceCard({
           <DataNote dataUntil={dataUntil} stale={stale} year={year} />
         )}
       </section>
-      <div className="space-y-0.5 border-t pt-1.5">
-        <ForecastRow />
-        <GlanceRow
-          icon={<LandmarkIcon />}
-          tone="primary"
-          title="Patrimoine"
-          value={formatWholeEuros(netWorth.totalCents)}
-          detail={
-            change === null
-              ? undefined
-              : `${formatSignedWholeEuros(change)} depuis le ${formatShortDay(netWorth.previousMonthEnd, year)}`
-          }
-        >
-          {/* The accounts and the two parts of the net worth are on
-              Comptes (#405). */}
-          <Link to={ROUTES.accounts} />
-        </GlanceRow>
-      </div>
+      {rows.length > 0 && (
+        <div className="space-y-0.5 border-t pt-1.5">
+          {rows.map((row) =>
+            row === 'forecast' ? (
+              <ForecastRow key={row} />
+            ) : (
+              <NetWorthRow key={row} netWorth={netWorth} year={year} />
+            ),
+          )}
+        </div>
+      )}
     </Card>
+  )
+}
+
+/**
+ * « Patrimoine »: today's net worth (cash only, money owed beside it on
+ * Comptes) and its change since the last month end; opens Comptes.
+ */
+export function NetWorthRow({
+  netWorth,
+  year,
+  title = 'Patrimoine',
+}: {
+  netWorth: Pick<
+    NetWorthDto,
+    'totalCents' | 'previousMonthEnd' | 'previousMonthEndCents'
+  >
+  year: string
+  title?: string
+}) {
+  const change =
+    netWorth.previousMonthEndCents === null
+      ? null
+      : netWorth.totalCents - netWorth.previousMonthEndCents
+  return (
+    <GlanceRow
+      icon={<LandmarkIcon />}
+      tone="primary"
+      title={title}
+      value={formatWholeEuros(netWorth.totalCents)}
+      detail={
+        change === null
+          ? undefined
+          : `${formatSignedWholeEuros(change)} depuis le ${formatShortDay(netWorth.previousMonthEnd, year)}`
+      }
+    >
+      {/* The accounts and the two parts of the net worth are on
+          Comptes (#405). */}
+      <Link to={ROUTES.accounts} />
+    </GlanceRow>
   )
 }
 

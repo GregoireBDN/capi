@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   CoverageDto,
+  DashboardWidgetDto,
   DashboardAccountDto,
   DashboardOverviewDto,
   MonthReviewDto,
@@ -22,6 +23,14 @@ const api = vi.hoisted(() => ({
   coverageControllerCoverage: vi.fn(),
   receivablesControllerSuggestions: vi.fn(),
   recurringControllerList: vi.fn(),
+  dashboardLayoutControllerGet: vi.fn(),
+  dashboardLayoutControllerReplace: vi.fn(),
+  dashboardLayoutControllerReset: vi.fn(),
+  dashboardControllerHistory: vi.fn(),
+  owedControllerSummary: vi.fn(),
+  envelopesControllerList: vi.fn(),
+  investmentsControllerSummary: vi.fn(),
+  accountsControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -198,6 +207,41 @@ function recurring(overrides: Partial<RecurringItemDto>): RecurringItemDto {
   } as RecurringItemDto
 }
 
+function widget(
+  type: DashboardWidgetDto['type'],
+  values: Partial<DashboardWidgetDto> = {},
+): DashboardWidgetDto {
+  return {
+    type,
+    size: 'small',
+    hidden: false,
+    accountIds: null,
+    envelopeIds: null,
+    settings: {},
+    ...values,
+  }
+}
+
+const DEFAULT_LAYOUT = [
+  widget('todo', { size: 'large' }),
+  widget('left_to_spend', { size: 'large' }),
+  widget('forecast'),
+  widget('net_worth'),
+  widget('tracked_budgets', { size: 'large' }),
+]
+
+function owedRow(name: string, owedCents: number) {
+  return {
+    contactId: '40000000-0000-4000-8000-000000000001',
+    name,
+    owedCents,
+    openCount: 1,
+    oldestOpenDate: '2026-11-01',
+    oldestOpenDays: 20,
+    netCents: 2_500,
+  }
+}
+
 function ok<T>(data: T) {
   return Promise.resolve({ data, response: { ok: true, status: 200 } })
 }
@@ -239,6 +283,62 @@ beforeEach(() => {
   api.receivablesControllerSuggestions.mockImplementation(() => ok([]))
   api.recurringControllerList.mockImplementation(() => ok([]))
   api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
+  api.dashboardLayoutControllerGet.mockImplementation(() =>
+    ok({ custom: false, widgets: DEFAULT_LAYOUT }),
+  )
+  api.envelopesControllerList.mockImplementation(() => ok([]))
+  api.accountsControllerList.mockImplementation(() =>
+    ok(
+      [checking, pea].map((account) => ({
+        ...account,
+        position: 0,
+        archivedAt: null,
+        cryptoSource: null,
+      })),
+    ),
+  )
+  api.dashboardControllerHistory.mockImplementation(() =>
+    ok({
+      months: [
+        {
+          month: '2026-10',
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 0,
+          accounts: [
+            { accountId: pea.id, type: 'brokerage', balanceCents: 900_000 },
+          ],
+        },
+        {
+          month: '2026-11',
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 0,
+          accounts: [],
+        },
+      ],
+    }),
+  )
+  api.owedControllerSummary.mockImplementation(() =>
+    ok({
+      today: '2026-11-21',
+      month: '2026-11',
+      owedToMe: {
+        totalCents: 4_000,
+        settled: [],
+        contacts: [owedRow('Alex test', 4_000)],
+      },
+      iOwe: {
+        totalCents: 1_500,
+        settled: [],
+        contacts: [owedRow('Alex test', 1_500)],
+      },
+      expected: [],
+      offers: [],
+    }),
+  )
   api.budgetsControllerEnvelopes.mockImplementation(() =>
     ok({
       month: '2026-11',
@@ -513,5 +613,91 @@ describe('DashboardPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByTestId('left-to-spend')).toBeInTheDocument()
+  })
+
+  it('draws the saved layout: its elements, in order, on their accounts', async () => {
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [
+          widget('balances', { accountIds: [checking.id] }),
+          widget('owed'),
+          widget('net_worth', { accountIds: [pea.id] }),
+          widget('left_to_spend', { hidden: true }),
+        ],
+      }),
+    )
+    renderPage()
+    const balances = (
+      await screen.findByRole('link', { name: 'Soldes' })
+    ).closest('[data-element]') as HTMLElement
+    expect(within(balances).getByText('Compte test')).toBeInTheDocument()
+    expect(within(balances).queryByText('PEA test')).not.toBeInTheDocument()
+    // One row per person, both sides on it.
+    expect(await screen.findByText('Alex test')).toBeInTheDocument()
+    expect(screen.getByText(`+${euros(4_000)}`)).toBeInTheDocument()
+    expect(screen.getByText(`−${euros(1_500)}`)).toBeInTheDocument()
+    // On chosen accounts, never passed off as the whole net worth.
+    expect(await screen.findByText('Patrimoine · 1 compte')).toBeInTheDocument()
+    expect(screen.getByText(euros(1_000_000))).toBeInTheDocument()
+    expect(
+      await screen.findByText(`+${euros(100_000)} depuis le 31 oct.`),
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('left-to-spend')).not.toBeInTheDocument()
+    expect(
+      [...document.querySelectorAll('[data-element]')].map((element) =>
+        element.getAttribute('data-element'),
+      ),
+    ).toEqual(['balances', 'owed', 'net_worth'])
+  })
+
+  it('says when every chosen account is gone and opens its settings, saved at once', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [widget('owed'), widget('balances', { accountIds: [] })],
+      }),
+    )
+    api.dashboardLayoutControllerReplace.mockImplementation(
+      (options: { body: { widgets: DashboardWidgetDto[] } }) =>
+        ok({ custom: true, widgets: options.body.widgets }),
+    )
+    renderPage()
+    expect(await screen.findByText('Aucun compte')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Choisir' }))
+
+    const editor = await screen.findByRole('dialog')
+    // The chosen list is empty: tick one.
+    await user.click(within(editor).getByRole('checkbox', { name: /PEA test/ }))
+    await user.click(
+      within(editor).getByRole('button', { name: 'Personnaliser' }),
+    )
+    await user.click(
+      within(editor).getByRole('button', { name: 'Monter Soldes' }),
+    )
+    await user.click(
+      within(editor).getByRole('switch', { name: 'Afficher Argent dû' }),
+    )
+    await user.click(
+      within(editor).getByRole('button', { name: 'Ajouter Le mois' }),
+    )
+    expect(api.dashboardLayoutControllerReplace).not.toHaveBeenCalled()
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
+
+    expect(api.dashboardLayoutControllerReplace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          widgets: [
+            widget('balances', { accountIds: [pea.id] }),
+            widget('owed', { hidden: true }),
+            widget('month_flows', { size: 'large' }),
+          ],
+        },
+      }),
+    )
   })
 })

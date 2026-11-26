@@ -10,13 +10,25 @@ import {
   EmptyMedia,
   EmptyTitle,
   Skeleton,
+  cn,
 } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { FileUpIcon, LayoutDashboardIcon } from 'lucide-react'
+import {
+  FileUpIcon,
+  LayoutDashboardIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
+import type {
+  DashboardOverviewDto,
+  DashboardWidgetDto,
+  MonthReviewDto,
+} from '#/api/types.gen'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import { coverageQuery } from '#/components/month/coverage'
 import { repaymentSuggestionsQuery } from '#/components/owed/queries'
 import { groupItems } from '#/components/subscriptions/format'
@@ -26,6 +38,22 @@ import { ROUTES } from '#/lib/routes'
 import { DashboardTodos } from './DashboardTodos'
 import { GlanceCard } from './GlanceCard'
 import { buildTodos, isStale } from './glance'
+import type { Todo } from './glance'
+import {
+  BalancesElement,
+  EnvelopesElement,
+  ForecastElement,
+  InvestmentsElement,
+  MonthFlowsElement,
+  NetWorthElement,
+  OwedElement,
+  UpcomingElement,
+} from './layout/elements'
+import { AddExpenseAction } from './layout/AddExpenseAction'
+import { DashboardEditor } from './layout/DashboardEditor'
+import { groupWidgets } from './layout/group'
+import type { Block } from './layout/group'
+import { dashboardLayoutQuery } from './layout/queries'
 import { MonthEnvelopes } from './MonthEnvelopes'
 import { dashboardOverviewQuery, dashboardReviewQuery } from './queries'
 
@@ -75,6 +103,21 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
   const coverage = useQuery(coverageQuery)
   const repayments = useQuery(repaymentSuggestionsQuery)
   const recurring = useQuery(recurringListQuery)
+  const layout = useQuery(dashboardLayoutQuery)
+  const [editor, setEditor] = useState<{
+    open: boolean
+    type?: DashboardWidgetDto['type']
+  }>({ open: false })
+  // « ⋮ → Personnaliser » (#495), once the layout is known.
+  useRegisterPageAction(
+    layout.data
+      ? {
+          label: 'Personnaliser',
+          icon: <SlidersHorizontalIcon />,
+          onSelect: () => setEditor({ open: true }),
+        }
+      : null,
+  )
 
   const data = overview.data
   const isEmpty = data !== undefined && data.accounts.length === 0
@@ -133,7 +176,7 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
 
       {banner}
 
-      {overview.isPending && <DashboardSkeleton />}
+      {(overview.isPending || layout.isPending) && <DashboardSkeleton />}
 
       {/* A failed background refetch keeps showing the last figures. */}
       {overview.isError && !data && (
@@ -181,41 +224,187 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
         </Empty>
       )}
 
-      {data && !isEmpty && (
-        <>
-          <DashboardTodos todos={todos} today={today} />
-          {review.data ? (
-            <GlanceCard
-              review={review.data}
-              netWorth={data.netWorth}
-              today={today}
-              dataUntil={dataUntil}
-              stale={stale}
-            />
-          ) : review.isError ? (
-            <Alert>
-              <AlertTitle>Le mois en cours est indisponible.</AlertTitle>
-              <AlertDescription>
-                <Button
-                  outline
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void review.refetch()}
-                >
-                  Réessayer
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Skeleton
-              className="h-64 rounded-xl"
-              aria-busy="true"
-              aria-label="Chargement du mois"
-            />
-          )}
-          <MonthEnvelopes />
-        </>
+      {data && !isEmpty && !layout.isPending && (
+        <DashboardElements
+          // A layout that fails to load leaves today's dashboard.
+          widgets={layout.data?.widgets ?? DEFAULT_WIDGETS}
+          overview={data}
+          review={review.data}
+          reviewFailed={review.isError}
+          onRetryReview={() => void review.refetch()}
+          todos={todos}
+          today={today}
+          dataUntil={dataUntil}
+          stale={stale}
+          onEdit={
+            layout.data
+              ? (widget) => setEditor({ open: true, type: widget.type })
+              : undefined
+          }
+        />
+      )}
+      {layout.data && (
+        <DashboardEditor
+          open={editor.open}
+          onOpenChange={(open) => setEditor((state) => ({ ...state, open }))}
+          layout={layout.data}
+          initialType={editor.type}
+        />
       )}
     </div>
+  )
+}
+
+/** Today's dashboard, while the saved layout cannot be read. */
+const DEFAULT_WIDGETS: DashboardWidgetDto[] = (
+  [
+    ['todo', 'large'],
+    ['left_to_spend', 'large'],
+    ['forecast', 'small'],
+    ['net_worth', 'small'],
+    ['tracked_budgets', 'large'],
+  ] as const
+).map(([type, size]) => ({
+  type,
+  size,
+  hidden: false,
+  accountIds: null,
+  envelopeIds: null,
+  settings: {},
+}))
+
+/**
+ * The owner's elements in their order (#495): one column on a phone; on a
+ * wide page two, a « large » element taking the whole row.
+ */
+function DashboardElements({
+  widgets,
+  overview,
+  review,
+  reviewFailed,
+  onRetryReview,
+  todos,
+  today,
+  dataUntil,
+  stale,
+  onEdit,
+}: {
+  widgets: DashboardWidgetDto[]
+  overview: DashboardOverviewDto
+  review: MonthReviewDto | undefined
+  reviewFailed: boolean
+  onRetryReview: () => void
+  todos: Todo[]
+  today: string
+  dataUntil: string | null
+  stale: boolean
+  onEdit?: (widget: DashboardWidgetDto) => void
+}) {
+  const blocks = groupWidgets(widgets)
+  const year = today.slice(0, 4)
+  const tracked = blocks.some(
+    (block) => block.widget.type === 'tracked_budgets',
+  )
+
+  function render(block: Block): ReactNode {
+    const { widget } = block
+    const edit = onEdit ? () => onEdit(widget) : undefined
+    if (block.kind === 'glance') {
+      if (review) {
+        return (
+          <GlanceCard
+            review={review}
+            netWorth={overview.netWorth}
+            today={today}
+            dataUntil={dataUntil}
+            stale={stale}
+            rows={block.rows}
+          />
+        )
+      }
+      if (reviewFailed) {
+        return (
+          <Alert>
+            <AlertTitle>Le mois en cours est indisponible.</AlertTitle>
+            <AlertDescription>
+              <Button
+                outline
+                variant="secondary"
+                size="sm"
+                onClick={onRetryReview}
+              >
+                Réessayer
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )
+      }
+      return (
+        <Skeleton
+          className="h-64 rounded-xl"
+          aria-busy="true"
+          aria-label="Chargement du mois"
+        />
+      )
+    }
+    switch (widget.type) {
+      case 'todo':
+        return <DashboardTodos todos={todos} today={today} />
+      case 'tracked_budgets':
+        return <MonthEnvelopes />
+      case 'forecast':
+        return <ForecastElement widget={widget} onEdit={edit} />
+      case 'net_worth':
+        return (
+          <NetWorthElement
+            overview={overview}
+            widget={widget}
+            year={year}
+            onEdit={edit}
+          />
+        )
+      case 'balances':
+        return (
+          <BalancesElement
+            overview={overview}
+            widget={widget}
+            year={year}
+            onEdit={edit}
+          />
+        )
+      case 'owed':
+        return <OwedElement widget={widget} />
+      case 'upcoming_debits':
+        return <UpcomingElement widget={widget} today={today} onEdit={edit} />
+      case 'month_flows':
+        return <MonthFlowsElement overview={overview} />
+      case 'envelopes':
+        return <EnvelopesElement widget={widget} />
+      case 'investments':
+        return <InvestmentsElement widget={widget} onEdit={edit} />
+      case 'left_to_spend':
+        return null
+    }
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-1 items-start gap-3 @xl:grid-cols-2">
+        {blocks.map((block) => (
+          <div
+            key={block.widget.type}
+            data-element={block.widget.type}
+            className={cn(
+              'min-w-0 empty:hidden',
+              block.widget.size === 'large' && '@xl:col-span-2',
+            )}
+          >
+            {render(block)}
+          </div>
+        ))}
+      </div>
+      {/* « Ajouter une dépense » stays in « ⋮ » without « Budgets suivis ». */}
+      {!tracked && <AddExpenseAction />}
+    </>
   )
 }
