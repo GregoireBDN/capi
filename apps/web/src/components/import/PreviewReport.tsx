@@ -81,36 +81,45 @@ function CountTile({
   return (
     <li
       className={cn(
-        'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2',
+        '@container min-w-0 rounded-xl px-3 py-2',
         idle ? 'bg-muted/50' : tint,
       )}
     >
-      <Icon
-        aria-hidden
-        className={cn(
-          'size-4 shrink-0',
-          idle ? 'text-muted-foreground/60' : text,
-        )}
-      />
-      <p
-        data-slot="count"
-        className={cn(
-          'text-xl leading-none font-semibold tabular-nums',
-          idle && 'text-muted-foreground',
-        )}
-      >
-        {value}
-      </p>
-      <div className="min-w-0 leading-tight">
-        <p
-          className={cn(
-            'truncate text-sm font-medium break-normal',
-            idle ? 'text-muted-foreground' : text,
-          )}
-        >
-          {title}
-        </p>
-        <p className="text-muted-foreground truncate text-xs">{hint}</p>
+      {/* Narrow tiles (phones) stack the title under the count. */}
+      <div className="flex flex-col gap-1 @[180px]:flex-row @[180px]:items-center @[180px]:gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className={cn(
+              'grid size-10 shrink-0 place-items-center rounded-full',
+              idle
+                ? 'bg-muted text-muted-foreground/70'
+                : cn('bg-background/70', text),
+            )}
+          >
+            <Icon className="size-5" />
+          </span>
+          <p
+            data-slot="count"
+            className={cn(
+              'text-xl leading-none font-semibold tabular-nums',
+              idle && 'text-muted-foreground',
+            )}
+          >
+            {value}
+          </p>
+        </div>
+        <div className="min-w-0 leading-tight">
+          <p
+            className={cn(
+              'truncate text-sm font-medium break-normal',
+              idle ? 'text-muted-foreground' : text,
+            )}
+          >
+            {title}
+          </p>
+          <p className="text-muted-foreground truncate text-xs">{hint}</p>
+        </div>
       </div>
     </li>
   )

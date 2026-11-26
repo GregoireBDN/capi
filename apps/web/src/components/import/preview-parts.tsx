@@ -4,6 +4,7 @@ import {
   ArrowDownIcon,
   ArrowRightIcon,
   CheckIcon,
+  CircleAlertIcon,
   CopyCheckIcon,
   CopyPlusIcon,
   FileWarningIcon,
@@ -351,7 +352,7 @@ export function IssueCells({ issue }: { issue: ParseIssueDto }) {
   return (
     <ul
       aria-label={`Contenu de la ligne ${issue.lineNumber}`}
-      className="flex flex-wrap gap-1.5"
+      className="bg-border flex flex-wrap gap-px overflow-hidden rounded-xl border"
     >
       {issue.cells.map((cell, index) => {
         const bad = cell.field !== null && blamed.has(cell.field)
@@ -363,16 +364,31 @@ export function IssueCells({ issue }: { issue: ParseIssueDto }) {
             key={index}
             data-bad={bad || undefined}
             className={cn(
-              'inline-flex max-w-full min-w-0 items-baseline gap-1.5 rounded-md border px-2 py-0.5 font-mono text-xs',
+              'min-w-0 flex-auto px-3 py-1.5',
               bad
-                ? 'border-destructive/60 bg-destructive/10 text-destructive ring-destructive/30 ring-2'
-                : 'bg-muted/60',
+                ? 'bg-[color-mix(in_oklab,var(--destructive)_10%,var(--card))]'
+                : 'bg-card',
             )}
           >
-            <span className="text-muted-foreground shrink-0 font-sans">
+            <p
+              className={cn(
+                'flex items-center gap-1 text-xs',
+                bad ? 'text-destructive' : 'text-muted-foreground',
+              )}
+            >
+              {bad && (
+                <CircleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+              )}
               {cell.column || `Colonne ${index + 1}`}
-            </span>
-            <span className="min-w-0 truncate">{value || '—'}</span>
+            </p>
+            <p
+              className={cn(
+                'truncate font-mono text-sm',
+                bad && 'text-destructive font-medium',
+              )}
+            >
+              {value || '—'}
+            </p>
           </li>
         )
       })}
