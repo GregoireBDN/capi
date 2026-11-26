@@ -105,10 +105,7 @@ export function GlanceCard({
                 {formatWholeEuros(Math.abs(pace.leftCents))}
               </span>
               {perDay !== null && (
-                <span
-                  data-testid="per-day"
-                  className="border-l pb-1 pl-4 leading-tight"
-                >
+                <span data-testid="per-day" className="pb-1 pl-4 leading-tight">
                   <span className="block text-lg font-semibold whitespace-nowrap tabular-nums">
                     {formatWholeEuros(perDay)}
                   </span>

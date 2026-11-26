@@ -75,7 +75,7 @@ function VerifyEmailPage() {
   if (status === 'success') {
     return (
       <div className="flex min-h-full flex-1 items-center justify-center px-4 py-6">
-        <Card className="border-l-success/50 w-full max-w-sm border-l-4">
+        <Card className="bg-success/7 w-full max-w-sm">
           <CardHeader>
             <CardTitle className="text-lg">Email vérifié</CardTitle>
             <CardDescription className="leading-relaxed">
@@ -99,7 +99,7 @@ function VerifyEmailPage() {
   if (status === 'error') {
     return (
       <div className="flex min-h-full flex-1 items-center justify-center px-4 py-6">
-        <Card className="border-l-destructive w-full max-w-sm border-l-4">
+        <Card className="bg-destructive/5 w-full max-w-sm">
           <CardHeader>
             <CardTitle className="text-destructive text-lg">
               Lien invalide

@@ -121,7 +121,7 @@ function StepCard({
           ) : (
             <span
               aria-hidden
-              className="text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold"
+              className="text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full bg-glass-fill text-xs font-semibold"
             >
               {number}
             </span>

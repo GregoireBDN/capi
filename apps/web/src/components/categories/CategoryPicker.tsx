@@ -255,10 +255,7 @@ export function CategoryPicker({
     <>
       <div
         data-slot="category-picker-top"
-        className={cn(
-          'shrink-0 space-y-3 border-b px-4 pt-3 pb-3',
-          headerClassName,
-        )}
+        className={cn('shrink-0 space-y-3 px-4 pt-3 pb-3', headerClassName)}
       >
         {kinds.length > 1 && (
           <ChoiceTiles

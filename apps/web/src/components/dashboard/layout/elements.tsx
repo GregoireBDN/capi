@@ -333,7 +333,7 @@ function PeriodSwitch({
           className={cn(
             'focus-visible:ring-ring min-h-8 flex-1 rounded-full px-2.5 whitespace-nowrap outline-none focus-visible:ring-2',
             value === period
-              ? 'bg-card text-foreground shadow-sm'
+              ? 'glass-well text-foreground'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -782,7 +782,7 @@ export function UpcomingElement({
           >
             {formatWholeEuros(total)}
           </p>
-          <ul className="border-t pt-1">
+          <ul className="space-y-0.5">
             {debits.slice(0, UPCOMING_ROWS).map((item) => (
               <ElementRow
                 key={item.id}

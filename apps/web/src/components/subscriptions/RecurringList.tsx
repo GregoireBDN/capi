@@ -126,7 +126,7 @@ export function RecurringList({
       {description && (
         <p className="text-muted-foreground text-sm">{description}</p>
       )}
-      <ul className={cn('bg-card', ROW_LIST)}>
+      <ul className={ROW_LIST}>
         {items.map((item) => {
           const priceChange = formatPriceChange(item, today)
           const end = formatEnd(item, today)

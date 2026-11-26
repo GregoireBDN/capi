@@ -527,7 +527,7 @@ export function NetWorthPage({ period, onPeriodChange }: NetWorthPageProps) {
       ) : !overview.data || !months || !coverage ? (
         <PageSkeleton />
       ) : !selected ? (
-        <Empty className="border">
+        <Empty className="glass-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <LandmarkIcon />

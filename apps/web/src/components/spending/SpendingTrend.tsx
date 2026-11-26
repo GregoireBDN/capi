@@ -538,7 +538,7 @@ function MonthDetail({
   return (
     <div
       data-slot="trend-detail"
-      className="bg-popover text-popover-foreground mt-3 space-y-2 rounded-lg border p-3 text-sm shadow-md @[34rem]:pointer-events-auto @[34rem]:mt-0"
+      className="glass-panel text-popover-foreground rounded-card mt-3 space-y-2 p-3 text-sm @[34rem]:pointer-events-auto @[34rem]:mt-0"
     >
       <p className="font-medium">
         {formatMonthLong(month)}
@@ -576,7 +576,7 @@ function MonthDetail({
           {!single && detail && detail.topCategories.length > 0 && (
             <ul
               aria-label="Principales catégories"
-              className="space-y-1 border-t pt-2 text-xs"
+              className="space-y-1 pt-1 text-xs"
             >
               {detail.topCategories.map((top) => (
                 <li

@@ -29,7 +29,7 @@ export function PlaceholderPage({
     <div className="space-y-6">
       <PageHeader title={title} />
       {children}
-      <Empty className="border">
+      <Empty className="glass-card">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <Icon />

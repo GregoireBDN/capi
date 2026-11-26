@@ -82,7 +82,7 @@ export function AccountMenu({ user }: { user: UserDto }) {
           // As wide as a phone allows, with a 0.5rem margin on each side.
           className="w-[min(20rem,calc(100vw-1rem))] gap-0 p-0"
         >
-          <div className="flex items-center gap-3 border-b p-4">
+          <div className="flex items-center gap-3 p-4">
             <Avatar name={user.name} size="lg" />
             <div className="min-w-0 leading-tight">
               <p className="font-semibold wrap-break-word">{user.name}</p>
@@ -92,7 +92,7 @@ export function AccountMenu({ user }: { user: UserDto }) {
               </p>
             </div>
           </div>
-          <div className="space-y-2 border-b p-3">
+          <div className="space-y-2 px-3 pb-3">
             <p id={themeId} className="text-muted-foreground text-xs">
               Apparence
             </p>

@@ -86,7 +86,7 @@ export function StepDialog({
         {children}
       </div>
       {action && (
-        <div className="flex shrink-0 gap-2 border-t px-4 py-3 group-data-keyboard-open/sheet:hidden">
+        <div className="flex shrink-0 gap-2 px-4 py-3 group-data-keyboard-open/sheet:hidden">
           {action}
         </div>
       )}

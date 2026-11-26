@@ -156,7 +156,7 @@ function ForecastTiles({ forecast }: { forecast: ForecastDto }) {
 
 function NoRecurringItems() {
   return (
-    <Empty className="border">
+    <Empty className="glass-card">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <RepeatIcon />
@@ -178,7 +178,7 @@ function NoRecurringItems() {
 
 function NoAccount() {
   return (
-    <Empty className="border">
+    <Empty className="glass-card">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <FileUpIcon />

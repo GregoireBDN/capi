@@ -122,7 +122,7 @@ export function SavingsPage({
       )}
 
       {isEmpty && (
-        <Empty className="border">
+        <Empty className="glass-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <PiggyBankIcon />

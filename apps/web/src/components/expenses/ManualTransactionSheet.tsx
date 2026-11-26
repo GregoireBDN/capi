@@ -1205,7 +1205,7 @@ export function ManualTransactionSheet({
         // Said on every step and screen until ✓ or ✕ (#435).
         <p
           role="status"
-          className="text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-b px-4 py-1.5 text-[13px]"
+          className="text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 px-4 py-1.5 text-[13px]"
         >
           <span
             aria-hidden

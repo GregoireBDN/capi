@@ -549,7 +549,7 @@ function PaidForMeForm({
           </FormSheetBody>
           {/* « Je dois à … », live: on a phone it stays at the bottom, the
               keyboard covering it while a field is typed (#385). */}
-          <div className="flex shrink-0 border-t px-4 py-3 [&>div]:flex-1">
+          <div className="flex shrink-0 px-4 py-3 [&>div]:flex-1">
             {summary}
           </div>
         </>

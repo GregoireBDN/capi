@@ -54,7 +54,7 @@
  * the panels turn opaque (same colours, see the end of the themes).
  * Solid buttons: `glass-solid` (#506).
  * Tokens: `--glass-*` in the themes; Tailwind also gets `bg-glass-fill`,
- * `text-glass-muted-foreground`, `shadow-glass-{chrome,sm,md,lg,primary}`,
+ * `text-glass-muted-foreground`, `shadow-glass-{chrome,lg,primary}`,
  * `rounded-card`, `rounded-sheet`, `rounded-control`.
  */
 
@@ -284,8 +284,6 @@
 
   /* Glass shadows (#503), from the themes' `--glass-shadow-*`. */
   --shadow-glass-chrome: var(--glass-shadow-chrome);
-  --shadow-glass-sm: var(--glass-shadow-sm);
-  --shadow-glass-md: var(--glass-shadow-md);
   --shadow-glass-lg: var(--glass-shadow-lg);
   --shadow-glass-primary: var(--glass-shadow-primary);
 }
@@ -431,7 +429,6 @@
     var(--foreground) 75%,
     transparent
   );
-  --line: var(--border);
 
   /* Staging's header (#454, `env-banner`): yellow, dark text 11:1, muted 6:1 */
   --env-banner: oklch(0.88 0.16 95); /* #f9d544, the staging icons' tile */
@@ -541,7 +538,6 @@
     0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
   --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
   --glass-overlay: rgb(0 0 0 / 40%);
-  --line: var(--border);
 
   /* Staging's header: a deeper yellow, dark text 9.7:1, muted 6:1 */
   --env-banner: oklch(0.8 0.15 90); /* #e3b831 */
@@ -636,7 +632,6 @@
       0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
     --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
     --glass-overlay: rgb(0 0 0 / 40%);
-    --line: var(--border);
 
     /* Staging's header: a deeper yellow, dark text 9.7:1, muted 6:1 */
     --env-banner: oklch(0.8 0.15 90); /* #e3b831 */

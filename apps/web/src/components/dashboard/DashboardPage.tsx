@@ -195,7 +195,7 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
       )}
 
       {isEmpty && (
-        <Empty className="border">
+        <Empty className="glass-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <LayoutDashboardIcon />

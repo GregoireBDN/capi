@@ -225,7 +225,7 @@ export function AccountDetailPage({
           current={notFound ? 'Compte introuvable' : 'Compte'}
         />
         {notFound ? (
-          <Empty className="border">
+          <Empty className="glass-card">
             <EmptyHeader>
               <EmptyTitle>Compte introuvable</EmptyTitle>
               <EmptyDescription>
@@ -512,7 +512,7 @@ export function AccountDetailPage({
       ) : investment ? (
         data.valueCents === null &&
         !crypto && (
-          <Empty className="border">
+          <Empty className="glass-card">
             <EmptyHeader>
               <EmptyTitle>Aucune valeur pour ce compte</EmptyTitle>
               <EmptyDescription>

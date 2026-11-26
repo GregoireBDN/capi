@@ -185,7 +185,7 @@ export function BudgetPage({
       )}
 
       {empty && (
-        <Empty className="border">
+        <Empty className="glass-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <TargetIcon />
