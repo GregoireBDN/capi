@@ -298,10 +298,10 @@ export function DayStrip({
             setPicking(false)
           }}
           // The width of a phone at most, so a whole month shows in a dialog
-          // too (#398); px, as the app's root is 22px. Days 40px at least.
-          // Round days (#398 feedback): the chosen one filled, today in the
-          // primary colour, the days to come faded.
-          className="min-h-0 w-full flex-1 bg-transparent p-0 [--cell-radius:9999px] [--cell-size:40px] [&_[data-day]]:size-[46px] [&_[data-day]]:min-w-0 [&_[data-day]]:rounded-full [&_[data-day]]:text-[20px]"
+          // too (#398); px, as the app's root is 22px. Round days of 46px
+          // (#398 feedback), drawn by the Calendar (#488): the chosen one
+          // filled, today ringed, the days to come faded and struck through.
+          className="min-h-0 w-full flex-1 bg-transparent p-0 [--cell-size:50px] [--day-text:20px]"
           // The first row starts with the end of the month before, never
           // blank; every week is drawn, the days to come too, plainly not
           // to pick (#398 feedback).
@@ -312,8 +312,6 @@ export function DayStrip({
             month: 'rdp-month flex w-full flex-1 flex-col gap-1',
             weekdays: 'rdp-weekdays flex h-[32px] items-center',
             week: 'rdp-week flex max-h-[76px] min-h-[48px] w-full flex-1',
-            day: 'rdp-day flex flex-1 items-center justify-center p-0 select-none',
-            outside: 'rdp-outside [&_button]:text-muted-foreground',
             root: 'rdp-root flex h-full w-full flex-col',
             months: 'rdp-months flex flex-1 flex-col',
             month_grid: 'rdp-month_grid flex w-full flex-1 flex-col',
@@ -321,12 +319,6 @@ export function DayStrip({
             month_caption: 'hidden',
             weekday:
               'flex-1 text-center text-[14px] font-semibold uppercase text-muted-foreground select-none',
-            today:
-              'rdp-today [&_button]:font-bold [&_button:not([data-selected-single=true])]:text-primary',
-            // Days to come in this week: faded, no hover, not a button
-            // that seems to work.
-            disabled:
-              'rdp-disabled [&_button]:cursor-not-allowed [&_button]:text-muted-foreground/35 [&_button]:hover:bg-transparent',
           }}
         />
       )}

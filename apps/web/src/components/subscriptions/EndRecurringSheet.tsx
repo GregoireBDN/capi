@@ -1,11 +1,11 @@
 import {
   Button,
   cn,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
   Sheet,
   SheetContent,
   Textarea,
@@ -188,12 +188,12 @@ export function EndRecurringSheet({
                       </ToggleGroupItem>
                     )}
                   </ToggleGroup>
-                  <Input
+                  <DateField
                     id={`${id}-date`}
-                    type="date"
+                    title="Date de fin"
                     value={endedOn}
                     aria-invalid={submitted && dateError !== null}
-                    onChange={(event) => setEndedOn(event.target.value)}
+                    onChange={setEndedOn}
                   />
                   {submitted && dateError ? (
                     <FieldError>{dateError}</FieldError>

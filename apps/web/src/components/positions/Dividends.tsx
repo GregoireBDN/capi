@@ -2,11 +2,11 @@ import {
   Button,
   cn,
   ConfirmDialog,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
   NativeSelect,
   NativeSelectOption,
   Sheet,
@@ -341,13 +341,13 @@ export function DividendSheet({
             <FormSheetBody>
               <Field data-invalid={errors.paidOn !== undefined}>
                 <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-                <Input
+                <DateField
                   id={`${id}-date`}
-                  type="date"
+                  title="Date du dividende"
                   max={today}
                   value={paidOn}
                   aria-invalid={errors.paidOn !== undefined}
-                  onChange={(event) => setPaidOn(event.target.value)}
+                  onChange={setPaidOn}
                 />
                 {errors.paidOn && <FieldError>{errors.paidOn}</FieldError>}
               </Field>

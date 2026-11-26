@@ -2,6 +2,7 @@ import {
   Button,
   Checkbox,
   ConfirmDialog,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
@@ -288,12 +289,13 @@ export function GoalEditor({
 
               <Field data-invalid={shown.date !== undefined}>
                 <FieldLabel htmlFor={`${id}-date`}>Échéance</FieldLabel>
-                <Input
+                <DateField
                   id={`${id}-date`}
-                  type="date"
+                  title="Échéance"
+                  clearable
                   value={values.date}
                   aria-invalid={shown.date !== undefined}
-                  onChange={(event) => set('date', event.target.value)}
+                  onChange={(day) => set('date', day)}
                 />
                 <FieldDescription>
                   {deadlineHelp(goal, values.date)}

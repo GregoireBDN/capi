@@ -1,6 +1,7 @@
 import {
   Button,
   CategoryIcon,
+  DateField,
   Field,
   FieldDescription,
   FieldLabel,
@@ -650,12 +651,12 @@ function SettledOtherwise({
       </Field>
       <Field>
         <FieldLabel htmlFor="settled-day">Jour</FieldLabel>
-        <Input
+        <DateField
           id="settled-day"
-          type="date"
+          title="Jour"
           max={today}
           value={paidOn}
-          onChange={(event) => setPaidOn(event.target.value)}
+          onChange={setPaidOn}
         />
       </Field>
       <Field>

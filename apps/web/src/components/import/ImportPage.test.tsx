@@ -15,6 +15,7 @@ import {
   pendingDetail,
   renderWithClient,
 } from './test-fixtures'
+import { pickDay } from '#/test/date-field'
 
 const api = vi.hoisted(() => ({
   accountsControllerList: vi.fn(),
@@ -511,7 +512,7 @@ describe('ImportPage — preview', () => {
     expect(within(form).getByText('Indiquez la date.')).toBeInTheDocument()
     expect(api.importsControllerFixLine).not.toHaveBeenCalled()
 
-    await user.type(within(form).getByLabelText('Date'), '2026-03-31')
+    await pickDay(user, within(form).getByLabelText('Date'), '2026-03-31')
     await user.click(within(form).getByRole('button', { name: 'Vérifier' }))
     await waitFor(() =>
       expect(api.importsControllerFixLine).toHaveBeenCalledWith({
