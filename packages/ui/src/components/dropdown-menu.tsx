@@ -133,9 +133,9 @@ function DropdownMenuContent({
             'overflow-x-hidden overflow-y-auto',
 
             // Styling
-            'rounded-lg bg-popover p-1',
+            // A frosted panel (#509), no ring
+            'glass-panel rounded-card p-1.5',
             'text-popover-foreground',
-            'shadow-md ring-1 ring-foreground/10',
 
             // Transitions
             'duration-100',
@@ -206,7 +206,7 @@ function DropdownMenuItem({
           'px-1.5 py-1',
 
           // Styling
-          'rounded-md',
+          'rounded-control',
 
           // Typography
           'text-sm',
@@ -268,7 +268,7 @@ function DropdownMenuCheckboxItem({
           'py-1 pr-8 pl-1.5',
 
           // Styling
-          'rounded-md',
+          'rounded-control',
 
           // Typography
           'text-sm',
@@ -354,7 +354,7 @@ function DropdownMenuRadioItem({
           'py-1 pr-8 pl-1.5',
 
           // Styling
-          'rounded-md',
+          'rounded-control',
 
           // Typography
           'text-sm',
@@ -420,7 +420,7 @@ function DropdownMenuLabel({
           'px-1.5 py-1',
 
           // Typography
-          'text-xs font-medium text-muted-foreground',
+          'text-xs font-medium text-glass-muted-foreground',
 
           // Inset variant
           'data-inset:pl-7',
@@ -445,11 +445,8 @@ function DropdownMenuSeparator({
       data-slot="dropdown-menu-separator"
       className={cn(
         [
-          // Spacing
-          '-mx-1 my-1',
-
-          // Styling
-          'h-px bg-border',
+          // Groups are told apart by space, not a line (#509)
+          'h-2',
         ].join(' '),
         className,
       )}
@@ -475,7 +472,7 @@ function DropdownMenuShortcut({
           'ml-auto',
 
           // Typography
-          'text-xs tracking-widest text-muted-foreground',
+          'text-xs tracking-widest text-glass-muted-foreground',
 
           // Focus states
           'group-focus/dropdown-menu-item:text-accent-foreground',
@@ -520,7 +517,7 @@ function DropdownMenuSubTrigger({
           'px-1.5 py-1',
 
           // Styling
-          'rounded-md',
+          'rounded-control',
 
           // Typography
           'text-sm',
@@ -578,9 +575,8 @@ function DropdownMenuSubContent({
           'overflow-hidden',
 
           // Styling
-          'rounded-lg bg-popover p-1',
+          'glass-panel rounded-card p-1.5',
           'text-popover-foreground',
-          'shadow-lg ring-1 ring-foreground/10',
 
           // Transitions
           'duration-100',
