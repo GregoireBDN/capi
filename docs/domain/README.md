@@ -8,7 +8,8 @@ Each feature's details, moved out of [`CLAUDE.md`](../../CLAUDE.md) by #422 so t
 | [`money-owed.md`](money-owed.md)                     | Contacts, receivables, repayments, the counting rule, shared recurring items, « Dépenses partagées »           |
 | [`recurring.md`](recurring.md)                       | Detection, prepaid subscriptions, cancellation                                                                 |
 | [`months-and-dashboard.md`](months-and-dashboard.md) | Partial months, the month bar and navigator, Opérations filters, the end-of-month forecast, the dashboard      |
-| [`budgets.md`](budgets.md)                           | Planned income, tracked envelopes, shared expenses in budgets                                                  |
+| [`budgets.md`](budgets.md)                           | Planned income, tracked budget lines, shared expenses in budgets                                               |
+| [`envelopes.md`](envelopes.md)                       | Envelopes: allocations per account, « libre », split keys, offers, spending and the budget                     |
 | [`month-close.md`](month-close.md)                   | « Bilan du mois », closing and reopening, frozen reports and their versions                                    |
 | [`accounts.md`](accounts.md)                         | Meal vouchers, archive or delete, a cash account's page, account lists                                         |
 | [`investments.md`](investments.md)                   | Value snapshots, a PEA's lines, one invested amount per account, the investment summary, Épargne               |

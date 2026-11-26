@@ -26,6 +26,7 @@ import {
 } from './budget-math'
 import {
   type BudgetDto,
+  type BudgetEnvelopePaidDto,
   type BudgetHistoryDto,
   type BudgetIncomeDto,
   type BudgetIncomeLineDto,
@@ -52,6 +53,7 @@ import {
   incomeLineStatus,
 } from './income'
 import { firstDay, monthRange, shiftMonth } from './months'
+import { envelopePaid, type EnvelopePaidRow } from '#/envelopes/paid'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -104,6 +106,31 @@ const budgetColumns = {
   monthlyTargetCents: budgetsTable.monthlyTargetCents,
   note: budgetsTable.note,
   tracked: budgetsTable.tracked,
+}
+
+/** What envelopes paid per category, largest first (ADR 0008 §5). */
+function envelopePaidByCategory(
+  rows: EnvelopePaidRow[],
+): Map<string | null, BudgetEnvelopePaidDto[]> {
+  const byCategory = new Map<string | null, BudgetEnvelopePaidDto[]>()
+  for (const row of rows) {
+    const list = byCategory.get(row.categoryId) ?? []
+    const existing = list.find((p) => p.envelopeId === row.envelopeId)
+    if (existing) existing.paidCents += row.paidCents
+    else
+      list.push({
+        envelopeId: row.envelopeId,
+        name: row.envelopeName,
+        icon: row.envelopeIcon,
+        color: row.envelopeColor,
+        paidCents: row.paidCents,
+      })
+    byCategory.set(row.categoryId, list)
+  }
+  for (const list of byCategory.values()) {
+    list.sort((a, b) => b.paidCents - a.paidCents)
+  }
+  return byCategory
 }
 
 /** `2026-11-01` → `2026-11`. */
@@ -169,7 +196,7 @@ export class BudgetsService {
   ): Promise<BudgetMonthDto> {
     const period = await resolvePeriod(executor, requested, { now })
     const { month } = period
-    const [rows, spending, categories, income, credits, prepaid] =
+    const [rows, spending, categories, income, credits, prepaid, paid] =
       await Promise.all([
         this.budgetRows(executor, month),
         this.spending(executor, month, month),
@@ -177,7 +204,9 @@ export class BudgetsService {
         this.income(executor, month, month),
         this.incomeCredits(executor),
         this.prepaid(executor, month),
+        envelopePaid(executor, firstDay(month), firstDay(shiftMonth(month, 1))),
       ])
+    const paidBy = envelopePaidByCategory(paid)
     const inEffect = targetsInEffect(rows, month)
     const targets = ofKind(inEffect, categories, 'expense')
     const spentBy = new Map(spending.map((row) => [row.categoryId, row]))
@@ -188,6 +217,10 @@ export class BudgetsService {
       if (!category) continue
       const spent = spentBy.get(categoryId)
       const spentCents = spent?.spentCents ?? 0
+      const envelopes = paidBy.get(categoryId) ?? []
+      const envelopePaidCents = sum(envelopes.map((p) => p.paidCents))
+      // The envelopes add what they paid to the month's budget (ADR 0008).
+      const ownSpentCents = spentCents - envelopePaidCents
       items.push({
         categoryId,
         slug: category.slug,
@@ -202,9 +235,11 @@ export class BudgetsService {
         spentExcludingOneOffsCents: spent?.spentExcludingOneOffsCents ?? 0,
         grossSpentCents: spent?.grossSpentCents ?? 0,
         prepaid: prepaid.get(categoryId) ?? [],
-        remainingCents: target.monthlyTargetCents - spentCents,
-        percentUsed: percentUsed(spentCents, target.monthlyTargetCents),
-        status: budgetStatus(spentCents, target.monthlyTargetCents),
+        envelopePaidCents,
+        envelopes,
+        remainingCents: target.monthlyTargetCents - ownSpentCents,
+        percentUsed: percentUsed(ownSpentCents, target.monthlyTargetCents),
+        status: budgetStatus(ownSpentCents, target.monthlyTargetCents),
       })
     }
     items.sort(
@@ -215,6 +250,8 @@ export class BudgetsService {
 
     const targetCents = sum(items.map((item) => item.targetCents))
     const spentCents = sum(items.map((item) => item.spentCents))
+    const envelopePaidCents = sum(items.map((item) => item.envelopePaidCents))
+    const ownSpentCents = spentCents - envelopePaidCents
 
     const unbudgeted: UnbudgetedCategoryDto[] = spending
       .filter(
@@ -264,9 +301,11 @@ export class BudgetsService {
         spentExcludingOneOffsCents: sum(
           items.map((item) => item.spentExcludingOneOffsCents),
         ),
-        remainingCents: targetCents - spentCents,
-        percentUsed: percentUsed(spentCents, targetCents),
-        status: targetCents > 0 ? budgetStatus(spentCents, targetCents) : null,
+        envelopePaidCents,
+        remainingCents: targetCents - ownSpentCents,
+        percentUsed: percentUsed(ownSpentCents, targetCents),
+        status:
+          targetCents > 0 ? budgetStatus(ownSpentCents, targetCents) : null,
         budgetCount: items.length,
         overCount: items.filter((item) => item.status === 'over').length,
         warningCount: items.filter((item) => item.status === 'warning').length,
@@ -307,7 +346,7 @@ export class BudgetsService {
           : 0
     // Lines: a split transaction counts in each of its categories.
     const t = transactionLinesView
-    const [rows, spending, categories] = await Promise.all([
+    const [rows, spending, categories, paid] = await Promise.all([
       this.budgetRows(executor, month),
       executor
         .select({
@@ -325,14 +364,20 @@ export class BudgetsService {
         )
         .groupBy(t.categoryId),
       this.categories(executor),
+      envelopePaid(executor, firstDay(month), firstDay(shiftMonth(month, 1))),
     ])
     const spentBy = new Map(spending.map((row) => [row.categoryId, row]))
+    const paidBy = envelopePaidByCategory(paid)
 
     const items: EnvelopeDto[] = []
     for (const [categoryId, target] of targetsInEffect(rows, month)) {
       const category = categories.get(categoryId)
       if (!target.tracked || category?.kind !== 'expense') continue
       const spentCents = spentBy.get(categoryId)?.spentCents ?? 0
+      const envelopePaidCents = sum(
+        (paidBy.get(categoryId) ?? []).map((p) => p.paidCents),
+      )
+      const ownSpentCents = spentCents - envelopePaidCents
       const pace = paceCents(target.monthlyTargetCents, dayOfMonth, daysInMonth)
       items.push({
         categoryId,
@@ -343,11 +388,12 @@ export class BudgetsService {
         targetCents: target.monthlyTargetCents,
         spentCents,
         manualCents: spentBy.get(categoryId)?.manualCents ?? 0,
-        remainingCents: target.monthlyTargetCents - spentCents,
+        envelopePaidCents,
+        remainingCents: target.monthlyTargetCents - ownSpentCents,
         paceCents: pace,
         // Only a month under way can be ahead of its pace.
-        aheadOfPace: month === current && spentCents > pace,
-        status: budgetStatus(spentCents, target.monthlyTargetCents),
+        aheadOfPace: month === current && ownSpentCents > pace,
+        status: budgetStatus(ownSpentCents, target.monthlyTargetCents),
       })
     }
     items.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
