@@ -5,6 +5,7 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  DateField,
   Input,
   Sheet,
   SheetBar,
@@ -336,12 +337,12 @@ export function CreateEnvelopeSheet({
           {when === 'date' && (
             <Field data-invalid={tried && !!error}>
               <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-              <Input
+              <DateField
                 id={`${id}-date`}
-                type="date"
+                title="Date"
                 min={today}
                 value={date}
-                onChange={(event) => setDate(event.target.value)}
+                onChange={(day) => setDate(day)}
               />
             </Field>
           )}

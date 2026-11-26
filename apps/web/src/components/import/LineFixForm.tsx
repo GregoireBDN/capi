@@ -1,5 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button, Field, FieldError, FieldLabel, Input, cn } from '@capi/ui'
+import {
+  Button,
+  cn,
+  DateField,
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+} from '@capi/ui'
 import { CheckIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import { importsControllerFixLine } from '#/api'
@@ -159,14 +167,14 @@ export function LineFixForm({
       <div className="grid grid-cols-1 gap-3 @min-[17rem]:grid-cols-2">
         <Field data-invalid={red('date', errors.date)}>
           <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-          <Input
+          <DateField
             id={`${id}-date`}
-            type="date"
+            title="Date"
             value={date}
             aria-invalid={red('date', errors.date)}
             disabled={fix.isPending}
-            onChange={(event) => {
-              setDate(event.target.value)
+            onChange={(day) => {
+              setDate(day)
               touch('date')
             }}
           />

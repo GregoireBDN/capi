@@ -5,6 +5,7 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  DateField,
   Input,
   Label,
 } from '@capi/ui'
@@ -170,11 +171,12 @@ export function EnvelopeEditor({
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-date`}>Pour le</FieldLabel>
-          <Input
+          <DateField
             id={`${id}-date`}
-            type="date"
+            title="Pour le"
+            clearable
             value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
+            onChange={(day) => setDueDate(day)}
           />
         </Field>
         <fieldset className="space-y-1">

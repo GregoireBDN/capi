@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountDto, CreateAccountDto } from '#/api/types.gen'
 import { AddInvestmentButton, validateInvestment } from './AddInvestmentSheet'
+import { pickDay } from '#/test/date-field'
 
 const api = vi.hoisted(() => ({
   accountsControllerCreate: vi.fn(),
@@ -108,7 +109,9 @@ describe('AddInvestmentSheet', () => {
     // PEA, named after its type and dated today in Paris, by default.
     expect(screen.getByRole('radio', { name: 'PEA' })).toBeChecked()
     expect(screen.getByLabelText('Nom')).toHaveValue('PEA')
-    expect(screen.getByLabelText('À la date du')).toHaveValue('2026-11-13')
+    expect(screen.getByLabelText('À la date du')).toHaveTextContent(
+      '13/11/2026',
+    )
 
     await user.type(screen.getByLabelText('Valeur actuelle'), '12 345,67')
     await user.click(screen.getByRole('button', { name: 'Ajouter' }))
@@ -158,8 +161,7 @@ describe('AddInvestmentSheet', () => {
     expect(screen.getByLabelText('Nom')).toHaveValue('Assurance vie')
     await user.type(screen.getByLabelText('Établissement'), 'Assureur test')
     await user.type(screen.getByLabelText('Valeur actuelle'), '20 000')
-    await user.clear(screen.getByLabelText('À la date du'))
-    await user.type(screen.getByLabelText('À la date du'), '2026-10-31')
+    await pickDay(user, screen.getByLabelText('À la date du'), '2026-10-31')
     await user.type(screen.getByLabelText('Investi jusqu’ici'), '18 000')
     await user.click(screen.getByRole('button', { name: 'Ajouter' }))
 

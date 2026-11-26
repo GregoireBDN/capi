@@ -21,6 +21,7 @@ import type {
 } from '#/api/types.gen'
 import type { AccountSearch } from './account-origin'
 import { AccountDetailPage } from './AccountDetailPage'
+import { pickDay } from '#/test/date-field'
 
 const api = vi.hoisted(() => ({
   accountsControllerFindOne: vi.fn(),
@@ -710,7 +711,7 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('adds a value, refusing a future date and a bad amount', async () => {
+  it('adds a value, offering no future date and refusing a bad amount', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderPage()
 
@@ -719,7 +720,7 @@ describe('AccountDetailPage', () => {
     )
     const dialog = await screen.findByRole('dialog')
     const date = within(dialog).getByLabelText('Date')
-    expect(date).toHaveValue('2026-11-06')
+    expect(date).toHaveTextContent('06/11/2026')
     // The invested amount is folded under « Plus d’options » (#360),
     // prefilled with the latest one typed on the values.
     expect(within(dialog).queryByLabelText('Investi à cette date')).toBeNull()
@@ -730,8 +731,14 @@ describe('AccountDetailPage', () => {
       '10200',
     )
 
-    await user.clear(date)
-    await user.type(date, '2026-11-07')
+    // The days after today are not offered (#488).
+    await user.click(date)
+    const calendar = await screen.findByRole('grid')
+    expect(
+      calendar.querySelector('[data-day="2026-11-07"] button'),
+    ).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(date).toHaveTextContent('06/11/2026')
     // Letters never reach the field (#326): the value stays to fill, and
     // « Enregistrer » stays greyed out until it is.
     await user.type(within(dialog).getByLabelText('Valeur'), 'beaucoup')
@@ -739,18 +746,9 @@ describe('AccountDetailPage', () => {
     expect(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     ).toBeDisabled()
-    await user.type(within(dialog).getByLabelText('Valeur'), '12')
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Enregistrer' }),
-    )
-    expect(
-      within(dialog).getByText('La date ne peut pas être dans le futur'),
-    ).toBeInTheDocument()
-    await user.clear(within(dialog).getByLabelText('Valeur'))
     expect(api.accountSnapshotsControllerUpsert).not.toHaveBeenCalled()
 
-    await user.clear(date)
-    await user.type(date, '2026-10-31')
+    await pickDay(user, date, '2026-10-31')
     const value = within(dialog).getByLabelText('Valeur')
     await user.clear(value)
     await user.type(value, '12 750,50')

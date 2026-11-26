@@ -2,6 +2,7 @@ import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   cn,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
@@ -351,13 +352,13 @@ export function AddInvestmentSheet({
                   </Field>
                   <Field data-invalid={shown.date !== undefined}>
                     <FieldLabel htmlFor={`${id}-date`}>À la date du</FieldLabel>
-                    <Input
+                    <DateField
                       id={`${id}-date`}
-                      type="date"
+                      title="À la date du"
                       max={today}
                       value={values.date}
                       aria-invalid={shown.date !== undefined}
-                      onChange={(event) => set({ date: event.target.value })}
+                      onChange={(day) => set({ date: day })}
                     />
                     {shown.date && <FieldError>{shown.date}</FieldError>}
                   </Field>

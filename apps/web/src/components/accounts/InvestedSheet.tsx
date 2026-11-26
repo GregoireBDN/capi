@@ -1,10 +1,10 @@
 import {
   Button,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
   SegmentedControl,
   SegmentedControlItem,
   Sheet,
@@ -295,13 +295,13 @@ export function InvestedSheet({
                 {choice === 'other' && (
                   <Field data-invalid={dayError !== null}>
                     <FieldLabel htmlFor={`${id}-on`}>Investi au</FieldLabel>
-                    <Input
+                    <DateField
                       id={`${id}-on`}
-                      type="date"
+                      title="Investi au"
                       max={today}
                       value={other}
                       aria-invalid={dayError !== null}
-                      onChange={(event) => setOther(event.target.value)}
+                      onChange={setOther}
                     />
                     {dayError && <FieldError>{dayError}</FieldError>}
                   </Field>

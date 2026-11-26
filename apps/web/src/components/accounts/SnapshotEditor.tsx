@@ -1,11 +1,11 @@
 import {
   Button,
   ConfirmDialog,
+  DateField,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -225,13 +225,13 @@ export function SnapshotEditor({
               {!snapshot && (
                 <Field data-invalid={shown.date !== undefined}>
                   <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-                  <Input
+                  <DateField
                     id={`${id}-date`}
-                    type="date"
+                    title="Date"
                     max={today}
                     value={date}
                     aria-invalid={shown.date !== undefined}
-                    onChange={(event) => setDate(event.target.value)}
+                    onChange={setDate}
                   />
                   {shown.date && <FieldError>{shown.date}</FieldError>}
                 </Field>
