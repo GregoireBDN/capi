@@ -79,15 +79,9 @@ export function AppHeader({ user }: { user: UserDto }) {
         to={ROUTES.dashboard}
         className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
       >
-        {/* On staging phones the mark alone: the badge takes the room of
-            « api » (both would push the avatar out at 320px). */}
         {/* 44px like the buttons, moved down by half the « p »'s descender
             so « Ca » sits on the header's middle line (#434). */}
-        <CapiWordmark
-          className="h-8 translate-y-[9%]"
-          onBanner={staging}
-          markOnPhones={staging}
-        />
+        <CapiWordmark className="h-8 translate-y-[9%]" onBanner={staging} />
         {staging && <StagingBadge />}
       </Link>
       <div
