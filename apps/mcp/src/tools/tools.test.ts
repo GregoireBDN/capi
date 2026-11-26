@@ -470,6 +470,7 @@ describe('budget_status', () => {
         color: null,
         icon: null,
         targetCents: 20000,
+        tracked: true,
         spentCents: 25000,
         manualCents: 1000,
         envelopePaidCents: 0,
