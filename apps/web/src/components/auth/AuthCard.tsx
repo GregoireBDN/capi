@@ -8,7 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@capi/ui'
+import { StagingBadge } from '#/components/app-shell/StagingBadge'
 import { CapiWordmark } from '#/components/brand/CapiWordmark'
+import { useAppEnvironment } from '#/lib/app-environment'
 import { ForgotForm } from './ForgotForm'
 import { LoginForm } from './LoginForm'
 import { PasskeyOffer } from './PasskeyOffer'
@@ -52,12 +54,25 @@ export function AuthCard({
     initialMode === 'register' && !registrationOpen ? 'login' : initialMode,
   )
 
+  const staging = useAppEnvironment() === 'staging'
+
   // The passkey offer is a security step of its own: no logo, no card.
   if (mode === 'passkey-offer') return <PasskeyOffer />
 
   return (
     <>
       <CapiWordmark className="h-20" />
+      {/* Staging says so before signing in too (#504): the header's yellow
+          and its emerald flask, in a pill under the name. */}
+      {staging && (
+        <p
+          data-testid="auth-staging"
+          className="env-banner flex items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-sm font-semibold"
+        >
+          <StagingBadge />
+          Staging · données de démo
+        </p>
+      )}
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">{COPY[mode].title}</CardTitle>

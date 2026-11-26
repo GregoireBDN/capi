@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AppEnvironmentProvider } from '#/lib/app-environment'
 import { AuthCard } from './AuthCard'
 
 // The forms themselves are covered by their own tests; stub them so this suite
@@ -31,6 +32,22 @@ vi.mock('./ForgotForm', () => ({ ForgotForm: () => <p>forgot-form</p> }))
 const signUp = () => screen.queryByRole('button', { name: "S'inscrire" })
 
 describe('AuthCard', () => {
+  it('says it is staging on staging only (#504)', () => {
+    const { unmount } = render(
+      <AppEnvironmentProvider value="staging">
+        <AuthCard registrationOpen={false} />
+      </AppEnvironmentProvider>,
+    )
+    expect(screen.getByTestId('auth-staging')).toHaveTextContent(
+      'Staging · données de démo',
+    )
+    expect(screen.getByTestId('auth-staging')).toHaveClass('env-banner')
+    unmount()
+
+    render(<AuthCard registrationOpen={false} />)
+    expect(screen.queryByTestId('auth-staging')).not.toBeInTheDocument()
+  })
+
   it('offers sign-up while registration is open', async () => {
     const user = userEvent.setup()
     render(<AuthCard registrationOpen />)
