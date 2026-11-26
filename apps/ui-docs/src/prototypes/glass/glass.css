@@ -1,0 +1,281 @@
+/*
+ * #503, three « verre » recipes for the owner to choose from. Prototype only:
+ * deleted by the PR that builds the chosen one (#504). Each recipe is a set of
+ * variables on `[data-recipe]`, read by a handful of surface classes.
+ */
+
+/* The app's 22px root, so the frames look like the phone. */
+:root:has([data-glass-proto]) {
+  font-size: 22px;
+}
+
+/* ---------------------------------------------------------------- A. Givré */
+/* #502 extended: near-opaque fills, blur on the chrome only, a thin bright
+   top edge, a soft shadow; cards without a line. */
+[data-recipe='a'] {
+  --g-page: var(--background);
+  --g-chrome: oklch(0.975 0.007 260 / 85%);
+  --g-blur: blur(16px);
+  --g-card: oklch(from var(--card) l c h / 92%);
+  --g-card-blur: none;
+  --g-sheen: none;
+  --g-edge: inset 0 1px 0 rgb(255 255 255 / 70%);
+  --g-shadow:
+    0 1px 2px rgb(15 23 42 / 4%), 0 10px 24px -14px rgb(15 23 42 / 30%);
+  --g-shadow-chrome: 0 10px 24px -14px rgb(15 23 42 / 35%);
+  --g-well: oklch(from var(--card) l c h / 92%);
+  --g-well-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%), 0 0 0 1px rgb(15 23 42 / 6%),
+    0 4px 12px -8px rgb(15 23 42 / 25%);
+  --g-btn: oklch(from var(--foreground) l c h / 6%);
+  --g-btn-shadow: 0 0 0 0 transparent;
+  --g-primary: var(--primary);
+  --g-primary-shadow: 0 6px 14px -8px oklch(from var(--primary) l c h / 70%);
+  --g-thumb: var(--card);
+  --g-r-card: 1.1rem;
+  --g-r-ctl: 0.8rem;
+  --g-overlay: rgb(15 23 42 / 18%);
+  --g-overlay-blur: blur(2px);
+  --g-sheet: oklch(from var(--card) l c h / 94%);
+}
+.dark [data-recipe='a'],
+[data-recipe='a'].dark {
+  --g-chrome: oklch(0.16 0.03 272 / 85%);
+  --g-edge: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --g-shadow: 0 10px 24px -12px rgb(0 0 0 / 60%);
+  --g-shadow-chrome: 0 10px 24px -14px rgb(0 0 0 / 60%);
+  --g-well-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%), 0 0 0 1px rgb(255 255 255 / 7%);
+  --g-overlay: rgb(0 0 0 / 40%);
+}
+
+/* -------------------------------------------------------------- B. Cristal */
+/* Real glass: soft colour behind the page, translucent cards that blur it,
+   a bright edge all round, a sheen from the top, pill controls. */
+[data-recipe='b'] {
+  --g-page:
+    radial-gradient(
+      70% 45% at 0% 0%,
+      oklch(0.8 0.12 262 / 70%),
+      transparent 70%
+    ),
+    radial-gradient(
+      65% 40% at 100% 40%,
+      oklch(0.85 0.11 205 / 70%),
+      transparent 70%
+    ),
+    radial-gradient(
+      70% 40% at 10% 95%,
+      oklch(0.85 0.1 300 / 60%),
+      transparent 70%
+    ),
+    var(--background);
+  --g-chrome: oklch(1 0 0 / 55%);
+  --g-blur: blur(24px) saturate(180%);
+  --g-card: oklch(1 0 0 / 62%);
+  --g-card-blur: blur(14px) saturate(160%);
+  --g-sheen: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 55%),
+    rgb(255 255 255 / 0%) 45%
+  );
+  --g-edge:
+    inset 0 0 0 1px rgb(255 255 255 / 65%), inset 0 1px 0 rgb(255 255 255 / 95%);
+  --g-shadow: 0 14px 34px -14px rgb(40 60 140 / 28%);
+  --g-shadow-chrome: 0 12px 30px -16px rgb(40 60 140 / 35%);
+  --g-well: oklch(1 0 0 / 55%);
+  --g-well-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 70%),
+    inset 0 1px 0 rgb(255 255 255 / 95%), 0 6px 16px -10px rgb(40 60 140 / 30%);
+  --g-btn: oklch(1 0 0 / 55%);
+  --g-btn-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 70%), 0 4px 12px -8px rgb(40 60 140 / 30%);
+  --g-primary: linear-gradient(
+    180deg,
+    oklch(from var(--primary) calc(l + 0.08) c h),
+    var(--primary)
+  );
+  --g-primary-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 35%),
+    0 8px 18px -8px oklch(from var(--primary) l c h / 70%);
+  --g-thumb: oklch(1 0 0 / 85%);
+  --g-r-card: 1.4rem;
+  --g-r-ctl: 999px;
+  --g-overlay: rgb(30 40 90 / 12%);
+  --g-overlay-blur: blur(6px);
+  --g-sheet: oklch(1 0 0 / 70%);
+}
+.dark [data-recipe='b'],
+[data-recipe='b'].dark {
+  --g-page:
+    radial-gradient(
+      70% 45% at 0% 0%,
+      oklch(0.38 0.14 268 / 75%),
+      transparent 70%
+    ),
+    radial-gradient(
+      65% 40% at 100% 40%,
+      oklch(0.42 0.12 215 / 55%),
+      transparent 70%
+    ),
+    radial-gradient(
+      70% 40% at 10% 95%,
+      oklch(0.38 0.12 300 / 55%),
+      transparent 70%
+    ),
+    var(--background);
+  --g-chrome: oklch(0.2 0.04 272 / 55%);
+  --g-card: oklch(0.26 0.04 272 / 55%);
+  --g-sheen: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 8%),
+    rgb(255 255 255 / 0%) 45%
+  );
+  --g-edge:
+    inset 0 0 0 1px rgb(255 255 255 / 9%), inset 0 1px 0 rgb(255 255 255 / 16%);
+  --g-shadow: 0 14px 34px -14px rgb(0 0 0 / 60%);
+  --g-shadow-chrome: 0 12px 30px -16px rgb(0 0 0 / 70%);
+  --g-well: oklch(0.26 0.04 272 / 55%);
+  --g-well-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 10%), inset 0 1px 0 rgb(255 255 255 / 14%);
+  --g-btn: oklch(0.3 0.04 272 / 55%);
+  --g-btn-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+  --g-thumb: oklch(0.36 0.04 272 / 85%);
+  --g-overlay: rgb(0 0 0 / 30%);
+  --g-sheet: oklch(0.22 0.04 272 / 72%);
+}
+
+/* --------------------------------------------------------------- C. Relief */
+/* Opaque and raised: blur on the chrome only, cards lifted by a two-layer
+   shadow, buttons with a sheen, fields pressed in. */
+[data-recipe='c'] {
+  --g-page: oklch(0.94 0.012 260);
+  --g-chrome: oklch(0.975 0.007 260 / 90%);
+  --g-blur: blur(16px);
+  --g-card: oklch(0.995 0.003 260);
+  --g-card-blur: none;
+  --g-sheen: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 100%),
+    rgb(255 255 255 / 0%) 60%
+  );
+  --g-edge: inset 0 1px 0 rgb(255 255 255 / 100%);
+  --g-shadow:
+    0 1px 1px rgb(15 23 42 / 6%), 0 4px 10px -4px rgb(15 23 42 / 8%),
+    0 18px 34px -18px rgb(15 23 42 / 28%);
+  --g-shadow-chrome:
+    0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px -16px rgb(15 23 42 / 35%);
+  --g-well: oklch(0.915 0.014 260);
+  --g-well-shadow:
+    inset 0 2px 4px rgb(15 23 42 / 14%), inset 0 -1px 0 rgb(255 255 255 / 90%);
+  --g-btn: linear-gradient(180deg, oklch(1 0 0), oklch(0.955 0.01 260));
+  --g-btn-shadow:
+    inset 0 1px 0 rgb(255 255 255), 0 1px 2px rgb(15 23 42 / 10%),
+    0 4px 10px -6px rgb(15 23 42 / 25%);
+  --g-primary: linear-gradient(
+    180deg,
+    oklch(from var(--primary) calc(l + 0.1) c h),
+    var(--primary) 60%
+  );
+  --g-primary-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 40%), 0 1px 2px rgb(15 23 42 / 20%),
+    0 8px 16px -8px oklch(from var(--primary) l c h / 70%);
+  --g-thumb: linear-gradient(180deg, oklch(1 0 0), oklch(0.97 0.006 260));
+  --g-r-card: 1.1rem;
+  --g-r-ctl: 0.8rem;
+  --g-overlay: rgb(15 23 42 / 25%);
+  --g-overlay-blur: none;
+  --g-sheet: oklch(0.99 0.004 260);
+}
+.dark [data-recipe='c'],
+[data-recipe='c'].dark {
+  --g-page: oklch(0.15 0.03 272);
+  --g-chrome: oklch(0.16 0.03 272 / 90%);
+  --g-card: oklch(0.22 0.035 272);
+  --g-sheen: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 6%),
+    rgb(255 255 255 / 0%) 60%
+  );
+  --g-edge: inset 0 1px 0 rgb(255 255 255 / 9%);
+  --g-shadow: 0 1px 1px rgb(0 0 0 / 30%), 0 18px 34px -18px rgb(0 0 0 / 80%);
+  --g-shadow-chrome: 0 12px 28px -16px rgb(0 0 0 / 70%);
+  --g-well: oklch(0.13 0.03 272);
+  --g-well-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 45%), inset 0 -1px 0 rgb(255 255 255 / 5%);
+  --g-btn: linear-gradient(
+    180deg,
+    oklch(0.28 0.035 272),
+    oklch(0.23 0.035 272)
+  );
+  --g-btn-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%), 0 4px 10px -6px rgb(0 0 0 / 60%);
+  --g-thumb: linear-gradient(
+    180deg,
+    oklch(0.32 0.035 272),
+    oklch(0.27 0.035 272)
+  );
+  --g-overlay: rgb(0 0 0 / 45%);
+  --g-sheet: oklch(0.21 0.035 272);
+}
+
+/* ----------------------------------------------------------- the surfaces */
+.g-page {
+  background: var(--g-page);
+  background-attachment: local;
+}
+.g-chrome {
+  background: var(--g-chrome);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
+  box-shadow: var(--g-shadow-chrome);
+}
+.g-card {
+  background: var(--g-sheen), var(--g-card);
+  backdrop-filter: var(--g-card-blur);
+  -webkit-backdrop-filter: var(--g-card-blur);
+  box-shadow: var(--g-edge), var(--g-shadow);
+  border-radius: var(--g-r-card);
+}
+.g-well {
+  background: var(--g-well);
+  box-shadow: var(--g-well-shadow);
+  border-radius: var(--g-r-ctl);
+}
+.g-btn {
+  background: var(--g-btn);
+  box-shadow: var(--g-btn-shadow);
+  border-radius: var(--g-r-ctl);
+}
+.g-icon {
+  background: var(--g-btn);
+  box-shadow: var(--g-btn-shadow);
+  border-radius: 999px;
+}
+.g-primary {
+  background: var(--g-primary);
+  box-shadow: var(--g-primary-shadow);
+  border-radius: var(--g-r-ctl);
+  color: var(--primary-foreground);
+}
+.g-thumb {
+  background: var(--g-thumb);
+  box-shadow:
+    var(--g-btn-shadow),
+    0 2px 6px -2px rgb(15 23 42 / 25%);
+  border-radius: calc(var(--g-r-ctl) - 3px);
+}
+.g-overlay {
+  background: var(--g-overlay);
+  backdrop-filter: var(--g-overlay-blur);
+  -webkit-backdrop-filter: var(--g-overlay-blur);
+}
+.g-sheet {
+  background: var(--g-sheen), var(--g-sheet);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
+  box-shadow:
+    var(--g-edge),
+    0 -12px 40px -12px rgb(15 23 42 / 30%);
+  border-radius: 1.4rem 1.4rem 0 0;
+}
