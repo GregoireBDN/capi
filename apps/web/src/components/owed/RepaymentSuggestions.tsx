@@ -1,13 +1,16 @@
 import { Button, Card, CardContent } from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCheckIcon, FlagIcon } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import type { RepaymentSuggestionDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
+import { OffsetOfferCard } from './OffsetOffer'
 import {
   afterOwedChanged,
   linkRepayment,
   owedErrorMessage,
+  owedSummaryQuery,
   repaymentSuggestionsQuery,
   UNDO_TOAST_MS,
   unlinkPayment,
@@ -17,7 +20,9 @@ import {
  * In « À revoir » (#359): transfers whose label is a contact's and whose
  * amount is exactly some of what they owe (or what the owner owes them),
  * « Remboursement de Camille ? » with « Lier » in one tap. « Modifier »
- * opens the transfer's editor on « C'est un remboursement ».
+ * opens the transfer's editor on « C'est un remboursement ». Then the
+ * people owed both ways, « Compenser avec Camille ? » (#484), which
+ * « Ignorer » leaves for later.
  */
 export function RepaymentSuggestions({
   onEdit,
@@ -25,14 +30,27 @@ export function RepaymentSuggestions({
   onEdit?: (transactionId: string) => void
 }) {
   const suggestions = useQuery(repaymentSuggestionsQuery)
-  if (!suggestions.data || suggestions.data.length === 0) return null
+  const summary = useQuery(owedSummaryQuery)
+  const [ignored, setIgnored] = useState<string[]>([])
+  const offers = (summary.data?.offers ?? []).filter(
+    (offer) => !ignored.includes(offer.contactId),
+  )
+  const links = suggestions.data ?? []
+  if (links.length === 0 && offers.length === 0) return null
   return (
     <div className="space-y-2">
-      {suggestions.data.map((suggestion) => (
+      {links.map((suggestion) => (
         <SuggestionCard
           key={suggestion.transactionId}
           suggestion={suggestion}
           onEdit={onEdit}
+        />
+      ))}
+      {offers.map((offer) => (
+        <OffsetOfferCard
+          key={offer.contactId}
+          offer={offer}
+          onIgnore={() => setIgnored((ids) => [...ids, offer.contactId])}
         />
       ))}
     </div>

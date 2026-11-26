@@ -46,6 +46,18 @@ export function stateText(item: ReceivableDto): string {
     : 'À rembourser'
 }
 
+/**
+ * The net position with someone owed both ways (#484), after a colon
+ * (« Net : … », « Il restera : … »): « Camille vous doit 15 € », « vous
+ * devez 15 € à Camille », « quittes ».
+ */
+export function netText(name: string, netCents: number): string {
+  if (netCents === 0) return 'quittes'
+  return netCents > 0
+    ? `${name} vous doit ${formatCents(netCents)}`
+    : `vous devez ${formatCents(-netCents)} à ${name}`
+}
+
 /** Search of the « Dépenses partagées » pages: `?side=owe` shows « Je dois ». */
 export interface OwedSearch {
   side?: 'owe'

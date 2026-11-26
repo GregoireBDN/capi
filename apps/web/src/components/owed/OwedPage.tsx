@@ -16,6 +16,7 @@ import { ReceiptTextIcon, UsersRoundIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {
   ExpectedRepaymentDto,
+  OffsetProposalDto,
   OwedContactRowDto,
   OwedListDto,
 } from '#/api/types.gen'
@@ -29,16 +30,18 @@ import { ROUTES } from '#/lib/routes'
 import { ContactAvatar } from './ContactAvatar'
 import { ageText, OLD_AFTER_DAYS } from './format'
 import type { OwedSide } from './format'
+import { OffsetOfferCard } from './OffsetOffer'
 import { PaidForMeSheet } from './PaidForMeSheet'
 import { owedErrorMessage, owedSummaryQuery } from './queries'
 
 /**
  * « Dépenses partagées » (#359): what people owe the owner and what he owes
- * them, two lists never netted (owner's « B. Deux listes »), each per
- * person (« A. Par personne »: owed now and the oldest open item's age, in
- * the warning colour after 30 days), the people all settled below, then
- * this month's repayments expected from shared recurring items. Outside
- * the net worth.
+ * them, two lists (owner's « B. Deux listes »), each per person (« A. Par
+ * personne »: owed now, the oldest open item's age in the warning colour
+ * after 30 days, the net position when owed both ways, #484), the people
+ * all settled below, then this month's repayments expected from shared
+ * recurring items. Above them, « Compenser avec Camille ? » for each
+ * person owed both ways (#484). Outside the net worth.
  */
 export function OwedPage({
   side,
@@ -49,6 +52,11 @@ export function OwedPage({
 }) {
   const summary = useQuery(owedSummaryQuery)
   const [adding, setAdding] = useState(false)
+  // Offers left for later, until the figures change.
+  const [ignored, setIgnored] = useState<string[]>([])
+  const offers = (summary.data?.offers ?? []).filter(
+    (offer) => !ignored.includes(offerKey(offer)),
+  )
   const list: OwedListDto | undefined =
     side === 'owed' ? summary.data?.owedToMe : summary.data?.iOwe
 
@@ -75,6 +83,18 @@ export function OwedPage({
         <SegmentedControlItem value="owed">On me doit</SegmentedControlItem>
         <SegmentedControlItem value="owe">Je dois</SegmentedControlItem>
       </SegmentedControl>
+
+      {offers.length > 0 && (
+        <div className="space-y-2">
+          {offers.map((offer) => (
+            <OffsetOfferCard
+              key={offer.contactId}
+              offer={offer}
+              onIgnore={() => setIgnored((keys) => [...keys, offerKey(offer)])}
+            />
+          ))}
+        </div>
+      )}
 
       {summary.isPending ? (
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -153,10 +173,25 @@ export function OwedPage({
   )
 }
 
+/** An offer is left for later until its figures change. */
+function offerKey(offer: OffsetProposalDto): string {
+  return `${offer.contactId}:${offer.owedToMeCents}:${offer.iOweCents}`
+}
+
+/** « net : vous doit 15 € » when the person is owed both ways (#484). */
+function netNote(row: OwedContactRowDto): string | null {
+  if (Math.abs(row.netCents) === row.owedCents) return null
+  if (row.netCents === 0) return 'net : quittes'
+  return row.netCents > 0
+    ? `net : vous doit ${formatCents(row.netCents)}`
+    : `net : vous lui devez ${formatCents(-row.netCents)}`
+}
+
 function PersonRow({ row, side }: { row: OwedContactRowDto; side: OwedSide }) {
   const old = (row.oldestOpenDays ?? 0) > OLD_AFTER_DAYS
   const age = ageText(row.oldestOpenDays)
   const settled = row.owedCents === 0
+  const net = settled ? null : netNote(row)
   return (
     <ItemListRow
       asChild
@@ -167,7 +202,7 @@ function PersonRow({ row, side }: { row: OwedContactRowDto; side: OwedSide }) {
       subtitle={
         settled
           ? 'Tout réglé'
-          : `${plural(row.openCount, 'dépense')}${age ? ` · ${age}` : ''}`
+          : `${plural(row.openCount, 'dépense')}${age ? ` · ${age}` : ''}${net ? ` · ${net}` : ''}`
       }
       value={
         settled ? (

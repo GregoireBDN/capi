@@ -36,10 +36,13 @@ import {
   ContactsQueryDto,
   CreateContactDto,
   CreateDebtDto,
+  CreateOffsetDto,
   CreateSharesDto,
   ForgiveReceivableDto,
   LinkRepaymentDto,
   LinkRepaymentResultDto,
+  OffsetDto,
+  OffsetProposalDto,
   OwedSummaryDto,
   ReceivableDto,
   RecurringShareInfoDto,
@@ -91,7 +94,7 @@ export class ContactsController {
   @ApiOperation({
     summary: 'A contact’s page',
     description:
-      'Totals, open items and history both ways (« Il vous doit », « Vous lui devez », never netted), this month’s expected repayments and the recurring items shared with them.',
+      'Totals, open items and history both ways (« Il vous doit », « Vous lui devez »), the offsets made with them and the one to propose (#484), this month’s expected repayments and the recurring items shared with them.',
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: ContactOwedDto })
@@ -100,11 +103,47 @@ export class ContactsController {
     return this.owed.contactOwed(id)
   }
 
+  @Get(':id/offset')
+  @ApiOperation({
+    summary: 'The offset to propose',
+    description:
+      '« Compenser » (#484): what they owe the owner against what he owes them, the smaller settled on each side, oldest items first. `amountCents` is 0 when one side is empty.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: OffsetProposalDto })
+  @ApiNotFoundResponse({ description: 'Unknown contact.' })
+  offsetProposal(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OffsetProposalDto> {
+    return this.owed.offsetProposal(id)
+  }
+
+  @Post(':id/offset')
+  @ApiOperation({
+    summary: 'Offset what is owed both ways',
+    description:
+      '« Compenser » (#484): settles the same amount on each side as repayments without a transfer, tied together (undone as one). The items ticked, or the proposal. Neither income nor spending: no statistic moves. Session only.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: CreateOffsetDto })
+  @ApiOkResponse({ type: OffsetDto })
+  @ApiBadRequestResponse({
+    description:
+      'Nothing to offset, two different amounts, another contact’s item, or past what is left.',
+  })
+  @ApiNotFoundResponse({ description: 'Unknown contact.' })
+  createOffset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateOffsetDto,
+  ): Promise<OffsetDto> {
+    return this.owed.createOffset(id, dto)
+  }
+
   @Patch(':id')
   @ApiOperation({
     summary: 'Edit a contact',
     description:
-      'Name, bank words, usual repayment day, archive. Session only.',
+      'Name, bank words, usual repayment day, « Toujours compenser », archive. Session only.',
   })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: UpdateContactDto })
@@ -145,7 +184,7 @@ export class OwedController {
   @ApiOperation({
     summary: 'Money owed, both ways',
     description:
-      '« Dépenses partagées »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.',
+      '« Dépenses partagées »: « On me doit » and « Je dois » as two lists, one row per person (the oldest open item’s age, the net position both ways), the people all settled apart, this month’s repayments expected from shared recurring items, and the offsets to propose (#484). Outside the net worth.',
   })
   @ApiOkResponse({ type: OwedSummaryDto })
   summary(): Promise<OwedSummaryDto> {
@@ -250,6 +289,20 @@ export class ReceivablesController {
     return this.owed.linkRepayment(dto)
   }
 
+  @Delete('offsets/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Undo an offset',
+    description:
+      '« Annuler la compensation » (#484): both sides’ repayments go together. Session only.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Unknown offset.' })
+  async undoOffset(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.owed.deleteOffset(id)
+  }
+
   @Delete('payments/:id')
   @HttpCode(204)
   @ApiOperation({
@@ -259,6 +312,9 @@ export class ReceivablesController {
   @ApiParam(ID_PARAM)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Unknown payment.' })
+  @ApiConflictResponse({
+    description: 'One side of an offset: undo the offset instead.',
+  })
   async unlink(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.owed.deletePayment(id)
   }

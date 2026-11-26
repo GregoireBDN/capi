@@ -30,6 +30,7 @@ const contact = (id: string, name: string, owed = 0): ContactDto => ({
   archivedAt: null,
   owedToMeCents: owed,
   iOweCents: 0,
+  alwaysOffset: false,
 })
 
 /** A 95 € dinner paid by the owner. */
@@ -194,7 +195,7 @@ describe('itemLine (#437)', () => {
 })
 
 describe('owed_to_me', () => {
-  it('lists both directions apart, never netted', async () => {
+  it('lists both directions apart, the net position and the offset to propose (#484)', async () => {
     const summary: OwedSummaryDto = {
       today: '2026-11-14',
       month: '2026-11',
@@ -208,6 +209,7 @@ describe('owed_to_me', () => {
             openCount: 2,
             oldestOpenDate: '2026-10-05',
             oldestOpenDays: 40,
+            netCents: 4500,
           },
         ],
         settled: [
@@ -218,6 +220,7 @@ describe('owed_to_me', () => {
             openCount: 0,
             oldestOpenDate: null,
             oldestOpenDays: null,
+            netCents: 0,
           },
         ],
       },
@@ -231,11 +234,23 @@ describe('owed_to_me', () => {
             openCount: 1,
             oldestOpenDate: '2026-11-02',
             oldestOpenDays: 12,
+            netCents: 4500,
           },
         ],
         settled: [],
       },
       expected: [],
+      offers: [
+        {
+          contactId: SAM,
+          contactName: 'Sam',
+          owedToMeCents: 7500,
+          iOweCents: 3000,
+          amountCents: 3000,
+          alwaysOffset: false,
+          items: [],
+        },
+      ],
     }
     const { call } = await connect({ 'GET /api/owed': summary })
     const { text, isError } = await call('owed_to_me')
@@ -245,6 +260,8 @@ describe('owed_to_me', () => {
     expect(text).toContain('Tout réglé : Alex')
     expect(text).toContain('Ce que je dois : 30,00 €')
     expect(text).toContain('- Sam : 30,00 € (1 dépense')
+    expect(text).toContain('net : Sam vous doit 45,00 €')
+    expect(text).toContain('- Sam : 30,00 € de chaque côté')
   })
 })
 

@@ -1,20 +1,25 @@
 import {
+  Button,
   Card,
   CardContent,
   CategoryIcon,
   ItemList,
   ItemListGroup,
   ItemListRow,
+  SettingSwitchRow,
   Skeleton,
   cn,
 } from '@capi/ui'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ReceiptTextIcon, RepeatIcon } from 'lucide-react'
+import { ArrowLeftRightIcon, ReceiptTextIcon, RepeatIcon } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import type {
   ContactDirectionDto,
+  ContactDto,
   ContactOwedDto,
+  OffsetDto,
   ReceivableDto,
 } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -23,18 +28,27 @@ import { FigureTile } from '#/components/dashboard/FigureTile'
 import { currentMonth } from '#/lib/calendar'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
-import { stateText } from './format'
+import { netText, stateText } from './format'
 import type { OwedSide } from './format'
+import { OffsetOfferCard } from './OffsetOffer'
 import { ExpectedCard } from './OwedPage'
 import { PaidForMeSheet } from './PaidForMeSheet'
-import { contactOwedQuery, owedErrorMessage } from './queries'
+import {
+  afterOwedChanged,
+  contactOwedQuery,
+  owedErrorMessage,
+  undoOffset,
+  updateContact,
+} from './queries'
 import { ReceivableSheet } from './ReceivableSheet'
 
 /**
  * A person's page (#359, owner's « A. Une feuille par dépense »): what they
- * owe now and what the owner owes them (two groups, never netted), the
- * totals since the start, this month's expected repayments, then the open
- * items oldest first, each opening its sheet, and the history.
+ * owe now and what the owner owes them (two groups) with the net position
+ * once both are open, the offset to propose and « Toujours compenser », the
+ * offsets made (#484), the totals since the start, this month's expected
+ * repayments, then the open items oldest first, each opening its sheet,
+ * and the history.
  */
 export function ContactOwedPage({
   contactId,
@@ -123,8 +137,23 @@ export function ContactOwedPage({
             notes={[totalsNote(data.iOwe, 'payés pour vous')]}
             notesOnPhone
           />
+          {contact.owedToMeCents > 0 && contact.iOweCents > 0 && (
+            <p className="text-muted-foreground px-1 text-sm @lg:col-span-2">
+              Net :{' '}
+              {netText(contact.name, contact.owedToMeCents - contact.iOweCents)}
+            </p>
+          )}
         </CardContent>
       </Card>
+
+      {data.offer && <OffsetOfferCard offer={data.offer} />}
+      <OffsetsCard
+        contact={contact}
+        offsets={data.offsets}
+        both={
+          data.owedToMe.totals.totalCents > 0 && data.iOwe.totals.totalCents > 0
+        }
+      />
 
       {data.expected.length > 0 && (
         <ExpectedCard month={currentMonth()} expected={data.expected} />
@@ -190,6 +219,89 @@ export function ContactOwedPage({
         initial={{ person: { contactId: contact.id, name: contact.name } }}
       />
     </div>
+  )
+}
+
+/**
+ * « Toujours compenser » and the offsets made with someone (#484), each with
+ * « Annuler » (both sides together). Shown once they were owed both ways.
+ */
+function OffsetsCard({
+  contact,
+  offsets,
+  both,
+}: {
+  contact: ContactDto
+  offsets: OffsetDto[]
+  both: boolean
+}) {
+  const queryClient = useQueryClient()
+  const always = useMutation({
+    mutationFn: (alwaysOffset: boolean) =>
+      updateContact(contact.id, { alwaysOffset }),
+    onSuccess: async (_, alwaysOffset) => {
+      await afterOwedChanged(queryClient)
+      toast.success(
+        alwaysOffset
+          ? `Compensé automatiquement avec ${contact.name}`
+          : `Plus de compensation automatique avec ${contact.name}`,
+      )
+    },
+    onError: (error) => toast.error(owedErrorMessage(error)),
+  })
+  const undo = useMutation({
+    mutationFn: (id: string) => undoOffset(id),
+    onSuccess: async () => {
+      await afterOwedChanged(queryClient)
+      toast.success('Compensation annulée')
+    },
+    onError: (error) => toast.error(owedErrorMessage(error)),
+  })
+  if (!both && !contact.alwaysOffset && offsets.length === 0) return null
+  return (
+    <Card size="sm">
+      <DashboardCardHeader title="Compensations" />
+      <CardContent className="space-y-2">
+        <SettingSwitchRow
+          icon={ArrowLeftRightIcon}
+          label="Toujours compenser"
+          checked={always.isPending ? always.variables : contact.alwaysOffset}
+          onCheckedChange={(checked) => always.mutate(checked)}
+        />
+        <p className="text-muted-foreground px-1 text-xs break-normal">
+          Quand {contact.name} vous doit et que vous lui devez, les deux se
+          règlent l’un contre l’autre dès qu’une dépense s’ajoute, sans vous
+          demander. Vos dépenses ne changent pas.
+        </p>
+        {offsets.length > 0 && (
+          <ul className="divide-y text-sm">
+            {offsets.map((offset) => (
+              <li key={offset.id} className="flex min-h-11 items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="tabular-nums">
+                    {formatCents(offset.amountCents)} de chaque côté
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {offset.automatic ? 'Compensé automatiquement' : 'Compensé'}{' '}
+                    le {formatCalendarDate(offset.offsetOn)}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  ghost
+                  variant="secondary"
+                  loading={undo.isPending && undo.variables === offset.id}
+                  onClick={() => undo.mutate(offset.id)}
+                >
+                  Annuler
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

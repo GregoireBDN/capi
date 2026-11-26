@@ -1,6 +1,6 @@
 import '#/load-env'
 import { BadRequestException, ConflictException } from '@nestjs/common'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { randomUUID } from 'node:crypto'
@@ -258,7 +258,15 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
 
   it('lets go part of what is left and still claims the rest (#437, the issue’s example)', async () => {
     await withFixture(
-      async ({ owed, transactions, row, spent, income, restaurants, refunds }) => {
+      async ({
+        owed,
+        transactions,
+        row,
+        spent,
+        income,
+        restaurants,
+        refunds,
+      }) => {
         // A 90 € dinner, Sam owes 60 €, repays 20 €.
         const dinner = await row(
           '2026-10-05',
@@ -959,6 +967,244 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
           .where(eq(receivablesTable.transactionId, open.id))
         expect(left).toEqual([])
         expect(await f.spent(f.restaurants)).toBe(3_000 + 4_000)
+      })
+    })
+  })
+
+  describe('offsetting what is owed both ways (#484)', () => {
+    /** Camille owes 40 € on a dinner, the owner owes her 25 € on a cinema. */
+    async function camille(f: Fixture) {
+      const dinner = await f.row(
+        '2026-10-08',
+        -8_000,
+        'CB BRASSERIE FICTIVE',
+        f.restaurants,
+      )
+      await f.owed.createShares({
+        transactionId: dinner,
+        shares: [{ contactName: 'Camille', amountCents: 4_000 }],
+      })
+      await f.owed.createDebt(
+        {
+          contactName: 'Camille',
+          billCents: 5_000,
+          partCents: 2_500,
+          categoryId: f.misc,
+          bookingDate: '2026-10-12',
+        },
+        NOW,
+      )
+      const [contact] = await f.owed.listContacts()
+      return contact.id
+    }
+
+    /** Spending, income and savings of a month, every category. */
+    const stats = (f: Fixture) => f.transactions.summary({ month: '2026-10' })
+
+    /** Runs the deferred offset checks now, as a commit would. */
+    const commitChecks = (f: Fixture) =>
+      f.tx.execute(sql`set constraints all immediate`)
+
+    it('proposes it, settles 25 € each side leaving 15 €, changes no statistic, and undoes it exactly', async () => {
+      await withFixture(async (f) => {
+        const id = await camille(f)
+        const before = await stats(f)
+        const summary = await f.owed.summary(NOW)
+        expect(summary.offers).toMatchObject([
+          {
+            contactId: id,
+            contactName: 'Camille',
+            owedToMeCents: 4_000,
+            iOweCents: 2_500,
+            amountCents: 2_500,
+          },
+        ])
+        expect(summary.owedToMe.contacts).toMatchObject([
+          { name: 'Camille', owedCents: 4_000, netCents: 1_500 },
+        ])
+
+        const offset = await f.owed.createOffset(id, {}, NOW)
+        expect(offset).toMatchObject({
+          contactId: id,
+          amountCents: 2_500,
+          offsetOn: '2026-10-31',
+          automatic: false,
+        })
+        await commitChecks(f)
+
+        const page = await f.owed.contactOwed(id, NOW)
+        expect(page.contact).toMatchObject({
+          owedToMeCents: 1_500,
+          iOweCents: 0,
+        })
+        expect(page.offsets).toEqual([offset])
+        expect(page.offer).toBeNull()
+        expect(page.owedToMe.open).toMatchObject([
+          {
+            leftCents: 1_500,
+            payments: [{ amountCents: 2_500, offsetId: offset.id }],
+          },
+        ])
+        expect(page.iOwe.history).toMatchObject([
+          {
+            state: 'repaid',
+            payments: [{ amountCents: 2_500, offsetId: offset.id }],
+          },
+        ])
+        expect(await stats(f)).toEqual(before)
+        expect((await f.owed.summary(NOW)).offers).toEqual([])
+
+        // One side can't be unlinked alone.
+        const side = page.owedToMe.open[0].payments[0]
+        await expect(f.owed.deletePayment(side.id)).rejects.toThrow(
+          ConflictException,
+        )
+
+        await f.owed.deleteOffset(offset.id)
+        await commitChecks(f)
+        const undone = await f.owed.contactOwed(id, NOW)
+        expect(undone.contact).toMatchObject({
+          owedToMeCents: 4_000,
+          iOweCents: 2_500,
+        })
+        expect(undone.offsets).toEqual([])
+        expect(await stats(f)).toEqual(before)
+      })
+    })
+
+    it('suggests a later 15 € transfer from Camille as settling the rest', async () => {
+      await withFixture(async (f) => {
+        const id = await camille(f)
+        await f.owed.updateContact(id, { matchLabels: ['Camille Fictive'] })
+        await f.owed.createOffset(id, {}, NOW)
+        const transfer = await f.row(
+          '2026-10-30',
+          1_500,
+          'VIR SEPA CAMILLE FICTIVE',
+          f.refunds,
+        )
+        expect(await f.owed.repaymentSuggestions(NOW)).toMatchObject([
+          {
+            transactionId: transfer,
+            contactId: id,
+            links: [{ amountCents: 1_500 }],
+          },
+        ])
+      })
+    })
+
+    it('offsets the items ticked, and refuses two amounts, another contact’s item, or past what is left', async () => {
+      await withFixture(async (f) => {
+        const id = await camille(f)
+        const page = await f.owed.contactOwed(id, NOW)
+        const owed = page.owedToMe.open[0].id
+        const owe = page.iOwe.open[0].id
+        await f.owed.createDebt(
+          {
+            contactName: 'Sam',
+            billCents: 2_000,
+            partCents: 1_000,
+            categoryId: f.misc,
+            bookingDate: '2026-10-12',
+          },
+          NOW,
+        )
+        const sam = (await f.owed.listContacts()).find((c) => c.name === 'Sam')!
+        const samItem = (await f.owed.contactOwed(sam.id, NOW)).iOwe.open[0].id
+
+        await expect(
+          f.owed.createOffset(
+            id,
+            {
+              items: [
+                { receivableId: owed, amountCents: 2_000 },
+                { receivableId: owe, amountCents: 1_500 },
+              ],
+            },
+            NOW,
+          ),
+        ).rejects.toThrow('the same amount on each side')
+        await expect(
+          f.owed.createOffset(
+            id,
+            {
+              items: [
+                { receivableId: owed, amountCents: 1_000 },
+                { receivableId: samItem, amountCents: 1_000 },
+              ],
+            },
+            NOW,
+          ),
+        ).rejects.toThrow('items of this contact only')
+        await expect(
+          f.owed.createOffset(
+            id,
+            {
+              items: [
+                { receivableId: owed, amountCents: 3_000 },
+                { receivableId: owe, amountCents: 3_000 },
+              ],
+            },
+            NOW,
+          ),
+        ).rejects.toThrow('exceeds what is left')
+        // Sam is only owed: nothing to offset.
+        await expect(f.owed.createOffset(sam.id, {}, NOW)).rejects.toThrow(
+          BadRequestException,
+        )
+
+        const ticked = await f.owed.createOffset(
+          id,
+          {
+            items: [
+              { receivableId: owed, amountCents: 1_000 },
+              { receivableId: owe, amountCents: 1_000 },
+            ],
+          },
+          NOW,
+        )
+        expect(ticked.amountCents).toBe(1_000)
+        await commitChecks(f)
+        expect((await f.owed.contactOwed(id, NOW)).contact).toMatchObject({
+          owedToMeCents: 3_000,
+          iOweCents: 1_500,
+        })
+      })
+    })
+
+    it('« Toujours compenser »: offsets what is open when turned on, and each new debt without asking', async () => {
+      await withFixture(async (f) => {
+        const id = await camille(f)
+        const turnedOn = await f.owed.updateContact(id, { alwaysOffset: true })
+        expect(turnedOn).toMatchObject({
+          alwaysOffset: true,
+          owedToMeCents: 1_500,
+          iOweCents: 0,
+        })
+        await f.owed.createDebt(
+          {
+            contactId: id,
+            billCents: 2_000,
+            partCents: 1_000,
+            categoryId: f.misc,
+            bookingDate: '2026-10-20',
+          },
+          NOW,
+        )
+        await commitChecks(f)
+        const page = await f.owed.contactOwed(id, NOW)
+        expect(page.contact).toMatchObject({
+          owedToMeCents: 500,
+          iOweCents: 0,
+        })
+        expect(
+          page.offsets
+            .map((o) => [o.amountCents, o.automatic])
+            .sort((a, b) => Number(a[0]) - Number(b[0])),
+        ).toEqual([
+          [1_000, true],
+          [2_500, true],
+        ])
       })
     })
   })
