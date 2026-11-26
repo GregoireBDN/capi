@@ -64,9 +64,10 @@ const HEADROOM = 1.22
 
 /** The pill look of the Opérations filter chips: 44px, sized to its content. */
 const CHIP =
-  'relative inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:touch-hitbox'
-const CHIP_OFF = 'bg-background text-foreground hover:bg-muted'
-const CHIP_ON = 'border-primary bg-primary/10 text-primary'
+  'relative inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none active:translate-y-px focus-visible:ring-[3px] focus-visible:ring-ring/85 pointer-coarse:touch-hitbox'
+/* In glass (#506): the glass fill off, the primary tint on, no border. */
+const CHIP_OFF = 'bg-glass-fill text-foreground hover:bg-foreground/10'
+const CHIP_ON = 'bg-primary/12 text-primary hover:bg-primary/15'
 
 /** `2026-03` → `M` (axis of a narrow chart). */
 function monthInitial(month: string): string {

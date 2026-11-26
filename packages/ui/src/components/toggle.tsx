@@ -23,7 +23,8 @@ type ToggleProps = React.ComponentProps<typeof TogglePrimitive.Root> &
 /**
  * Toggle button variants
  * - default: Transparent background
- * - outline: Border with transparent background
+ * - outline: the glass fill, no border (#506)
+ * On, both are tinted in the primary colour.
  * Sizes: sm (7), default (8), lg (9)
  */
 const toggleVariants = cva(
@@ -37,8 +38,8 @@ const toggleVariants = cva(
     // Touch screens: at least a 44×44 px hit area, whatever the size
     'pointer-coarse:touch-hitbox',
 
-    // Styling
-    'rounded-lg',
+    // Styling: the glass controls' radius (#506)
+    'rounded-control',
 
     // Typography
     'text-sm font-medium whitespace-nowrap',
@@ -47,13 +48,15 @@ const toggleVariants = cva(
     'transition-all outline-none',
 
     // Hover States
-    'hover:bg-muted',
+    'hover:bg-glass-fill',
     'hover:text-foreground',
 
-    // Focus States
-    'focus-visible:border-ring',
+    // Focus States: a soft glow, still ≥ 3:1 against the page
     'focus-visible:ring-[3px]',
-    'focus-visible:ring-ring/50',
+    'focus-visible:ring-ring/85',
+
+    // Pressed in while held
+    'active:translate-y-px',
 
     // Disabled States
     'disabled:pointer-events-none',
@@ -66,9 +69,10 @@ const toggleVariants = cva(
     // Invalid States (Dark)
     'dark:aria-invalid:ring-destructive/40',
 
-    // Pressed/On States
-    'aria-pressed:bg-muted',
-    'data-[state=on]:bg-muted',
+    // On: tinted in the primary colour, like a chosen chip (#506)
+    'aria-pressed:bg-primary/12 aria-pressed:text-primary',
+    'data-[state=on]:bg-primary/12 data-[state=on]:text-primary',
+    'data-[state=on]:hover:bg-primary/15',
 
     // Icon Styling
     '[&_svg]:pointer-events-none',
@@ -80,9 +84,8 @@ const toggleVariants = cva(
       variant: {
         default: 'bg-transparent',
 
-        outline: ['border border-input bg-transparent', 'hover:bg-muted'].join(
-          ' ',
-        ),
+        // In glass: the glass fill, no border (#506)
+        outline: ['bg-glass-fill', 'hover:bg-foreground/10'].join(' '),
       },
       size: {
         default: [
@@ -93,7 +96,7 @@ const toggleVariants = cva(
 
         sm: [
           'h-7 min-w-7 px-2.5',
-          'rounded-[min(var(--radius-md),12px)]',
+          'rounded-[min(var(--radius-control),12px)]',
           'text-[0.8rem]',
           'has-data-[icon=inline-end]:pr-1.5',
           'has-data-[icon=inline-start]:pl-1.5',
