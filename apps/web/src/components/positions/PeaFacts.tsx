@@ -1,9 +1,9 @@
 import {
   Button,
+  DateField,
   Field,
   FieldError,
   FieldLabel,
-  Input,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -249,13 +249,13 @@ function OpeningDateSheet({
           <FormSheetBody>
             <Field data-invalid={error !== undefined}>
               <FieldLabel htmlFor={`${id}-day`}>Ouvert le</FieldLabel>
-              <Input
+              <DateField
                 id={`${id}-day`}
-                type="date"
+                title="Ouvert le"
                 max={today}
                 value={day}
                 aria-invalid={error !== undefined}
-                onChange={(event) => setDay(event.target.value)}
+                onChange={setDay}
               />
               {error && <FieldError>{error}</FieldError>}
             </Field>
