@@ -15,16 +15,10 @@ import {
   envelopeSplitKeysTable,
   envelopesTable,
   type InsertTransaction,
-  savingsGoalAccountsTable,
-  savingsGoalsTable,
   transactionsTable,
 } from '#/database/schema'
 import { restoreAbsorbedManual } from '#/imports/undo/import-undo'
 import { bankRows } from '#/transactions/testing/bank-rows'
-import {
-  convertAndRemoveSavingsGoals,
-  convertSavingsGoals,
-} from './convert-goals'
 import { EnvelopesService, envelopePlan, splitByKey } from './envelopes.service'
 import { attributeSpend } from './paid'
 
@@ -620,106 +614,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ])
         },
       )
-    })
-
-    it('converts savings goals without over-allocating a shared account', async () => {
-      await inRollback(async ({ tx, accounts, checking, livret }) => {
-        const goals = await tx
-          .insert(savingsGoalsTable)
-          .values([
-            {
-              name: 'Plus tard',
-              targetCents: 600_000,
-              targetDate: '2028-01-01',
-              color: '#16a34a',
-            },
-            { name: 'Bientôt', targetCents: 400_000, targetDate: '2027-01-01' },
-            {
-              name: 'À la main',
-              targetCents: 300_000,
-              source: 'manual',
-              manualAmountCents: 250_000,
-            },
-          ])
-          .returning({ id: savingsGoalsTable.id })
-        await tx.insert(savingsGoalAccountsTable).values([
-          { goalId: goals[0].id, accountId: livret },
-          { goalId: goals[1].id, accountId: livret },
-        ])
-
-        const converted = await convertSavingsGoals(tx, accounts, '2026-11-26')
-        expect(converted).toEqual([
-          // The nearest due date first: it gets its whole target.
-          {
-            goalId: goals[1].id,
-            envelopeId: goals[1].id,
-            placedCents: 400_000,
-            unplacedCents: 0,
-          },
-          {
-            goalId: goals[0].id,
-            envelopeId: goals[0].id,
-            placedCents: 100_000,
-            unplacedCents: 0,
-          },
-          // The livret is full: the checking account holds 2 000 €.
-          {
-            goalId: goals[2].id,
-            envelopeId: goals[2].id,
-            placedCents: 200_000,
-            unplacedCents: 50_000,
-          },
-        ])
-        const [envelope] = await tx
-          .select()
-          .from(envelopesTable)
-          .where(eq(envelopesTable.id, goals[0].id))
-        expect(envelope).toMatchObject({
-          name: 'Plus tard',
-          targetCents: 600_000,
-          dueDate: '2028-01-01',
-          color: '#16a34a',
-        })
-        const manual = await tx
-          .select({ accountId: envelopeMovementsTable.accountId })
-          .from(envelopeMovementsTable)
-          .where(eq(envelopeMovementsTable.envelopeId, goals[2].id))
-        expect(manual).toEqual([{ accountId: checking }])
-        // Runs again without converting twice.
-        expect(await convertSavingsGoals(tx, accounts, '2026-11-26')).toEqual(
-          [],
-        )
-      })
-    })
-
-    it('converts the goals once for good: a deleted envelope never comes back', async () => {
-      await inRollback(async ({ tx, envelopes }) => {
-        const [goal] = await tx
-          .insert(savingsGoalsTable)
-          .values({
-            name: 'Une fois',
-            targetCents: 100_000,
-            source: 'manual',
-            manualAmountCents: 0,
-          })
-          .returning({ id: savingsGoalsTable.id })
-        expect(await convertAndRemoveSavingsGoals(tx, '2026-11-26')).toEqual({
-          converted: 1,
-          unplacedCents: 0,
-        })
-        expect(await tx.select().from(savingsGoalsTable)).toEqual([])
-        await envelopes.remove(goal.id)
-        expect(await convertAndRemoveSavingsGoals(tx, '2026-11-26')).toEqual({
-          converted: 0,
-          unplacedCents: 0,
-        })
-        expect(
-          await tx
-            .select()
-            .from(envelopesTable)
-            .where(eq(envelopesTable.id, goal.id)),
-        ).toEqual([])
-      })
     })
 
     it('undoing an import moves what an envelope paid back to the manual expense', async () => {

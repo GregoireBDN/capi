@@ -1,6 +1,6 @@
 {
-  "id": "692b4d68-e220-4c3f-977b-cb81e595a61b",
-  "prevId": "14417226-4ea8-4132-9fa5-efe91e75ae25",
+  "id": "c7915838-e54a-4239-85b3-ca9d92d25998",
+  "prevId": "79d33e05-9fce-41f2-833b-e784a8df519f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3949,195 +3949,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.savings_goal_accounts": {
-      "name": "savings_goal_accounts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "goal_id": {
-          "name": "goal_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "savings_goal_accounts_account_id_index": {
-          "name": "savings_goal_accounts_account_id_index",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "savings_goal_accounts_goal_id_savings_goals_id_fk": {
-          "name": "savings_goal_accounts_goal_id_savings_goals_id_fk",
-          "tableFrom": "savings_goal_accounts",
-          "tableTo": "savings_goals",
-          "columnsFrom": [
-            "goal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "savings_goal_accounts_account_id_accounts_id_fk": {
-          "name": "savings_goal_accounts_account_id_accounts_id_fk",
-          "tableFrom": "savings_goal_accounts",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "savings_goal_accounts_goal_account_unique": {
-          "name": "savings_goal_accounts_goal_account_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "goal_id",
-            "account_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.savings_goals": {
-      "name": "savings_goals",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_cents": {
-          "name": "target_cents",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_date": {
-          "name": "target_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source": {
-          "name": "source",
-          "type": "savings_goal_source",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'accounts'"
-        },
-        "manual_amount_cents": {
-          "name": "manual_amount_cents",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "color": {
-          "name": "color",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "savings_goals_target_positive": {
-          "name": "savings_goals_target_positive",
-          "value": "\"savings_goals\".\"target_cents\" > 0"
-        },
-        "savings_goals_manual_amount_non_negative": {
-          "name": "savings_goals_manual_amount_non_negative",
-          "value": "\"savings_goals\".\"manual_amount_cents\" >= 0"
-        },
-        "savings_goals_manual_amount_iff_manual": {
-          "name": "savings_goals_manual_amount_iff_manual",
-          "value": "(\"savings_goals\".\"source\" = 'manual') = (\"savings_goals\".\"manual_amount_cents\" is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.month_closes": {
       "name": "month_closes",
       "schema": "",
@@ -6765,13 +6576,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "size": {
-          "name": "size",
-          "type": "dashboard_widget_size",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "hidden": {
           "name": "hidden",
           "type": "boolean",
@@ -7034,14 +6838,6 @@
         "manual"
       ]
     },
-    "public.savings_goal_source": {
-      "name": "savings_goal_source",
-      "schema": "public",
-      "values": [
-        "accounts",
-        "manual"
-      ]
-    },
     "public.crypto_import_format": {
       "name": "crypto_import_format",
       "schema": "public",
@@ -7127,14 +6923,6 @@
         "split",
         "transfer",
         "spend"
-      ]
-    },
-    "public.dashboard_widget_size": {
-      "name": "dashboard_widget_size",
-      "schema": "public",
-      "values": [
-        "small",
-        "large"
       ]
     },
     "public.dashboard_widget_type": {

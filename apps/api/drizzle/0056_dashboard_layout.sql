@@ -1,4 +1,3 @@
-CREATE TYPE "public"."dashboard_widget_size" AS ENUM('small', 'large');--> statement-breakpoint
 CREATE TYPE "public"."dashboard_widget_type" AS ENUM('todo', 'left_to_spend', 'forecast', 'net_worth', 'tracked_budgets', 'balances', 'owed', 'upcoming_debits', 'month_flows', 'envelopes', 'investments');--> statement-breakpoint
 CREATE TABLE "dashboard_widget_accounts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -6,7 +5,10 @@ CREATE TABLE "dashboard_widget_accounts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"widget_id" uuid NOT NULL,
 	"account_id" uuid NOT NULL,
-	CONSTRAINT "dashboard_widget_accounts_unique" UNIQUE("widget_id","account_id")
+	"position" integer NOT NULL,
+	CONSTRAINT "dashboard_widget_accounts_unique" UNIQUE("widget_id","account_id"),
+	CONSTRAINT "dashboard_widget_accounts_position_unique" UNIQUE("widget_id","position"),
+	CONSTRAINT "dashboard_widget_accounts_position" CHECK ("dashboard_widget_accounts"."position" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "dashboard_widget_envelopes" (
@@ -24,7 +26,6 @@ CREATE TABLE "dashboard_widgets" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"type" "dashboard_widget_type" NOT NULL,
 	"position" integer NOT NULL,
-	"size" "dashboard_widget_size" NOT NULL,
 	"hidden" boolean DEFAULT false NOT NULL,
 	"accounts_chosen" boolean DEFAULT false NOT NULL,
 	"envelopes_chosen" boolean DEFAULT false NOT NULL,

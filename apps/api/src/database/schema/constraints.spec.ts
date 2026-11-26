@@ -24,7 +24,6 @@ import {
   receivablePaymentsTable,
   receivablesTable,
   recurringItemsTable,
-  savingsGoalsTable,
   transactionsTable,
 } from './index'
 
@@ -895,28 +894,6 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
           .from(importsTable)
           .where(eq(importsTable.id, linked.id))
         expect(kept.profileId).toBeNull()
-      })
-    })
-  })
-
-  describe('savings goals', () => {
-    it('keeps a typed amount on manual goals only', async () => {
-      await inRollback(async (tx) => {
-        const goal = { name: 'Objectif fictif', targetCents: 100_000 }
-        await refused(tx, 'savings_goals_manual_amount_iff_manual', (nested) =>
-          nested
-            .insert(savingsGoalsTable)
-            .values({ ...goal, source: 'accounts', manualAmountCents: 500 }),
-        )
-        await refused(tx, 'savings_goals_manual_amount_iff_manual', (nested) =>
-          nested
-            .insert(savingsGoalsTable)
-            .values({ ...goal, source: 'manual', manualAmountCents: null }),
-        )
-        await tx.insert(savingsGoalsTable).values([
-          { ...goal, source: 'accounts' },
-          { ...goal, source: 'manual', manualAmountCents: 0 },
-        ])
       })
     })
   })
