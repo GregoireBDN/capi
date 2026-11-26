@@ -1364,7 +1364,7 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
     ) {
       const [created] = await tx
         .insert(dashboardWidgetsTable)
-        .values({ type: 'balances', position: 0, size: 'small', ...values })
+        .values({ type: 'balances', position: 0, ...values })
         .returning()
       return created
     }
@@ -1388,8 +1388,8 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       await inRollback(async (tx) => {
         await refused(tx, 'dashboard_widgets_settings_object', (n) =>
           n.execute(
-            sql`insert into dashboard_widgets (type, position, size, settings)
-                values ('owed', 0, 'small', '[]'::jsonb)`,
+            sql`insert into dashboard_widgets (type, position, settings)
+                values ('owed', 0, '[]'::jsonb)`,
           ),
         )
       })

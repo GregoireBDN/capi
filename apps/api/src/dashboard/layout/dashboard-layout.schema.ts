@@ -14,7 +14,6 @@ import { accountsTable } from '#/accounts/accounts.schema'
 import { coreColumns } from '#/database/schema/core.schema'
 import {
   DASHBOARD_ACCOUNT_WIDGET_TYPES,
-  DASHBOARD_WIDGET_SIZES,
   DASHBOARD_WIDGET_TYPES,
 } from '#/database/schema/domain-enums'
 import { envelopesTable } from '#/envelopes/envelopes.schema'
@@ -22,10 +21,6 @@ import { envelopesTable } from '#/envelopes/envelopes.schema'
 export const dashboardWidgetTypeEnum = pgEnum(
   'dashboard_widget_type',
   DASHBOARD_WIDGET_TYPES,
-)
-export const dashboardWidgetSizeEnum = pgEnum(
-  'dashboard_widget_size',
-  DASHBOARD_WIDGET_SIZES,
 )
 
 const accountTypes = sql.raw(
@@ -46,7 +41,6 @@ export const dashboardWidgetsTable = pgTable(
     ...coreColumns,
     type: dashboardWidgetTypeEnum('type').notNull(),
     position: integer('position').notNull(),
-    size: dashboardWidgetSizeEnum('size').notNull(),
     hidden: boolean('hidden').notNull().default(false),
     /** The chosen accounts only (`dashboard_widget_accounts`), else all. */
     accountsChosen: boolean('accounts_chosen').notNull().default(false),

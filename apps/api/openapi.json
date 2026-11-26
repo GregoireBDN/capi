@@ -5970,7 +5970,7 @@
     },
     "/api/dashboard/layout": {
       "get": {
-        "description": "The elements in their order, hidden ones included, with their size, accounts, envelopes and settings. While nothing was saved, today’s default layout (`custom: false`).",
+        "description": "The elements in their order, hidden ones included, with their accounts, envelopes and settings. While nothing was saved, today’s default layout (`custom: false`).",
         "operationId": "DashboardLayoutController_get",
         "parameters": [],
         "responses": {
@@ -17822,14 +17822,6 @@
           "investments"
         ]
       },
-      "DashboardWidgetSize": {
-        "type": "string",
-        "enum": [
-          "small",
-          "large"
-        ],
-        "description": "From `md`: half a row (`small`) or the whole row (`large`)."
-      },
       "DashboardOwedSide": {
         "type": "string",
         "enum": [
@@ -17887,14 +17879,6 @@
               }
             ]
           },
-          "size": {
-            "description": "From `md`: half a row (`small`) or the whole row (`large`).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/DashboardWidgetSize"
-              }
-            ]
-          },
           "hidden": {
             "type": "boolean"
           },
@@ -17922,7 +17906,6 @@
         },
         "required": [
           "type",
-          "size",
           "hidden",
           "accountIds",
           "envelopeIds",

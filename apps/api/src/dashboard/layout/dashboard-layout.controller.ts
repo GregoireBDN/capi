@@ -39,7 +39,7 @@ export class DashboardLayoutController {
   @ApiOperation({
     summary: 'The dashboard’s elements',
     description:
-      'The elements in their order, hidden ones included, with their size, accounts, envelopes and settings. While nothing was saved, today’s default layout (`custom: false`).',
+      'The elements in their order, hidden ones included, with their accounts, envelopes and settings. While nothing was saved, today’s default layout (`custom: false`).',
   })
   @ApiOkResponse({ type: DashboardLayoutDto })
   get(): Promise<DashboardLayoutDto> {

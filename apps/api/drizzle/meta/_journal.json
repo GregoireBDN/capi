@@ -400,6 +400,13 @@
       "when": 1795701200249,
       "tag": "0056_dashboard_account_order",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795702469174,
+      "tag": "0057_dashboard_one_column",
+      "breakpoints": true
     }
   ]
 }

@@ -10,7 +10,6 @@ import {
   EmptyMedia,
   EmptyTitle,
   Skeleton,
-  cn,
 } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -389,15 +388,13 @@ function DashboardElements({
 
   return (
     <>
-      <div className="grid grid-cols-1 items-start gap-3 @xl:grid-cols-2">
+      {/* One column on every screen: each element takes the whole row. */}
+      <div className="grid grid-cols-1 gap-3">
         {blocks.map((block) => (
           <div
             key={block.widget.type}
             data-element={block.widget.type}
-            className={cn(
-              'min-w-0 empty:hidden',
-              block.widget.size === 'large' && '@xl:col-span-2',
-            )}
+            className="min-w-0 empty:hidden"
           >
             {render(block)}
           </div>

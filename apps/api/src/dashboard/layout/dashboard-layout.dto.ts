@@ -11,9 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator'
 import {
-  DASHBOARD_WIDGET_SIZES,
   DASHBOARD_WIDGET_TYPES,
-  type DashboardWidgetSize,
   type DashboardWidgetType,
 } from '#/database/schema/domain-enums'
 
@@ -74,14 +72,6 @@ export class DashboardWidgetDto {
   })
   @IsIn(DASHBOARD_WIDGET_TYPES)
   type!: DashboardWidgetType
-
-  @ApiProperty({
-    enum: DASHBOARD_WIDGET_SIZES,
-    enumName: 'DashboardWidgetSize',
-    description: 'From `md`: half a row (`small`) or the whole row (`large`).',
-  })
-  @IsIn(DASHBOARD_WIDGET_SIZES)
-  size!: DashboardWidgetSize
 
   @ApiProperty({ type: Boolean })
   @IsBoolean()

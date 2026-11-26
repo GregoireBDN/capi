@@ -213,7 +213,6 @@ function widget(
 ): DashboardWidgetDto {
   return {
     type,
-    size: 'small',
     hidden: false,
     accountIds: null,
     envelopeIds: null,
@@ -223,11 +222,11 @@ function widget(
 }
 
 const DEFAULT_LAYOUT = [
-  widget('todo', { size: 'large' }),
-  widget('left_to_spend', { size: 'large' }),
+  widget('todo'),
+  widget('left_to_spend'),
   widget('forecast'),
   widget('net_worth'),
-  widget('tracked_budgets', { size: 'large' }),
+  widget('tracked_budgets'),
 ]
 
 function owedRow(name: string, owedCents: number) {
@@ -720,7 +719,7 @@ describe('DashboardPage', () => {
           widgets: [
             widget('balances', { accountIds: [pea.id] }),
             widget('owed', { hidden: true }),
-            widget('month_flows', { size: 'large' }),
+            widget('month_flows'),
           ],
         },
       }),

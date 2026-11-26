@@ -336,7 +336,3 @@ export const DASHBOARD_ACCOUNT_WIDGET_TYPES = [
   'upcoming_debits',
   'investments',
 ] as const satisfies readonly DashboardWidgetType[]
-
-/** An element's width from `md`: half a row or the whole row. */
-export const DASHBOARD_WIDGET_SIZES = ['small', 'large'] as const
-export type DashboardWidgetSize = (typeof DASHBOARD_WIDGET_SIZES)[number]

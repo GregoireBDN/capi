@@ -20,7 +20,6 @@ import {
   PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
-  MonitorIcon,
   PiggyBankIcon,
   UsersIcon,
   WalletIcon,
@@ -299,17 +298,29 @@ function Editor({
   )
 }
 
+/** The elements with something to set: their accounts, envelopes or own choices. */
+function hasSettings(type: DashboardWidgetType): boolean {
+  const info = ELEMENTS[type]
+  return (
+    Boolean(info.accountTypes) ||
+    Boolean(info.envelopes) ||
+    type === 'balances' ||
+    type === 'upcoming_debits' ||
+    type === 'owed'
+  )
+}
+
 /** Today's dashboard, as « Par défaut » shows it before saving. */
 function defaultLayout(): DashboardWidgetDto[] {
   return (
     [
-      ['todo', 'large'],
-      ['left_to_spend', 'large'],
-      ['forecast', 'small'],
-      ['net_worth', 'small'],
-      ['tracked_budgets', 'large'],
+      'todo',
+      'left_to_spend',
+      'forecast',
+      'net_worth',
+      'tracked_budgets',
     ] as const
-  ).map(([type, size]) => ({ ...newElement(type), size }))
+  ).map(newElement)
 }
 
 function ElementRow({
@@ -326,6 +337,7 @@ function ElementRow({
   onOpen: () => void
 }) {
   const { name } = ELEMENTS[widget.type]
+  const settable = hasSettings(widget.type)
   return (
     <li
       ref={sortable.ref}
@@ -351,9 +363,10 @@ function ElementRow({
       </button>
       {/* The name opens the settings too; ⚙ is the button that says so. */}
       <div
-        onClick={onOpen}
+        onClick={settable ? onOpen : undefined}
         className={cn(
-          'flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 py-1.5',
+          'flex min-h-11 min-w-0 flex-1 items-center gap-2 py-1.5',
+          settable && 'cursor-pointer',
           widget.hidden && 'opacity-45',
         )}
       >
@@ -370,14 +383,19 @@ function ElementRow({
       >
         {widget.hidden ? <EyeOffIcon /> : <EyeIcon />}
       </IconToggle>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`Réglages de ${name}`}
-        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring grid size-[44px] shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]"
-      >
-        <SettingsIcon aria-hidden />
-      </button>
+      {settable ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Réglages de ${name}`}
+          className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring grid size-[44px] shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]"
+        >
+          <SettingsIcon aria-hidden />
+        </button>
+      ) : (
+        // Nothing to set: the eye stays where it is on the other rows.
+        <span aria-hidden className="size-[44px] shrink-0" />
+      )}
     </li>
   )
 }
@@ -517,17 +535,6 @@ function ElementSettings({
           />
         </Section>
       )}
-      <Section icon={<MonitorIcon />} title="Sur ordinateur">
-        <ChoiceCards
-          label="Taille sur ordinateur"
-          value={widget.size}
-          onChange={(size) => onChange({ size })}
-          options={[
-            { value: 'small', label: 'Moitié', icon: <SizePicture half /> },
-            { value: 'large', label: 'Pleine largeur', icon: <SizePicture /> },
-          ]}
-        />
-      </Section>
       {info.accountTypes && (
         <Section icon={<WalletIcon />} title="Comptes">
           <AccountChoice
@@ -632,16 +639,6 @@ function Dots({ colors }: { colors: string[] }) {
       {colors.map((color) => (
         <span key={color} className={cn('size-3.5 rounded-full', color)} />
       ))}
-    </span>
-  )
-}
-
-/** A screen with the element on half of it or across it. */
-function SizePicture({ half = false }: { half?: boolean }) {
-  return (
-    <span className="grid h-[22px] w-[40px] grid-cols-2 gap-[3px] rounded-[4px] border border-current p-[3px] opacity-90">
-      <span className={cn('rounded-[2px] bg-current', !half && 'col-span-2')} />
-      {half && <span className="rounded-[2px] bg-current opacity-25" />}
     </span>
   )
 }

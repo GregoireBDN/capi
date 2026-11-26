@@ -28,8 +28,6 @@ export interface ElementInfo {
   accountTypes?: readonly AccountType[]
   /** It shows envelopes (all of them or the chosen ones). */
   envelopes?: boolean
-  /** From `md`: half a row or the whole row, when first added. */
-  size: DashboardWidgetDto['size']
 }
 
 const BANK: readonly AccountType[] = ['checking', 'savings']
@@ -52,28 +50,24 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     name: 'À faire',
     icon: InboxIcon,
     tone: 'bg-warning/20 text-warning-foreground dark:text-warning',
-    size: 'large',
   },
   left_to_spend: {
     type: 'left_to_spend',
     name: 'Reste à dépenser',
     icon: TargetIcon,
     tone: 'bg-primary/10 text-primary',
-    size: 'large',
   },
   tracked_budgets: {
     type: 'tracked_budgets',
     name: 'Budgets suivis',
     icon: ShoppingCartIcon,
     tone: 'bg-chart-2/15 text-chart-2',
-    size: 'large',
   },
   month_flows: {
     type: 'month_flows',
     name: 'Le mois',
     icon: ReceiptIcon,
     tone: 'bg-chart-4/15 text-chart-4',
-    size: 'large',
   },
   upcoming_debits: {
     type: 'upcoming_debits',
@@ -81,7 +75,6 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: CalendarClockIcon,
     tone: 'bg-info/15 text-info-foreground dark:text-info',
     accountTypes: BANK,
-    size: 'small',
   },
   forecast: {
     type: 'forecast',
@@ -89,7 +82,6 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: CalendarClockIcon,
     tone: 'bg-muted text-muted-foreground',
     accountTypes: BANK,
-    size: 'small',
   },
   balances: {
     type: 'balances',
@@ -97,8 +89,6 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: WalletIcon,
     tone: 'bg-chart-1/15 text-chart-1',
     accountTypes: ['checking', 'savings', 'meal_voucher', ...INVESTMENTS],
-    // The whole row on a computer, its accounts in two columns (#495).
-    size: 'large',
   },
   net_worth: {
     type: 'net_worth',
@@ -106,14 +96,12 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: LandmarkIcon,
     tone: 'bg-primary/10 text-primary',
     accountTypes: ['checking', 'savings', 'meal_voucher', ...INVESTMENTS],
-    size: 'small',
   },
   owed: {
     type: 'owed',
     name: 'Argent dû',
     icon: ArrowLeftRightIcon,
     tone: 'bg-chart-delta-good/15 text-chart-delta-good',
-    size: 'small',
   },
   envelopes: {
     type: 'envelopes',
@@ -121,7 +109,6 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: PiggyBankIcon,
     tone: 'bg-chart-3/15 text-chart-3',
     envelopes: true,
-    size: 'small',
   },
   investments: {
     type: 'investments',
@@ -129,7 +116,6 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: ChartCandlestickIcon,
     tone: 'bg-chart-7/15 text-chart-7',
     accountTypes: INVESTMENTS,
-    size: 'small',
   },
 }
 
@@ -147,11 +133,10 @@ export const CATALOGUE_ORDER: DashboardWidgetType[] = [
   'investments',
 ]
 
-/** A new element as the catalogue adds it: all accounts, its own size. */
+/** A new element as the catalogue adds it: all accounts. */
 export function newElement(type: DashboardWidgetType): DashboardWidgetDto {
   return {
     type,
-    size: ELEMENTS[type].size,
     hidden: false,
     accountIds: null,
     envelopeIds: null,

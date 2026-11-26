@@ -28,20 +28,16 @@ type Db = PostgresJsDatabase<typeof schema>
  * its card, then « Budgets suivis ».
  */
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardWidgetDto[] = [
-  widget('todo', 'large'),
-  widget('left_to_spend', 'large'),
-  widget('forecast', 'small'),
-  widget('net_worth', 'small'),
-  widget('tracked_budgets', 'large'),
+  widget('todo'),
+  widget('left_to_spend'),
+  widget('forecast'),
+  widget('net_worth'),
+  widget('tracked_budgets'),
 ]
 
-function widget(
-  type: DashboardWidgetType,
-  size: DashboardWidgetDto['size'],
-): DashboardWidgetDto {
+function widget(type: DashboardWidgetType): DashboardWidgetDto {
   return {
     type,
-    size,
     hidden: false,
     accountIds: null,
     envelopeIds: null,
@@ -100,7 +96,6 @@ export class DashboardLayoutService {
       custom: true,
       widgets: rows.map((row) => ({
         type: row.type,
-        size: row.size,
         hidden: row.hidden,
         accountIds: row.accountsChosen
           ? accounts
@@ -133,7 +128,6 @@ export class DashboardLayoutService {
           .values({
             type: item.type,
             position,
-            size: item.size,
             hidden: item.hidden,
             accountsChosen: item.accountIds !== null,
             envelopesChosen: item.envelopeIds !== null,
