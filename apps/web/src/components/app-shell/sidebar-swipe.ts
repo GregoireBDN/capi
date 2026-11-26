@@ -3,7 +3,10 @@ import { flushSync } from 'react-dom'
 
 /**
  * Swiping the phone's navigation sheet open and closed (#446, the owner:
- * the sidebar opens without tapping ☰, and the sheet follows the finger).
+ * the sidebar opens without tapping ☰, and the sheet follows the finger;
+ * the owner again: a slanting swipe still opens it, the sheet follows the
+ * finger both ways until it is let go, even with reduced motion, and the
+ * installed app never goes back a page on a swipe from its edge).
  * A swipe to the right anywhere on the page opens it, a swipe to the left on
  * the open sheet (or its backdrop) closes it; on release it settles open or
  * shut with the curve of the sheet's own animation (`@capi/ui`
@@ -12,18 +15,25 @@ import { flushSync } from 'react-dom'
 
 /**
  * Touches starting this close to the left edge of a Safari tab are Safari's
- * back swipe; in the installed app iOS has no back swipe and the edge is
- * ours too (#419).
+ * back swipe; in the installed app the edge is ours (#419, `BACK_SWIPE_EDGE`).
  */
 export const SWIPE_EDGE = 44
+/**
+ * In the installed app, a touch starting this close to the left edge is kept
+ * from iOS (its touchstart is cancelled), which would otherwise take it for
+ * its back swipe and go back a page; a tap there is clicked by hand.
+ */
+export const BACK_SWIPE_EDGE = 24
 /** Travel before a touch is read as a swipe or a scroll, in px. */
 export const INTENT_DISTANCE = 10
-/** How much more sideways than vertical a swipe goes. */
-const SIDEWAYS_RATIO = 1.5
+/**
+ * How much more sideways than vertical a swipe goes: 1 takes anything
+ * within 45° of horizontal, so a slanting swipe still opens the sheet while a
+ * scroll (steeper than 45°) never does.
+ */
+const SIDEWAYS_RATIO = 1
 /** A release this fast (px/ms) settles the way it moves, however far. */
 export const FLING_VELOCITY = 0.3
-/** With reduced motion (nothing follows the finger), the travel that counts. */
-export const REDUCED_MOTION_DISTANCE = 64
 /** Set on `<html>` while a swipe drives the sheet: no keyframe animation. */
 export const GESTURE_ATTRIBUTE = 'data-sheet-gesture'
 /** Set on the sheet and its backdrop once a swipe opened them. */
@@ -38,7 +48,7 @@ export function swipeIntent(
   dy: number,
 ): 'sideways' | 'vertical' | null {
   if (Math.hypot(dx, dy) < INTENT_DISTANCE) return null
-  return Math.abs(dx) > Math.abs(dy) * SIDEWAYS_RATIO ? 'sideways' : 'vertical'
+  return Math.abs(dx) >= Math.abs(dy) * SIDEWAYS_RATIO ? 'sideways' : 'vertical'
 }
 
 /** How open the sheet is (0 shut, 1 open) under a finger. */
@@ -157,6 +167,31 @@ function sheetParts(): {
   return { sheet, overlay }
 }
 
+/**
+ * Clicks what a tap kept from iOS at the installed app's edge touched (its
+ * touchstart was cancelled, so the browser sends no click): a field gets the
+ * focus, anything else a click.
+ */
+export function tap(target: Element | null, x: number, y: number) {
+  if (!target) return
+  const field = target.closest<HTMLElement>(
+    'input, textarea, select, [contenteditable="true"]',
+  )
+  if (field) {
+    field.focus()
+    return
+  }
+  // Bubbles like a real one (an icon inside a button or a link included).
+  target.dispatchEvent(
+    new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+    }),
+  )
+}
+
 /** Draws the sheet `progress` open, following the finger (no transition). */
 function draw(
   parts: { sheet: HTMLElement; overlay: HTMLElement | null },
@@ -199,12 +234,22 @@ interface Drag {
   reduced: boolean
 }
 
+/** A touch kept from iOS at the installed app's edge, clicked if a tap. */
+interface EdgeTouch {
+  target: Element | null
+  x: number
+  y: number
+  moved: boolean
+}
+
 /**
  * The swipe on phones (below `md`, where the sidebar is a sheet): to the
  * right on the page opens it, to the left on it or its backdrop closes it,
- * the sheet and its backdrop following the finger; ☰, its links and a tap
- * on the backdrop are unchanged. With reduced motion nothing follows the
- * finger: a swipe far or fast enough opens or closes it at once.
+ * the sheet and its backdrop following the finger, back and forth, until it
+ * is let go; ☰, its links and a tap on the backdrop are unchanged. Once a
+ * touch is read as a swipe the page no longer scrolls under it (its
+ * touchmoves are cancelled). With reduced motion the sheet still follows the
+ * finger (the finger moves it, nothing is animated) and settles at once.
  */
 export function useSidebarSwipe(
   enabled: boolean,
@@ -218,12 +263,26 @@ export function useSidebarSwipe(
     if (!enabled) return
     const root = document.documentElement
     let drag: Drag | null = null
+    let edge: EdgeTouch | null = null
     let settling = false
+    const standalone = runsStandalone()
 
     const onStart = (event: TouchEvent) => {
       drag = null
+      edge = null
       const touch = event.touches[0] as Touch | undefined
-      if (settling || event.touches.length !== 1 || !touch) return
+      if (event.touches.length !== 1 || !touch) return
+      if (standalone && touch.clientX < BACK_SWIPE_EDGE && event.cancelable) {
+        // iOS's back swipe: cancelled here, before iOS takes the touch.
+        event.preventDefault()
+        edge = {
+          target: event.target instanceof Element ? event.target : null,
+          x: touch.clientX,
+          y: touch.clientY,
+          moved: false,
+        }
+      }
+      if (settling) return
       const target = event.target instanceof Element ? event.target : null
       let from: Drag['from']
       if (state.current.open) {
@@ -242,7 +301,7 @@ export function useSidebarSwipe(
         }
         from = 'open'
       } else {
-        if (!swipeMayStart(target, touch.clientX, runsStandalone())) return
+        if (!swipeMayStart(target, touch.clientX, standalone)) return
         from = 'shut'
       }
       drag = {
@@ -261,7 +320,6 @@ export function useSidebarSwipe(
     }
 
     const begin = (current: Drag) => {
-      if (current.reduced) return
       if (current.from === 'shut') {
         root.setAttribute(GESTURE_ATTRIBUTE, '')
         // Mounted now, then drawn shut before anything is painted.
@@ -277,6 +335,11 @@ export function useSidebarSwipe(
     const onMove = (event: TouchEvent) => {
       const current = drag
       const touch = event.touches[0] as Touch | undefined
+      if (edge && touch && !edge.moved) {
+        edge.moved =
+          Math.hypot(touch.clientX - edge.x, touch.clientY - edge.y) >=
+          INTENT_DISTANCE
+      }
       if (!current || !touch) return
       const dx = touch.clientX - current.x
       const dy = touch.clientY - current.y
@@ -291,6 +354,8 @@ export function useSidebarSwipe(
         }
         begin(current)
       }
+      // A swipe: the page must not scroll under it (nor iOS take it).
+      if (event.cancelable) event.preventDefault()
       const at = event.timeStamp
       if (at > current.lastAt) {
         current.velocity =
@@ -323,20 +388,22 @@ export function useSidebarSwipe(
 
     const onEnd = (event: TouchEvent) => {
       const current = drag
+      const kept = edge
       drag = null
-      if (!current || current.intent !== 'sideways') return
-      const touch = event.changedTouches[0] as Touch | undefined
-      const dx = touch ? touch.clientX - current.x : current.lastX - current.x
-      if (current.reduced) {
-        const far = Math.abs(dx) >= REDUCED_MOTION_DISTANCE
-        const fast = Math.abs(current.velocity) >= FLING_VELOCITY
-        if (far || fast) state.current.setOpen(current.from === 'shut')
-        return
+      edge = null
+      if (kept && !kept.moved && event.touches.length === 0) {
+        tap(kept.target, kept.x, kept.y)
       }
+      if (!current || current.intent !== 'sideways') return
       const parts = current.parts
       if (!parts) return
       // Velocity towards open: to the right.
       const opens = settlesOpen(current.progress, current.velocity)
+      if (current.reduced) {
+        // Where it settles, at once.
+        finish(parts, !opens)
+        return
+      }
       settling = true
       draw(parts, opens ? 1 : 0, true)
       let done = false
@@ -357,6 +424,7 @@ export function useSidebarSwipe(
     const onCancel = () => {
       const current = drag
       drag = null
+      edge = null
       if (!current?.parts) return
       settling = true
       draw(current.parts, current.from === 'open' ? 1 : 0, true)
@@ -366,8 +434,10 @@ export function useSidebarSwipe(
       )
     }
 
-    document.addEventListener('touchstart', onStart, { passive: true })
-    document.addEventListener('touchmove', onMove, { passive: true })
+    // Not passive: an edge touch in the installed app and a swipe's moves
+    // are cancelled (nothing else is).
+    document.addEventListener('touchstart', onStart, { passive: false })
+    document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd, { passive: true })
     document.addEventListener('touchcancel', onCancel, { passive: true })
     return () => {
