@@ -421,6 +421,8 @@ describe('budget_status', () => {
         spentCents: 25000,
         spentExcludingOneOffsCents: 25000,
         grossSpentCents: 25000,
+        envelopePaidCents: 0,
+        envelopes: [],
         prepaid: [],
         remainingCents: -5000,
         percentUsed: 125,
@@ -431,6 +433,7 @@ describe('budget_status', () => {
       targetCents: 20000,
       spentCents: 25000,
       spentExcludingOneOffsCents: 25000,
+      envelopePaidCents: 0,
       remainingCents: -5000,
       percentUsed: 125,
       status: 'over',
@@ -470,6 +473,7 @@ describe('budget_status', () => {
         targetCents: 20000,
         spentCents: 25000,
         manualCents: 1000,
+        envelopePaidCents: 0,
         remainingCents: -5000,
         paceCents: 9333,
         aheadOfPace: true,
@@ -1020,6 +1024,33 @@ describe('savings_and_goals', () => {
         goal,
         { ...goal, id: 'g2', name: 'Archivé', archived: true },
       ],
+      '/api/envelopes': [
+        {
+          id: 'e1',
+          name: 'Lisbonne',
+          icon: 'plane',
+          color: null,
+          targetCents: 80000,
+          dueDate: '2027-06-30',
+          archived: false,
+          categoryIds: [],
+          totalCents: 40000,
+          paidCents: 8500,
+          putAsideCents: 48500,
+          accounts: [
+            { accountId: 'l', accountName: 'Livret test', amountCents: 30000 },
+            { accountId: 'c', accountName: 'Courant test', amountCents: 10000 },
+          ],
+          plan: {
+            remainingCents: 40000,
+            progressRatio: 0.5,
+            reached: false,
+            monthsLeft: 8,
+            targetDatePassed: false,
+            requiredMonthlyCents: 5000,
+          },
+        },
+      ],
       '/api/investments/movements': {
         from: '2025-12-01',
         to: '2026-11-05',
@@ -1056,6 +1087,13 @@ describe('savings_and_goals', () => {
       },
     })
     const { text } = await call('savings_and_goals')
+    // Envelopes (#429), read only.
+    expect(text).toContain(
+      'Enveloppes (argent mis de côté, déjà compté dans les soldes) : 400,00 €.',
+    )
+    expect(text).toContain(
+      '- Lisbonne : 400,00 € sur 800,00 € (50 %) · Livret test 300,00 €, Courant test 100,00 € · a payé 85,00 € · pour le 30/06/2027 · 50,00 € par mois pendant 8 mois',
+    )
     // The app's words (#407): Épargné, Mis de côté, Livrets et placements, Cible.
     expect(text).toContain(
       'Mis de côté en novembre 2026 : +900,00 € (livrets +400,00 €, placements +500,00 €).',

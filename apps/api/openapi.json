@@ -9366,6 +9366,658 @@
         ]
       }
     },
+    "/api/envelopes": {
+      "get": {
+        "description": "Money set aside for a goal: never a transaction, so net worth and statistics are untouched. Each envelope comes with its total, what it paid, its amount per account and the monthly amount needed to reach its target by its due date.",
+        "operationId": "EnvelopesController_list",
+        "parameters": [
+          {
+            "required": false,
+            "name": "includeArchived",
+            "in": "query",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnvelopeSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Envelopes with what they hold per account and their plan",
+        "tags": [
+          "Envelopes"
+        ]
+      },
+      "post": {
+        "description": "`start` takes an amount per account from its « libre »; the money does not move.",
+        "operationId": "EnvelopesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnvelopeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, unknown or non-expense category, unknown account, or more than « libre »."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Create an envelope",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/offers": {
+      "get": {
+        "description": "Nothing is attached without the owner: each offer is confirmed, or answered « Non » (`POST /envelopes/offers/:transactionId/dismiss`).",
+        "operationId": "EnvelopesController_offers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeOffersDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Savings to split, transfers and expenses to attach",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/month": {
+      "get": {
+        "description": "Each envelope that paid an expense booked in the month: paid, put aside, what is left, and per category (what it adds to the month’s budget).",
+        "operationId": "EnvelopesController_month",
+        "parameters": [
+          {
+            "description": "YYYY-MM; default the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeMonthDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "What envelopes paid in a month, per category",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/{id}": {
+      "get": {
+        "operationId": "EnvelopesController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "An envelope with its history and movements",
+        "tags": [
+          "Envelopes"
+        ]
+      },
+      "patch": {
+        "description": "Omitted fields keep their value; `categoryIds` replaces them.",
+        "operationId": "EnvelopesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEnvelopeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Change, archive or restore an envelope",
+        "tags": [
+          "Envelopes"
+        ]
+      },
+      "delete": {
+        "description": "Its money goes back to « libre »; balances do not change.",
+        "operationId": "EnvelopesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete an envelope",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/moves": {
+      "post": {
+        "description": "The balance does not change. Never more than the envelope (or « libre ») holds there.",
+        "operationId": "EnvelopesController_move",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveEnvelopeMoneyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Move money between envelopes and « libre » on one account",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/{id}/transactions": {
+      "post": {
+        "description": "An expense keeps its category and counts once in the month; the envelope pays it (or `amountCents` of it) and adds that to the month’s budget. A transfer out carries the envelope’s money (or `amountCents` of it) to its other account.",
+        "operationId": "EnvelopesController_attach",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already attached to an envelope."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Attach an expense or a transfer out to an envelope",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/{id}/transactions/{transactionId}": {
+      "delete": {
+        "operationId": "EnvelopesController_detach",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "The envelope would fall below zero on an account."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Detach an expense, a transfer or a saving split",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/splits/{transactionId}": {
+      "post": {
+        "description": "The shares given, else the account’s key (rounded down to the cent, the rest « libre »).",
+        "operationId": "EnvelopesController_applySplit",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplySplitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already split."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Split a saving between envelopes",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/envelopes/offers/{transactionId}/dismiss": {
+      "post": {
+        "operationId": "EnvelopesController_dismiss",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "« Non » to the envelope offers on a transaction",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/accounts/{id}/envelopes": {
+      "get": {
+        "description": "« Libre » is the balance minus the envelopes; `shortfallCents` is what is missing when the balance falls under them (never reduced automatically). With the account’s split key.",
+        "operationId": "EnvelopesController_forAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "An account split between its envelopes and « libre »",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
+    "/api/accounts/{id}/envelope-key": {
+      "put": {
+        "description": "Each envelope’s share of the new savings arriving on the account, in basis points; at most 10 000 in all, the rest is « libre ». Applied as offers the owner confirms.",
+        "operationId": "EnvelopesController_setSplitKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSplitKeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set an account’s split key",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
     "/api/month-close": {
       "get": {
         "description": "Every month closed in the review, oldest first.",
@@ -11990,6 +12642,11 @@
             "minimum": 0,
             "description": "Savings goals counting this account (the goals themselves stay)."
           },
+          "envelopeMovements": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Envelope movements on this account (the envelopes stay; their money here goes)."
+          },
           "closedMonths": {
             "type": "integer",
             "minimum": 0,
@@ -12007,6 +12664,7 @@
           "recurringItems",
           "rules",
           "savingsGoals",
+          "envelopeMovements",
           "closedMonths"
         ]
       },
@@ -16083,6 +16741,37 @@
           "termMonths"
         ]
       },
+      "BudgetEnvelopePaidDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What the envelope paid in the category this month (« + 95 € par Lisbonne »)."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "icon",
+          "color",
+          "paidCents"
+        ]
+      },
       "BudgetStatus": {
         "type": "string",
         "enum": [
@@ -16156,14 +16845,24 @@
               "$ref": "#/components/schemas/BudgetPrepaidDto"
             }
           },
+          "envelopePaidCents": {
+            "type": "integer",
+            "description": "What envelopes paid of `spentCents` (#429, ADR 0008): it adds to the month’s budget of the category, so the budget itself paid `spentCents` − this."
+          },
+          "envelopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetEnvelopePaidDto"
+            }
+          },
           "remainingCents": {
             "type": "integer",
-            "description": "`targetCents` − `spentCents` (negative when over)."
+            "description": "`targetCents` + `envelopePaidCents` − `spentCents` (negative when over)."
           },
           "percentUsed": {
             "type": "number",
             "example": 85.3,
-            "description": "Spent / target × 100, one decimal."
+            "description": "What the budget paid itself (spent − paid by envelopes) / target × 100, one decimal."
           },
           "status": {
             "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
@@ -16188,6 +16887,8 @@
           "spentExcludingOneOffsCents",
           "grossSpentCents",
           "prepaid",
+          "envelopePaidCents",
+          "envelopes",
           "remainingCents",
           "percentUsed",
           "status"
@@ -16207,8 +16908,13 @@
           "spentExcludingOneOffsCents": {
             "type": "integer"
           },
+          "envelopePaidCents": {
+            "type": "integer",
+            "description": "What envelopes paid in the budgeted categories (in `spentCents`; « 715 € par une enveloppe »)."
+          },
           "remainingCents": {
-            "type": "integer"
+            "type": "integer",
+            "description": "`targetCents` + `envelopePaidCents` − `spentCents`."
           },
           "percentUsed": {
             "type": "number",
@@ -16239,6 +16945,7 @@
           "targetCents",
           "spentCents",
           "spentExcludingOneOffsCents",
+          "envelopePaidCents",
           "remainingCents",
           "percentUsed",
           "status",
@@ -16582,9 +17289,13 @@
             "type": "integer",
             "description": "Part of `spentCents` noted by hand, not imported yet."
           },
+          "envelopePaidCents": {
+            "type": "integer",
+            "description": "Part of `spentCents` paid by envelopes (#429): it adds to the target, so remaining, pace and status read `spentCents` − this."
+          },
           "remainingCents": {
             "type": "integer",
-            "description": "`targetCents` − `spentCents` (negative when over)."
+            "description": "`targetCents` + `envelopePaidCents` − `spentCents` (negative when over)."
           },
           "paceCents": {
             "type": "integer",
@@ -16612,6 +17323,7 @@
           "targetCents",
           "spentCents",
           "manualCents",
+          "envelopePaidCents",
           "remainingCents",
           "paceCents",
           "aheadOfPace",
@@ -22539,6 +23251,894 @@
             "description": "Archive (true) or restore (false) the goal."
           }
         }
+      },
+      "EnvelopeAccountAmountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "What the envelope holds on the account. Below 0 only after an import was undone or an account deleted (reported, never refused)."
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "amountCents"
+        ]
+      },
+      "EnvelopePlanDto": {
+        "type": "object",
+        "properties": {
+          "remainingCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Target − total, at least 0; null without a target."
+          },
+          "progressRatio": {
+            "type": "number",
+            "nullable": true,
+            "description": "Total / target."
+          },
+          "reached": {
+            "type": "boolean"
+          },
+          "monthsLeft": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Month ends left until the due date (at least 1 until it)."
+          },
+          "targetDatePassed": {
+            "type": "boolean"
+          },
+          "requiredMonthlyCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "What is missing spread over the month ends left (« 221 € par mois »); null without a target or a due date, or once it has passed."
+          }
+        },
+        "required": [
+          "remainingCents",
+          "progressRatio",
+          "reached",
+          "monthsLeft",
+          "targetDatePassed",
+          "requiredMonthlyCents"
+        ]
+      },
+      "EnvelopeSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "categoryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "What it holds now, all accounts."
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What it paid of expenses, all time (refunds deducted)."
+          },
+          "putAsideCents": {
+            "type": "integer",
+            "description": "Put aside so far: what it holds + what it paid."
+          },
+          "accounts": {
+            "description": "Per account where it holds or held money, non-zero only.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeAccountAmountDto"
+            }
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EnvelopePlanDto"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "color",
+          "targetCents",
+          "dueDate",
+          "archived",
+          "categoryIds",
+          "totalCents",
+          "paidCents",
+          "putAsideCents",
+          "accounts",
+          "plan"
+        ]
+      },
+      "EnvelopeOfferTransactionDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "transactionId",
+          "accountId",
+          "bookingDate",
+          "amountCents",
+          "label",
+          "categoryId",
+          "counterpartAccountId"
+        ]
+      },
+      "EnvelopeOfferChoiceDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "For a saving: its share by the key. For a transfer or an expense: what the envelope holds on the account."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "amountCents"
+        ]
+      },
+      "EnvelopeOfferDto": {
+        "type": "object",
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/EnvelopeOfferTransactionDto"
+          },
+          "envelopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferChoiceDto"
+            }
+          }
+        },
+        "required": [
+          "transaction",
+          "envelopes"
+        ]
+      },
+      "EnvelopeOffersDto": {
+        "type": "object",
+        "properties": {
+          "savings": {
+            "description": "Savings arrived on an account with a split key, each envelope’s share by the key.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferDto"
+            }
+          },
+          "transfers": {
+            "description": "Transfers out of an account where envelopes hold money, the envelopes that could follow them.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferDto"
+            }
+          },
+          "expenses": {
+            "description": "Expenses in an envelope’s categories on an account where it holds money.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeOfferDto"
+            }
+          }
+        },
+        "required": [
+          "savings",
+          "transfers",
+          "expenses"
+        ]
+      },
+      "EnvelopeCategoryPaidDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "paidCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "categoryId",
+          "paidCents"
+        ]
+      },
+      "EnvelopeMonthItemDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What it paid this month."
+          },
+          "putAsideCents": {
+            "type": "integer",
+            "description": "Put aside so far (what it holds now + what it ever paid)."
+          },
+          "leftCents": {
+            "type": "integer",
+            "description": "What it holds now (« Il reste »)."
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeCategoryPaidDto"
+            }
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "icon",
+          "color",
+          "paidCents",
+          "putAsideCents",
+          "leftCents",
+          "categories"
+        ]
+      },
+      "EnvelopeMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "paidCents": {
+            "type": "integer"
+          },
+          "envelopes": {
+            "description": "Envelopes that paid something this month.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeMonthItemDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "paidCents",
+          "envelopes"
+        ]
+      },
+      "EnvelopeHistoryAccountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "amountCents"
+        ]
+      },
+      "EnvelopeHistoryMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Held at the month’s end."
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeHistoryAccountDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "totalCents",
+          "accounts"
+        ]
+      },
+      "EnvelopeMovementReason": {
+        "type": "string",
+        "enum": [
+          "start",
+          "move",
+          "split",
+          "transfer",
+          "spend"
+        ],
+        "description": "`start` taken from « libre » at creation, `move` a hand move, `split` its share of a saving, `transfer` an attached transfer (one leg per account), `spend` what it paid of an expense."
+      },
+      "EnvelopeMovementDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "onDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "description": "`start` taken from « libre » at creation, `move` a hand move, `split` its share of a saving, `transfer` an attached transfer (one leg per account), `spend` what it paid of an expense.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnvelopeMovementReason"
+              }
+            ]
+          },
+          "counterEnvelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "A move’s other envelope; null = « libre »."
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "amountCents",
+          "onDate",
+          "reason",
+          "counterEnvelopeId",
+          "transactionId",
+          "note"
+        ]
+      },
+      "EnvelopeDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "categoryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "What it holds now, all accounts."
+          },
+          "paidCents": {
+            "type": "integer",
+            "description": "What it paid of expenses, all time (refunds deducted)."
+          },
+          "putAsideCents": {
+            "type": "integer",
+            "description": "Put aside so far: what it holds + what it paid."
+          },
+          "accounts": {
+            "description": "Per account where it holds or held money, non-zero only.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeAccountAmountDto"
+            }
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EnvelopePlanDto"
+          },
+          "history": {
+            "description": "The last 12 month ends (Europe/Paris), oldest first (« Évolution »).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeHistoryMonthDto"
+            }
+          },
+          "movements": {
+            "description": "Its latest 200 movements, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeMovementDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "color",
+          "targetCents",
+          "dueDate",
+          "archived",
+          "categoryIds",
+          "totalCents",
+          "paidCents",
+          "putAsideCents",
+          "accounts",
+          "plan",
+          "history",
+          "movements"
+        ]
+      },
+      "EnvelopeStartDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Taken from the account’s « libre »; the money does not move."
+          }
+        },
+        "required": [
+          "accountId",
+          "amountCents"
+        ]
+      },
+      "CreateEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40,
+            "description": "Icon name of the web app (`plane`, `gift`…)."
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#0284c7"
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "The amount aimed at; null = no target."
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Calendar day it is for; null = no due date."
+          },
+          "categoryIds": {
+            "maxItems": 20,
+            "description": "Expense categories it pays for (offers only). On update, replaces them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "start": {
+            "maxItems": 20,
+            "description": "« Pour commencer »: an amount per account, taken from its « libre » (400 beyond it).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeStartDto"
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40,
+            "description": "Icon name of the web app (`plane`, `gift`…)."
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#0284c7"
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "The amount aimed at; null = no target."
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Calendar day it is for; null = no due date."
+          },
+          "categoryIds": {
+            "maxItems": 20,
+            "description": "Expense categories it pays for (offers only). On update, replaces them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MoveEnvelopeMoneyDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromEnvelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The envelope the money leaves; null = « libre »."
+          },
+          "toEnvelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The envelope the money goes to; null = « libre »."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "accountId",
+          "fromEnvelopeId",
+          "toEnvelopeId",
+          "amountCents"
+        ]
+      },
+      "AccountEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "shareOfBalance": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Its share of the balance in basis points (« 22 % du solde »); null without a positive balance."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "name",
+          "icon",
+          "color",
+          "archived",
+          "amountCents",
+          "shareOfBalance"
+        ]
+      },
+      "SplitKeyEntryDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "basisPoints": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "envelopeId",
+          "basisPoints"
+        ]
+      },
+      "AccountEnvelopesDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "balanceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "balanceDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "envelopes": {
+            "description": "Envelopes holding money here (non-zero), largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountEnvelopeDto"
+            }
+          },
+          "allocatedCents": {
+            "type": "integer",
+            "description": "Σ of the envelopes here."
+          },
+          "freeCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "« Libre »: balance − envelopes; negative when the balance is under its envelopes; null without a balance."
+          },
+          "shortfallCents": {
+            "type": "integer",
+            "description": "What is missing to cover the envelopes (« Il manque 150 € »), 0 when covered. Never reduced automatically."
+          },
+          "splitKey": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitKeyEntryDto"
+            }
+          },
+          "freeBasisPoints": {
+            "type": "integer",
+            "description": "What the key leaves « libre », in basis points."
+          }
+        },
+        "required": [
+          "accountId",
+          "balanceCents",
+          "balanceDate",
+          "envelopes",
+          "allocatedCents",
+          "freeCents",
+          "shortfallCents",
+          "splitKey",
+          "freeBasisPoints"
+        ]
+      },
+      "AttachTransactionDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "How much the envelope pays of the expense, or carries with the transfer (positive). Default: all of it, at most what the envelope holds on the account."
+          }
+        },
+        "required": [
+          "transactionId"
+        ]
+      },
+      "SplitShareDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "envelopeId",
+          "amountCents"
+        ]
+      },
+      "ApplySplitDto": {
+        "type": "object",
+        "properties": {
+          "shares": {
+            "maxItems": 50,
+            "description": "The shares to set aside, at most the saving in all. Default: the account’s split key.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitShareDto"
+            }
+          }
+        }
+      },
+      "SplitKeyShareDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "basisPoints": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Share of each new saving, in basis points (500 = 5 %)."
+          }
+        },
+        "required": [
+          "envelopeId",
+          "basisPoints"
+        ]
+      },
+      "SetSplitKeyDto": {
+        "type": "object",
+        "properties": {
+          "shares": {
+            "maxItems": 50,
+            "description": "The whole key of the account (replaces it); at most 10 000 in all, the rest is « libre ». Empty = no key.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitKeyShareDto"
+            }
+          }
+        },
+        "required": [
+          "shares"
+        ]
       },
       "ClosedMonthDto": {
         "type": "object",

@@ -277,6 +277,27 @@ export class BudgetPrepaidDto {
   termMonths!: number
 }
 
+export class BudgetEnvelopePaidDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  envelopeId!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  icon!: string | null
+
+  @ApiProperty({ type: String, nullable: true })
+  color!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'What the envelope paid in the category this month (« + 95 € par Lisbonne »).',
+  })
+  paidCents!: number
+}
+
 export class BudgetLineDto extends BudgetCategoryFields {
   @ApiProperty({ type: 'integer', description: 'Monthly target in cents.' })
   targetCents!: number
@@ -326,14 +347,26 @@ export class BudgetLineDto extends BudgetCategoryFields {
 
   @ApiProperty({
     type: 'integer',
-    description: '`targetCents` − `spentCents` (negative when over).',
+    description:
+      'What envelopes paid of `spentCents` (#429, ADR 0008): it adds to the month’s budget of the category, so the budget itself paid `spentCents` − this.',
+  })
+  envelopePaidCents!: number
+
+  @ApiProperty({ type: [BudgetEnvelopePaidDto] })
+  envelopes!: BudgetEnvelopePaidDto[]
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      '`targetCents` + `envelopePaidCents` − `spentCents` (negative when over).',
   })
   remainingCents!: number
 
   @ApiProperty({
     type: Number,
     example: 85.3,
-    description: 'Spent / target × 100, one decimal.',
+    description:
+      'What the budget paid itself (spent − paid by envelopes) / target × 100, one decimal.',
   })
   percentUsed!: number
 
@@ -357,7 +390,17 @@ export class BudgetTotalsDto {
   @ApiProperty({ type: 'integer' })
   spentExcludingOneOffsCents!: number
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'What envelopes paid in the budgeted categories (in `spentCents`; « 715 € par une enveloppe »).',
+  })
+  envelopePaidCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: '`targetCents` + `envelopePaidCents` − `spentCents`.',
+  })
   remainingCents!: number
 
   @ApiProperty({ type: Number, description: 'Zero when nothing is budgeted.' })
@@ -780,7 +823,15 @@ export class EnvelopeDto extends BudgetCategoryFields {
 
   @ApiProperty({
     type: 'integer',
-    description: '`targetCents` − `spentCents` (negative when over).',
+    description:
+      'Part of `spentCents` paid by envelopes (#429): it adds to the target, so remaining, pace and status read `spentCents` − this.',
+  })
+  envelopePaidCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      '`targetCents` + `envelopePaidCents` − `spentCents` (negative when over).',
   })
   remainingCents!: number
 

@@ -1,5 +1,5 @@
 {
-  "id": "7090e804-655c-4565-a846-b19c2e2c2522",
+  "id": "a991430f-51b6-4a6b-a4ca-8ab8c7e28d95",
   "prevId": "f539b87e-63aa-41a3-9e08-821cd8b833fb",
   "version": "7",
   "dialect": "postgresql",
@@ -4874,13 +4874,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "always_offset": {
-          "name": "always_offset",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "archived_at": {
           "name": "archived_at",
           "type": "timestamp with time zone",
@@ -4913,100 +4906,6 @@
         "contacts_repayment_day_range": {
           "name": "contacts_repayment_day_range",
           "value": "\"contacts\".\"repayment_day\" is null or (\"contacts\".\"repayment_day\" >= 1 and \"contacts\".\"repayment_day\" <= 31)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.receivable_offsets": {
-      "name": "receivable_offsets",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_cents": {
-          "name": "amount_cents",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "offset_on": {
-          "name": "offset_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "automatic": {
-          "name": "automatic",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {
-        "receivable_offsets_contact_id_index": {
-          "name": "receivable_offsets_contact_id_index",
-          "columns": [
-            {
-              "expression": "contact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "receivable_offsets_contact_id_contacts_id_fk": {
-          "name": "receivable_offsets_contact_id_contacts_id_fk",
-          "tableFrom": "receivable_offsets",
-          "tableTo": "contacts",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "receivable_offsets_amount_positive": {
-          "name": "receivable_offsets_amount_positive",
-          "value": "\"receivable_offsets\".\"amount_cents\" > 0"
         }
       },
       "isRLSEnabled": false
@@ -5071,12 +4970,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "offset_id": {
-          "name": "offset_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -5100,21 +4993,6 @@
           "columns": [
             {
               "expression": "transaction_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "receivable_payments_offset_id_index": {
-          "name": "receivable_payments_offset_id_index",
-          "columns": [
-            {
-              "expression": "offset_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5165,29 +5043,12 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "receivable_payments_offset_id_receivable_offsets_id_fk": {
-          "name": "receivable_payments_offset_id_receivable_offsets_id_fk",
-          "tableFrom": "receivable_payments",
-          "tableTo": "receivable_offsets",
-          "columnsFrom": [
-            "offset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "receivable_payments_offset_without_transaction": {
-          "name": "receivable_payments_offset_without_transaction",
-          "value": "\"receivable_payments\".\"offset_id\" is null or \"receivable_payments\".\"transaction_id\" is null"
-        },
         "receivable_payments_amount_positive": {
           "name": "receivable_payments_amount_positive",
           "value": "\"receivable_payments\".\"amount_cents\" > 0"
@@ -5914,6 +5775,603 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.envelope_categories": {
+      "name": "envelope_categories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "envelope_id": {
+          "name": "envelope_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "envelope_categories_category_id_index": {
+          "name": "envelope_categories_category_id_index",
+          "columns": [
+            {
+              "expression": "category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "envelope_categories_envelope_id_envelopes_id_fk": {
+          "name": "envelope_categories_envelope_id_envelopes_id_fk",
+          "tableFrom": "envelope_categories",
+          "tableTo": "envelopes",
+          "columnsFrom": [
+            "envelope_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "envelope_categories_category_id_categories_id_fk": {
+          "name": "envelope_categories_category_id_categories_id_fk",
+          "tableFrom": "envelope_categories",
+          "tableTo": "categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "envelope_categories_unique": {
+          "name": "envelope_categories_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "envelope_id",
+            "category_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.envelope_movements": {
+      "name": "envelope_movements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "envelope_id": {
+          "name": "envelope_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "on_date": {
+          "name": "on_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "envelope_movement_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counter_envelope_id": {
+          "name": "counter_envelope_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "envelope_movements_envelope_id_account_id_index": {
+          "name": "envelope_movements_envelope_id_account_id_index",
+          "columns": [
+            {
+              "expression": "envelope_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "envelope_movements_account_id_index": {
+          "name": "envelope_movements_account_id_index",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "envelope_movements_transaction_id_index": {
+          "name": "envelope_movements_transaction_id_index",
+          "columns": [
+            {
+              "expression": "transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "envelope_movements_one_envelope_per_attachment": {
+          "name": "envelope_movements_one_envelope_per_attachment",
+          "columns": [
+            {
+              "expression": "transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"envelope_movements\".\"reason\" in ('transfer', 'spend')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "envelope_movements_one_split_per_envelope": {
+          "name": "envelope_movements_one_split_per_envelope",
+          "columns": [
+            {
+              "expression": "transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "envelope_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"envelope_movements\".\"reason\" = 'split'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "envelope_movements_envelope_id_envelopes_id_fk": {
+          "name": "envelope_movements_envelope_id_envelopes_id_fk",
+          "tableFrom": "envelope_movements",
+          "tableTo": "envelopes",
+          "columnsFrom": [
+            "envelope_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "envelope_movements_account_id_accounts_id_fk": {
+          "name": "envelope_movements_account_id_accounts_id_fk",
+          "tableFrom": "envelope_movements",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "envelope_movements_counter_envelope_id_envelopes_id_fk": {
+          "name": "envelope_movements_counter_envelope_id_envelopes_id_fk",
+          "tableFrom": "envelope_movements",
+          "tableTo": "envelopes",
+          "columnsFrom": [
+            "counter_envelope_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "envelope_movements_transaction_id_transactions_id_fk": {
+          "name": "envelope_movements_transaction_id_transactions_id_fk",
+          "tableFrom": "envelope_movements",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "envelope_movements_amount_not_zero": {
+          "name": "envelope_movements_amount_not_zero",
+          "value": "\"envelope_movements\".\"amount_cents\" <> 0"
+        },
+        "envelope_movements_transaction_iff_linked_reason": {
+          "name": "envelope_movements_transaction_iff_linked_reason",
+          "value": "(\"envelope_movements\".\"transaction_id\" is not null) = (\"envelope_movements\".\"reason\" in ('split', 'transfer', 'spend'))"
+        },
+        "envelope_movements_counter_only_on_moves": {
+          "name": "envelope_movements_counter_only_on_moves",
+          "value": "\"envelope_movements\".\"counter_envelope_id\" is null or (\"envelope_movements\".\"reason\" = 'move' and \"envelope_movements\".\"counter_envelope_id\" <> \"envelope_movements\".\"envelope_id\")"
+        },
+        "envelope_movements_start_split_positive": {
+          "name": "envelope_movements_start_split_positive",
+          "value": "\"envelope_movements\".\"reason\" not in ('start', 'split') or \"envelope_movements\".\"amount_cents\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.envelope_offer_dismissals": {
+      "name": "envelope_offer_dismissals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "envelope_offer_dismissals_transaction_id_transactions_id_fk": {
+          "name": "envelope_offer_dismissals_transaction_id_transactions_id_fk",
+          "tableFrom": "envelope_offer_dismissals",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "envelope_offer_dismissals_transaction_unique": {
+          "name": "envelope_offer_dismissals_transaction_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "transaction_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.envelope_split_keys": {
+      "name": "envelope_split_keys",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "envelope_id": {
+          "name": "envelope_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "basis_points": {
+          "name": "basis_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "envelope_split_keys_envelope_id_index": {
+          "name": "envelope_split_keys_envelope_id_index",
+          "columns": [
+            {
+              "expression": "envelope_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "envelope_split_keys_account_id_accounts_id_fk": {
+          "name": "envelope_split_keys_account_id_accounts_id_fk",
+          "tableFrom": "envelope_split_keys",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "envelope_split_keys_envelope_id_envelopes_id_fk": {
+          "name": "envelope_split_keys_envelope_id_envelopes_id_fk",
+          "tableFrom": "envelope_split_keys",
+          "tableTo": "envelopes",
+          "columnsFrom": [
+            "envelope_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "envelope_split_keys_unique": {
+          "name": "envelope_split_keys_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "envelope_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "envelope_split_keys_basis_points_range": {
+          "name": "envelope_split_keys_basis_points_range",
+          "value": "\"envelope_split_keys\".\"basis_points\" between 1 and 10000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.envelopes": {
+      "name": "envelopes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "color": {
+          "name": "color",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_cents": {
+          "name": "target_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "envelopes_name_not_blank": {
+          "name": "envelopes_name_not_blank",
+          "value": "btrim(\"envelopes\".\"name\") <> ''"
+        },
+        "envelopes_target_positive": {
+          "name": "envelopes_target_positive",
+          "value": "\"envelopes\".\"target_cents\" > 0"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -6190,6 +6648,17 @@
         "manual",
         "statement",
         "provider"
+      ]
+    },
+    "public.envelope_movement_reason": {
+      "name": "envelope_movement_reason",
+      "schema": "public",
+      "values": [
+        "start",
+        "move",
+        "split",
+        "transfer",
+        "spend"
       ]
     }
   },

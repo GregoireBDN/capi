@@ -293,3 +293,18 @@ export type ReceivableDirection = (typeof RECEIVABLE_DIRECTIONS)[number]
 /** How a receivable was made: by hand, or from a shared recurring item. */
 export const RECEIVABLE_ORIGINS = ['manual', 'recurring'] as const
 export type ReceivableOrigin = (typeof RECEIVABLE_ORIGINS)[number]
+
+/**
+ * Why an envelope's amount on an account changed (#429, ADR 0008):
+ * `start` money taken from « libre » at creation, `move` a hand move,
+ * `split` its share of a saving, `transfer` an attached transfer's legs,
+ * `spend` what it paid of an expense.
+ */
+export const ENVELOPE_MOVEMENT_REASONS = [
+  'start',
+  'move',
+  'split',
+  'transfer',
+  'spend',
+] as const
+export type EnvelopeMovementReason = (typeof ENVELOPE_MOVEMENT_REASONS)[number]

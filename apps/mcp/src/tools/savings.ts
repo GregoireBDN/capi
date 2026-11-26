@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type {
+  EnvelopeSummaryDto,
   InvestmentAccountSummaryDto,
   InvestmentFlowsDto,
   InvestmentMovementsDto,
@@ -150,11 +151,50 @@ function goalLine(goal: SavingsGoalDto): string {
   return `- ${goal.name} : ${parts.join(' · ')}`
 }
 
+/** An envelope (#429): what it holds, where, and what is still needed. */
+export function envelopeLine(envelope: EnvelopeSummaryDto): string {
+  const plan = envelope.plan
+  const parts = [
+    envelope.targetCents === null
+      ? `${euros(envelope.totalCents)} (sans montant visé)`
+      : `${euros(envelope.totalCents)} sur ${euros(envelope.targetCents)} (${percent(plan.progressRatio ?? 0)})`,
+  ]
+  if (envelope.accounts.length > 0) {
+    parts.push(
+      envelope.accounts
+        .map((a) => `${a.accountName} ${euros(a.amountCents)}`)
+        .join(', '),
+    )
+  }
+  if (envelope.paidCents !== 0) {
+    parts.push(`a payé ${euros(envelope.paidCents)}`)
+  }
+  if (envelope.dueDate !== null) {
+    parts.push(
+      plan.targetDatePassed
+        ? `échéance passée (${frenchDate(envelope.dueDate)}) : le reste peut retourner à « libre »`
+        : `pour le ${frenchDate(envelope.dueDate)}`,
+    )
+  }
+  if (plan.reached) parts.push('montant atteint')
+  else if (plan.requiredMonthlyCents !== null && plan.monthsLeft !== null) {
+    parts.push(
+      `${euros(plan.requiredMonthlyCents)} par mois pendant ${plan.monthsLeft} mois`,
+    )
+  } else if (plan.remainingCents !== null) {
+    parts.push(`il manque ${euros(plan.remainingCents)}`)
+  }
+  if (envelope.accounts.some((a) => a.amountCents < 0)) {
+    parts.push('sous zéro sur un compte')
+  }
+  return `- ${envelope.name} : ${parts.join(' · ')}`
+}
+
 export const savingsTool = defineTool({
   name: 'savings_and_goals',
   title: 'Épargne et objectifs',
   description:
-    "Savings, in the app's words: « Épargné » (what was saved this month and month by month: income + expenses, transfers excluded) against the monthly « Cible », averages, « Mis de côté » (money moved to savings and investment accounts), « Livrets et placements » (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), and the savings goals with their progress and projection.",
+    "Savings, in the app's words: « Épargné » (what was saved this month and month by month: income + expenses, transfers excluded) against the monthly « Cible », averages, « Mis de côté » (money moved to savings and investment accounts), « Livrets et placements » (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), the savings goals with their progress and projection, and the envelopes (money set aside for a goal, split across accounts, never counted twice: net worth is unchanged by them) with what each holds per account, what it paid and what is still needed per month. Read only: envelopes are managed in the app.",
   inputSchema: {
     months: z
       .number()
@@ -167,7 +207,7 @@ export const savingsTool = defineTool({
       ),
   },
   async run({ api }, args) {
-    const [overview, goals, flows, movements] = await Promise.all([
+    const [overview, goals, flows, movements, envelopes] = await Promise.all([
       api.get<SavingsOverviewDto>('/api/savings/overview', {
         months: args.months,
       }),
@@ -178,6 +218,7 @@ export const savingsTool = defineTool({
       api.get<InvestmentMovementsDto>('/api/investments/movements', {
         months: args.months,
       }),
+      api.get<EnvelopeSummaryDto[]>('/api/envelopes'),
     ])
     const { stock, averages } = overview
     const lines = [
@@ -244,6 +285,11 @@ export const savingsTool = defineTool({
         ? 'Objectifs :'
         : `Objectifs : ensemble, ${euros(need)} par mois${overview.projectionAverageCents === null ? '' : ` ; épargné en moyenne ${euros(overview.projectionAverageCents)} (6 mois complets, hors exceptionnel) : marge ${signedEuros(overview.projectionAverageCents - need)}`}.`,
       ...(active.length > 0 ? active.map(goalLine) : ['- aucun']),
+      '',
+      envelopes.length === 0
+        ? 'Enveloppes : aucune.'
+        : `Enveloppes (argent mis de côté, déjà compté dans les soldes) : ${euros(envelopes.reduce((sum, e) => sum + e.totalCents, 0))}.`,
+      ...envelopes.map(envelopeLine),
     )
     return lines.join('\n')
   },

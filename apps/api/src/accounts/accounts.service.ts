@@ -43,6 +43,7 @@ import {
   positionStatementsTable,
   recurringItemsTable,
   savingsGoalAccountsTable,
+  envelopeMovementsTable,
   transactionSplitsTable,
 } from '#/database/schema'
 import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core'
@@ -84,6 +85,7 @@ export interface AccountDeletionPreview {
   recurringItems: number
   rules: number
   savingsGoals: number
+  envelopeMovements: number
   closedMonths: number
 }
 
@@ -372,6 +374,7 @@ export class AccountsService {
         recurringItems: countOf(recurringItemsTable),
         rules: countOf(categorizationRulesTable),
         savingsGoals: countOf(savingsGoalAccountsTable),
+        envelopeMovements: countOf(envelopeMovementsTable),
         closedMonths: sql<number>`(
           select count(*)::int from ${monthClosesTable}
           where ${monthClosesTable.closedAt} is not null
@@ -393,7 +396,8 @@ export class AccountsService {
    * Deletes the account and everything that belongs to it (#297), in one
    * database transaction: its transactions (with their splits), bank imports,
    * exchange imports (with their movements), recurring items, snapshots and
-   * savings goal links, then the account, whose other crypto data (holdings,
+   * savings goal links, then the account (its envelope key and movements
+   * cascade, both legs of envelope transfers touching it first), whose other crypto data (holdings,
    * wallet keys and tokens, scans) and account-scoped rules go with it
    * (cascade).
    * Budgets and categories are untouched; closed months keep their frozen
@@ -409,6 +413,18 @@ export class AccountsService {
       if (!account) throw new NotFoundException('Account not found')
 
       const t = transactionsTable
+      // Envelope transfers touching the account lose both legs (ADR 0008):
+      // a leg left on the other account would not balance.
+      const m = envelopeMovementsTable
+      await tx.delete(m).where(
+        inArray(
+          m.transactionId,
+          tx
+            .select({ id: m.transactionId })
+            .from(m)
+            .where(and(eq(m.accountId, id), eq(m.reason, 'transfer'))),
+        ),
+      )
       // Shares on its expenses go with them, repayments included; the
       // database refuses that anywhere else (#438).
       await deletePaymentsOfShares(

@@ -47,6 +47,10 @@ Contacts, receivables (`owed_to_me` / `i_owe`) and their repayments; a receivabl
 
 Series found by the detector (`suggested`, `confirmed`, `dismissed`); a detection run refreshes the stats only, never the user's columns. Prepaid subscriptions (paid once for a term, on confirmed debits only) and cancellation (« Résilier », an end date `ended_on`, not a status). A confirmed quarterly or yearly debit **is** a prepaid item of term 3 / 12 (#439): its charges are its payments, out of averages, its renewal reminded; never a cadence rule in `transaction_lines`. Details: [`docs/domain/recurring.md`](docs/domain/recurring.md).
 
+### Envelopes (#429)
+
+Money set aside for a goal, split across accounts ([ADR 0008](docs/adr/0008-envelopes.md)). **Never a transaction**: an envelope's amount on an account is the sum of its `envelope_movements` (ledger: `start`, `move`, `split`, `transfer`, `spend`), « libre » = balance − envelopes, and nothing that reads balances, net worth or statistics reads them. A balance under its envelopes is reported (`shortfallCents`), **never reduced automatically**; savings are split by an account's key only as offers the owner confirms. An attached expense keeps its category and counts once; what the envelope paid **adds to that month's budget** of its categories (`envelopes/paid.ts`). Every write is session only; the MCP reads them. Savings goals become envelopes in #430. Details: [`docs/domain/envelopes.md`](docs/domain/envelopes.md).
+
 ### Month comparisons
 
 - Statements are imported by hand, so the current month is often empty or partial. Every page that compares months (spending, savings, budget, the dashboard's current month) goes through `apps/api/src/coverage/`: `dataUntil` is the latest booked transaction or committed import end (per account, overall = the latest of them), never after today in Europe/Paris; a month is `complete`, `partial` (first `throughDay` days known) or `empty`.
@@ -54,9 +58,9 @@ Series found by the detector (`suggested`, `confirmed`, `dismissed`); a detectio
 
 Details (month navigation and the month bar, Opérations filters, Mouvements' Revenus · Dépenses · Épargne, the forecast, the dashboard): [`docs/domain/months-and-dashboard.md`](docs/domain/months-and-dashboard.md).
 
-### Budgets and envelopes
+### Budgets
 
-Expense targets and planned income in one `budgets` table (effective-dated, carried over), tracked envelopes, the owner's part read from `transaction_lines`. Details: [`docs/domain/budgets.md`](docs/domain/budgets.md).
+Expense targets and planned income in one `budgets` table (effective-dated, carried over), tracked lines (the dashboard's « Enveloppes », « Budgets suivis » from #430), the owner's part read from `transaction_lines`, what envelopes paid added to the target. Details: [`docs/domain/budgets.md`](docs/domain/budgets.md).
 
 ### Month-end review (closing a month)
 
