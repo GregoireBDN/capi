@@ -78,7 +78,9 @@ On the Mac, once: `docker compose -p finances down` (no `-v`) in the repository,
 
 ### C. Repository rename (any time after B)
 
-GitHub → Settings → General → Repository name: `capi`. Then on the Mac: `git remote set-url origin git@github.com:GregoireBDN/capi.git`; README badges and links in the docs (a search-and-replace PR). The Claude project's repository setting and the GHCR packages' repository link follow the rename by themselves; check the packages' « Manage Actions access » still lists the repository.
+GitHub → Settings → General → Repository name: `capi`. Then on the Mac: `git remote set-url origin https://github.com/GregoireBDN/capi.git` (the clone uses HTTPS); links in the docs (a search-and-replace PR). The Claude project's repository setting and the GHCR packages' repository link follow the rename by themselves; check the packages' « Manage Actions access » still lists the repository.
+
+Nothing in the workflows or the server depends on the repository's name: the images are pushed to `ghcr.io/gregoirebdn/capi-*` (the owner's namespace, not the repository's), the server pulls images and keeps no clone, and rulesets, environments, secrets, variables, Dependabot and the packages' access are keyed by the repository's id. GitHub redirects `GregoireBDN/finances` (web, git and API) **as long as no new repository takes that name**: never create one.
 
 ### D. Domains (own window, see below), then cleanup
 
