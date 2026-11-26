@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Card, cn } from '@capi/ui'
 import {
   ArrowRightIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   FileUpIcon,
   HandshakeIcon,
@@ -19,11 +20,13 @@ import type { ReactNode } from 'react'
  * mockups with synthetic data, not app code (deleted once the owner has
  * chosen).
  *
- * A. Pastilles: one round badge per task in a row, its number on it, one
- *    word under it; what blocks the figures ringed in amber.
- * B. La prochaine: the most pressing task large with « Y aller », the
- *    others as small badges under it.
- * C. Tuiles: a grid of small tiles, a big number or word each, amber first.
+ The owner chose « B. La prochaine » (the most pressing task large with
+ * « Y aller »), but not its row of badges of different sizes for the next
+ * ones. Three ways to show them, every item the same size:
+ *
+ * B1. Pastilles: identical round badges, the number as a dot on the corner.
+ * B2. Lignes: two thin rows (icon, sentence), « n autres » under them.
+ * B3. Tuiles: identical square tiles in one row, icon and a word.
  */
 const meta: Meta<Args> = {
   title: 'Prototypes/Carte À faire (#495)',
@@ -199,162 +202,163 @@ function Today() {
 }
 
 /* -------------------------------------------------------------------------
- * A. Pastilles
+ * B. La prochaine: the top part
  * ----------------------------------------------------------------------- */
 
-function Pastilles() {
-  const urgent = TASKS.filter((task) => task.tone === 'warning').length
+function Next({ task }: { task: Task }) {
   return (
-    <Card className="gap-2 px-0 pt-2.5 pb-3">
-      <div className="flex items-center gap-2 px-4">
-        <h2 className="text-sm font-semibold">À faire</h2>
-        <span className="bg-warning text-warning-foreground rounded-full px-2 text-xs font-semibold tabular-nums">
-          {TASKS.length}
-        </span>
-        {urgent > 0 && (
-          <span className="text-warning-foreground dark:text-warning ml-auto text-xs font-medium">
-            {urgent} urgents
-          </span>
+    <div className="from-warning/25 to-warning/5 flex items-center gap-3 bg-gradient-to-br px-4 py-3.5">
+      <span
+        className={cn(
+          'grid size-[44px] shrink-0 place-items-center rounded-2xl [&_svg]:size-[22px]',
+          SOLID[task.tone],
         )}
-      </div>
-      {/* One row, scrolled sideways past the screen's edge. */}
-      <ul className="flex gap-2 overflow-x-auto px-4 pt-1 pb-1 [scrollbar-width:none]">
-        {TASKS.map((task) => (
-          <li key={task.key} className="w-[60px] shrink-0">
-            <button
-              type="button"
-              className="flex w-full flex-col items-center gap-1.5"
-            >
-              <span
-                className={cn(
-                  'relative grid size-[48px] place-items-center rounded-full [&_svg]:size-[22px]',
-                  BADGE[task.tone],
-                  task.tone === 'warning' &&
-                    'ring-warning ring-offset-card ring-2 ring-offset-2',
-                )}
-              >
-                <task.icon />
-                {task.figure && /^\d+$/.test(task.figure) && (
-                  <span
-                    className={cn(
-                      'absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full px-1 text-[0.6rem] font-bold tabular-nums',
-                      SOLID[task.tone],
-                    )}
-                  >
-                    {task.figure}
-                  </span>
-                )}
-              </span>
-              <span className="w-full truncate text-center text-[11px] font-medium">
-                {task.word}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </Card>
+      >
+        <task.icon />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{task.title}</span>
+        <span className="text-muted-foreground block text-xs">
+          {task.subtitle}
+        </span>
+      </span>
+      <button
+        type="button"
+        aria-label="Y aller"
+        className="bg-foreground text-background grid size-[40px] shrink-0 place-items-center rounded-full [&_svg]:size-5"
+      >
+        <ArrowRightIcon />
+      </button>
+    </div>
   )
 }
 
-/* -------------------------------------------------------------------------
- * B. La prochaine
- * ----------------------------------------------------------------------- */
-
-function Prochaine() {
-  const [first, ...rest] = TASKS
+function Prochaine({ children }: { children: ReactNode }) {
   return (
     <Card className="gap-0 overflow-hidden p-0">
-      <div className="from-warning/25 to-warning/5 flex items-center gap-3 bg-gradient-to-br px-4 py-3.5">
-        <span
-          className={cn(
-            'grid size-[44px] shrink-0 place-items-center rounded-2xl [&_svg]:size-[22px]',
-            SOLID[first.tone],
-          )}
-        >
-          <first.icon />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold">{first.title}</span>
-          <span className="text-muted-foreground block text-xs">
-            {first.subtitle}
-          </span>
-        </span>
-        <button
-          type="button"
-          aria-label="Y aller"
-          className="bg-foreground text-background grid size-[40px] shrink-0 place-items-center rounded-full [&_svg]:size-5"
-        >
-          <ArrowRightIcon />
-        </button>
-      </div>
-      <div className="flex items-center gap-2 px-4 py-2.5">
-        <span className="text-muted-foreground text-xs font-medium">
-          Ensuite
-        </span>
-        <ul className="flex flex-1 flex-wrap gap-1.5">
-          {rest.map((task) => (
-            <li key={task.key}>
-              <span
-                className={cn(
-                  'flex h-8 items-center gap-1 rounded-full px-2 text-xs font-semibold tabular-nums [&_svg]:size-4',
-                  BADGE[task.tone],
-                )}
-              >
-                <task.icon />
-                {task.figure && /^\d+$/.test(task.figure) && task.figure}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <Next task={TASKS[0]} />
+      {children}
     </Card>
   )
 }
 
-/* -------------------------------------------------------------------------
- * C. Tuiles
- * ----------------------------------------------------------------------- */
+const REST = TASKS.slice(1)
 
-function Tuiles() {
+/** A number worth a dot: a count, not a date or an amount. */
+const count = (task: Task) =>
+  task.figure && /^\d+$/.test(task.figure) ? task.figure : undefined
+
+/* B1. Identical round badges, the count as a dot on the corner. */
+function Pastilles() {
   return (
-    <section className="space-y-2">
-      <h2 className="flex items-center gap-2 px-1 text-sm font-semibold">
-        À faire
-        <span className="bg-warning text-warning-foreground rounded-full px-2 text-xs font-semibold">
-          {TASKS.length}
-        </span>
-      </h2>
-      <ul className="grid grid-cols-3 gap-1.5">
-        {TASKS.map((task) => (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <span className="text-muted-foreground text-xs font-medium">Ensuite</span>
+      <ul className="flex flex-1 justify-end gap-2">
+        {REST.slice(0, 4).map((task) => (
           <li key={task.key}>
-            <button
-              type="button"
+            <span
               className={cn(
-                'bg-card flex h-full w-full flex-col gap-1 rounded-xl border px-2 py-2 text-left',
-                task.tone === 'warning' && 'border-warning/70 bg-warning/10',
+                'relative grid size-[38px] place-items-center rounded-full [&_svg]:size-[18px]',
+                BADGE[task.tone],
               )}
             >
-              <span className="flex items-center gap-1.5">
+              <task.icon />
+              {count(task) && (
                 <span
                   className={cn(
-                    'grid size-[26px] shrink-0 place-items-center rounded-full [&_svg]:size-[14px]',
-                    BADGE[task.tone],
+                    'absolute -top-1 -right-1 grid h-[16px] min-w-[16px] place-items-center rounded-full px-[3px] text-[10px] leading-none font-bold tabular-nums',
+                    SOLID[task.tone],
                   )}
                 >
-                  <task.icon />
+                  {count(task)}
                 </span>
-                <span className="truncate text-sm leading-tight font-semibold tabular-nums">
-                  {task.figure}
-                </span>
-              </span>
-              <span className="text-muted-foreground block truncate text-[11px]">
-                {task.word}
-              </span>
-            </button>
+              )}
+            </span>
+          </li>
+        ))}
+        <li>
+          <span className="text-muted-foreground grid size-[38px] place-items-center rounded-full border border-dashed text-xs font-semibold">
+            +{REST.length - 4}
+          </span>
+        </li>
+      </ul>
+    </div>
+  )
+}
+
+/* B2. Two thin rows, the rest behind « n autres ». */
+function Lignes() {
+  return (
+    <div className="px-2 pt-1 pb-1.5">
+      <ul>
+        {REST.slice(0, 2).map((task) => (
+          <li
+            key={task.key}
+            className="flex min-h-[44px] items-center gap-3 rounded-lg px-2"
+          >
+            <span
+              className={cn(
+                'grid size-[28px] shrink-0 place-items-center rounded-full [&_svg]:size-[15px]',
+                BADGE[task.tone],
+              )}
+            >
+              <task.icon />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm">
+              {task.title}
+            </span>
+            <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
           </li>
         ))}
       </ul>
-    </section>
+      <button
+        type="button"
+        className="text-muted-foreground flex min-h-[36px] w-full items-center justify-center gap-1 text-xs font-medium"
+      >
+        {REST.length - 2} autres
+        <ChevronDownIcon className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+/* B3. Identical square tiles in one row: icon and a word. */
+function Tuiles() {
+  return (
+    <ul className="grid grid-cols-3 gap-1.5 px-3 py-3">
+      {REST.slice(0, 5).map((task) => (
+        <li key={task.key}>
+          <span className="bg-muted/50 flex h-[64px] flex-col items-center justify-center gap-1 rounded-xl">
+            <span
+              className={cn(
+                'relative grid size-[28px] place-items-center rounded-full [&_svg]:size-[15px]',
+                BADGE[task.tone],
+              )}
+            >
+              <task.icon />
+              {count(task) && (
+                <span
+                  className={cn(
+                    'absolute -top-1 -right-2 grid h-[15px] min-w-[15px] place-items-center rounded-full px-[3px] text-[9px] leading-none font-bold tabular-nums',
+                    SOLID[task.tone],
+                  )}
+                >
+                  {count(task)}
+                </span>
+              )}
+            </span>
+            <span className="w-full truncate px-1 text-center text-[11px] font-medium">
+              {task.word}
+            </span>
+          </span>
+        </li>
+      ))}
+      <li>
+        <span className="text-muted-foreground flex h-[64px] items-center justify-center rounded-xl border border-dashed text-xs font-medium">
+          +{REST.length - 5}
+        </span>
+      </li>
+    </ul>
   )
 }
 
@@ -367,29 +371,35 @@ export const Aujourdhui: Story = {
   ),
 }
 
-export const A_Pastilles: Story = {
-  name: 'A. Pastilles',
+export const B1_Pastilles: Story = {
+  name: 'B1. Pastilles',
   render: ({ width }) => (
     <Frame width={width}>
-      <Pastilles />
+      <Prochaine>
+        <Pastilles />
+      </Prochaine>
     </Frame>
   ),
 }
 
-export const B_LaProchaine: Story = {
-  name: 'B. La prochaine',
+export const B2_Lignes: Story = {
+  name: 'B2. Lignes',
   render: ({ width }) => (
     <Frame width={width}>
-      <Prochaine />
+      <Prochaine>
+        <Lignes />
+      </Prochaine>
     </Frame>
   ),
 }
 
-export const C_Tuiles: Story = {
-  name: 'C. Tuiles',
+export const B3_Tuiles: Story = {
+  name: 'B3. Tuiles',
   render: ({ width }) => (
     <Frame width={width}>
-      <Tuiles />
+      <Prochaine>
+        <Tuiles />
+      </Prochaine>
     </Frame>
   ),
 }
