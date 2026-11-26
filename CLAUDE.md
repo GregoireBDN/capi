@@ -49,7 +49,7 @@ Series found by the detector (`suggested`, `confirmed`, `dismissed`); a detectio
 
 ### Envelopes (#429)
 
-Money set aside for a goal, split across accounts ([ADR 0008](docs/adr/0008-envelopes.md)). **Never a transaction**: an envelope's amount on an account is the sum of its `envelope_movements` (ledger: `start`, `move`, `split`, `transfer`, `spend`), « libre » = balance − envelopes, and nothing that reads balances, net worth or statistics reads them. A balance under its envelopes is reported (`shortfallCents`), **never reduced automatically**; savings are split by an account's key only as offers the owner confirms. An attached expense keeps its category and counts once; what the envelope paid **adds to that month's budget** of its categories (`envelopes/paid.ts`). Every write is session only; the MCP reads them. Savings goals become envelopes in #430. Details: [`docs/domain/envelopes.md`](docs/domain/envelopes.md).
+Money set aside for a goal, split across accounts ([ADR 0008](docs/adr/0008-envelopes.md)). **Never a transaction**: an envelope's amount on an account is the sum of its `envelope_movements` (ledger: `start`, `move`, `split`, `transfer`, `spend`), « libre » = balance − envelopes, and nothing that reads balances, net worth or statistics reads them. A balance under its envelopes is reported (`shortfallCents`), **never reduced automatically**; savings are split by an account's key only as offers the owner confirms. An attached expense keeps its category and counts once; what the envelope paid **adds to that month's budget** of its categories (`envelopes/paid.ts`). Every write is session only; the MCP reads them. The screens (#430) replaced the savings goals, converted to envelopes by `db:seed` (`convertAndRemoveSavingsGoals`) and then deleted. Details: [`docs/domain/envelopes.md`](docs/domain/envelopes.md).
 
 ### Month comparisons
 
@@ -60,7 +60,7 @@ Details (month navigation and the month bar, Opérations filters, Mouvements' Re
 
 ### Budgets
 
-Expense targets and planned income in one `budgets` table (effective-dated, carried over), tracked lines (the dashboard's « Enveloppes », « Budgets suivis » from #430), the owner's part read from `transaction_lines`, what envelopes paid added to the target. Details: [`docs/domain/budgets.md`](docs/domain/budgets.md).
+Expense targets and planned income in one `budgets` table (effective-dated, carried over), tracked lines (the dashboard's « Budgets suivis »), the owner's part read from `transaction_lines`, what envelopes paid added to the target. Details: [`docs/domain/budgets.md`](docs/domain/budgets.md).
 
 ### Month-end review (closing a month)
 

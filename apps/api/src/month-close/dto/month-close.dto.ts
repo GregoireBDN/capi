@@ -447,27 +447,34 @@ export class CloseRecurringDto {
   chargedAfterEnd!: CloseChargedAfterEndDto[]
 }
 
-export class CloseGoalDto {
+/** An active envelope at the month review (#430, ADR 0008). */
+export class CloseEnvelopeDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string
 
   @ApiProperty({ type: String })
   name!: string
 
-  @ApiProperty({ type: 'integer' })
-  targetCents!: number
+  @ApiProperty({ type: String, nullable: true })
+  icon!: string | null
 
-  @ApiProperty({ type: 'integer' })
-  currentCents!: number
+  @ApiProperty({ type: String, nullable: true })
+  color!: string | null
 
-  @ApiProperty({ type: Number })
-  progressRatio!: number
+  @ApiProperty({ type: 'integer', nullable: true })
+  targetCents!: number | null
+
+  @ApiProperty({ type: 'integer', description: 'What it holds, all accounts.' })
+  totalCents!: number
+
+  @ApiProperty({ type: Number, nullable: true })
+  progressRatio!: number | null
 
   @ApiProperty({ type: Boolean })
   reached!: boolean
 
   @ApiProperty({ type: String, format: 'date', nullable: true })
-  targetDate!: string | null
+  dueDate!: string | null
 }
 
 export class CloseSavingsDto {
@@ -487,8 +494,8 @@ export class CloseSavingsDto {
   })
   gapCents!: number | null
 
-  @ApiProperty({ type: [CloseGoalDto], description: 'Active goals.' })
-  goals!: CloseGoalDto[]
+  @ApiProperty({ type: [CloseEnvelopeDto], description: 'Active envelopes.' })
+  envelopes!: CloseEnvelopeDto[]
 }
 
 export class CloseIncomeLineDto {

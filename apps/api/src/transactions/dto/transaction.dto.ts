@@ -327,6 +327,23 @@ export class TransactionDto {
   })
   prepaidTermMonths!: number | null
 
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Envelope that paid this expense or carried its money with this transfer (#430, ADR 0008).',
+  })
+  envelopeId!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'What that envelope paid of the expense, or carried with the transfer (positive).',
+  })
+  envelopeAmountCents!: number | null
+
   @ApiPropertyOptional({
     type: TransactionPrepaidSuggestionDto,
     nullable: true,

@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AccountDto,
-  SavingsGoalDto,
+  EnvelopeSummaryDto,
   SavingsMonthDto,
   SavingsOverviewDto,
 } from '#/api/types.gen'
@@ -14,11 +14,13 @@ import { SavingsPage } from './SavingsPage'
 const api = vi.hoisted(() => ({
   savingsControllerOverview: vi.fn(),
   coverageControllerCoverage: vi.fn(),
-  savingsControllerListGoals: vi.fn(),
   savingsControllerSetTarget: vi.fn(),
-  savingsControllerCreateGoal: vi.fn(),
-  savingsControllerUpdateGoal: vi.fn(),
-  savingsControllerRemoveGoal: vi.fn(),
+  envelopesControllerList: vi.fn(),
+  envelopesControllerOffers: vi.fn(),
+  envelopesControllerApplySplit: vi.fn(),
+  envelopesControllerDismiss: vi.fn(),
+  envelopesControllerForAccount: vi.fn(),
+  categoriesControllerList: vi.fn(),
   accountsControllerList: vi.fn(),
   investmentsControllerSummary: vi.fn(),
 }))
@@ -40,7 +42,10 @@ vi.mock('@tanstack/react-router', () => ({
     params?: Record<string, string>
     children: ReactNode
   }) => (
-    <a href={to.replace('$accountId', params?.accountId ?? '')} {...props}>
+    <a
+      href={to.replace(/\$(\w+)/g, (_, key: string) => params?.[key] ?? '')}
+      {...props}
+    >
       {children}
     </a>
   ),
@@ -190,30 +195,31 @@ function overview(
   }
 }
 
-function goal(overrides: Partial<SavingsGoalDto> = {}): SavingsGoalDto {
+function envelope(
+  overrides: Partial<EnvelopeSummaryDto> = {},
+): EnvelopeSummaryDto {
   return {
     id: '30000000-0000-4000-8000-000000000001',
-    name: 'Fonds de secours',
-    targetCents: 1_000_000,
-    targetDate: '2027-03-31',
-    source: 'accounts',
-    manualAmountCents: null,
-    accountIds: [LIVRET_ID],
-    color: null,
+    name: 'Lisbonne',
+    icon: 'plane',
+    color: '#e87ba4',
+    targetCents: 400_000,
+    dueDate: '2027-05-31',
     archived: false,
-    currentCents: 250_000,
-    progressRatio: 0.25,
-    remainingCents: 750_000,
-    reached: false,
-    monthsLeft: 5,
-    targetDatePassed: false,
-    requiredMonthlyCents: 150_000,
-    projection: {
-      averageMonthlyCents: 110_000,
-      reachable: true,
-      monthsNeeded: 7,
-      projectedDate: '2027-05-31',
-      onTrack: false,
+    categoryIds: [],
+    totalCents: 250_000,
+    paidCents: 0,
+    putAsideCents: 250_000,
+    accounts: [
+      { accountId: LIVRET_ID, accountName: 'Livret test', amountCents: 250_000 },
+    ],
+    plan: {
+      remainingCents: 150_000,
+      progressRatio: 0.625,
+      reached: false,
+      monthsLeft: 7,
+      targetDatePassed: false,
+      requiredMonthlyCents: 21_429,
     },
     ...overrides,
   }
@@ -322,7 +328,11 @@ beforeEach(() => {
       months: ['2026-10', '2026-11'],
     }),
   )
-  api.savingsControllerListGoals.mockImplementation(() => ok([goal()]))
+  api.envelopesControllerList.mockImplementation(() => ok([envelope()]))
+  api.envelopesControllerOffers.mockImplementation(() =>
+    ok({ savings: [], transfers: [], expenses: [] }),
+  )
+  api.categoriesControllerList.mockImplementation(() => ok([]))
   api.accountsControllerList.mockImplementation(() =>
     ok([
       account({}),
@@ -334,12 +344,6 @@ beforeEach(() => {
   )
   api.savingsControllerSetTarget.mockImplementation(
     ({ body }: { body: { monthlyTargetCents: number | null } }) => ok(body),
-  )
-  api.savingsControllerCreateGoal.mockImplementation(
-    ({ body }: { body: Partial<SavingsGoalDto> }) => ok(goal(body)),
-  )
-  api.savingsControllerUpdateGoal.mockImplementation(
-    ({ body }: { body: Partial<SavingsGoalDto> }) => ok(goal(body)),
   )
 })
 
@@ -589,54 +593,62 @@ describe('SavingsPage', () => {
     ).toHaveAttribute('href', '/accounts')
   })
 
-  it('says what each goal needs per month and when it is reached', async () => {
+  it('lists the envelopes with their gauge and what they need per month', async () => {
     renderPage()
-
-    // The goals load on their own: wait for the row (getByRole is slow).
-    await screen.findByText('Fonds de secours', {}, { timeout: 3000 })
-    const goals = await card('Objectifs')
-    // 1 500 € a month needed, 1 100 € saved on average: 400 € short.
-    expect(goals).toHaveTextContent(text('1 500 €par mois'))
-    expect(goals).toHaveTextContent(text('-400 €de marge'))
-    const row = within(goals).getByRole('button', {
-      name: (name) =>
-        text(name) ===
-        'Modifier l’objectif Fonds de secours, 1 500 € par mois, 2 500 € / 10 000 €, atteint en mai 2027 à ce rythme',
-    })
-    expect(row).toHaveTextContent(text('1 500 €/mois'))
-    expect(row).toHaveTextContent(text('2 500 € / 10 000 €'))
-    // After its deadline (March 2027): in the bad tone.
-    expect(within(row).getByText('mai 2027')).toHaveClass(
-      'text-chart-delta-bad',
+    const envelopes = await card('Enveloppes')
+    const row = await within(envelopes).findByRole('link', { name: /Lisbonne/ })
+    expect(envelopes).toHaveTextContent(text('2 500 € mis de côté'))
+    expect(row).toHaveAttribute(
+      'href',
+      '/envelopes/30000000-0000-4000-8000-000000000001',
+    )
+    expect(row).toHaveTextContent(
+      text('Lisbonne2 500 € / 4 000 €214 € par mois pendant 7 mois'),
     )
   })
 
-  it('says when a goal cannot be reached at the current pace', async () => {
-    api.savingsControllerListGoals.mockImplementation(() =>
-      ok([
-        goal({
-          targetDate: null,
-          monthsLeft: null,
-          requiredMonthlyCents: null,
-          projection: {
-            averageMonthlyCents: -10_000,
-            reachable: false,
-            monthsNeeded: null,
-            projectedDate: null,
-            onTrack: null,
+  it('offers a saving to split by the key, or « Non »', async () => {
+    const user = userEvent.setup()
+    api.envelopesControllerOffers.mockImplementation(() =>
+      ok({
+        savings: [
+          {
+            transaction: {
+              transactionId: 'tx-saving',
+              accountId: LIVRET_ID,
+              bookingDate: '2026-11-02',
+              amountCents: 30_000,
+              label: 'VIR EPARGNE',
+              categoryId: null,
+              counterpartAccountId: null,
+            },
+            envelopes: [
+              {
+                envelopeId: envelope().id,
+                name: 'Lisbonne',
+                amountCents: 9_000,
+              },
+            ],
           },
-        }),
-      ]),
+        ],
+        transfers: [],
+        expenses: [],
+      }),
+    )
+    api.envelopesControllerApplySplit.mockImplementation(() =>
+      ok(envelope()),
     )
     renderPage()
-    await screen.findByText('Fonds de secours', {}, { timeout: 3000 })
-    const row = screen.getByRole('button', {
-      name: /^Modifier l’objectif Fonds de secours/,
-    })
-    expect(row).toHaveTextContent('Hors de portée')
-    expect(row).toHaveAccessibleName(/Hors de portée$/)
-    // Nothing needed per month without a deadline: no figures on top.
-    expect(await card('Objectifs')).not.toHaveTextContent('de marge')
+    const offers = await card('À ranger')
+    expect(offers).toHaveTextContent(text('Épargne sur Livret test'))
+    await user.click(
+      within(offers).getByRole('button', { name: /^Lisbonne 90,00/ }),
+    )
+    await waitFor(() =>
+      expect(api.envelopesControllerApplySplit).toHaveBeenCalledWith(
+        expect.objectContaining({ path: { transactionId: 'tx-saving' } }),
+      ),
+    )
   })
 
   it('reads as rows of figures and tables on a computer', async () => {
@@ -674,16 +686,6 @@ describe('SavingsPage', () => {
     expect(
       within(stock).getByRole('link', { name: /PEA test/ }),
     ).toHaveTextContent(text('PEA testPEA2 300 €+15 %'))
-
-    // Goals: what they need together in the header, one row each.
-    await screen.findByText('Fonds de secours', {}, { timeout: 3000 })
-    const goals = await card('Objectifs')
-    expect(goals).toHaveTextContent(text('1 500 €/mois · marge -400 €'))
-    expect(
-      within(goals).getByRole('button', {
-        name: /^Modifier l’objectif Fonds de secours/,
-      }),
-    ).toHaveTextContent(text('2 500 € / 10 000 €1 500 €/moismai 2027'))
     rect.mockRestore()
   })
 
@@ -703,67 +705,6 @@ describe('SavingsPage', () => {
       ),
     )
     expect(toast.success).toHaveBeenCalled()
-  })
-
-  it('adds a goal with a manual amount', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Ajouter' }))
-    const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByLabelText('Nom'), 'Voyage')
-    await user.type(within(dialog).getByLabelText('Montant cible'), '2 500')
-
-    // Linked accounts are required by default.
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Enregistrer' }),
-    )
-    expect(
-      within(dialog).getByText('Choisissez au moins un compte'),
-    ).toBeInTheDocument()
-    expect(api.savingsControllerCreateGoal).not.toHaveBeenCalled()
-
-    await user.click(within(dialog).getByLabelText('Montant saisi à la main'))
-    await user.type(
-      within(dialog).getByLabelText('Montant déjà épargné'),
-      '300,5',
-    )
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Enregistrer' }),
-    )
-    await waitFor(() =>
-      expect(api.savingsControllerCreateGoal).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: {
-            name: 'Voyage',
-            targetCents: 250_000,
-            targetDate: null,
-            source: 'manual',
-            manualAmountCents: 30_050,
-            accountIds: [],
-          },
-        }),
-      ),
-    )
-  })
-
-  it('archives a goal from its sheet', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(
-      await screen.findByRole('button', {
-        name: /^Modifier l’objectif Fonds de secours/,
-      }),
-    )
-    const dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Archiver' }))
-    await waitFor(() =>
-      expect(api.savingsControllerUpdateGoal).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: { id: goal().id },
-          body: { archived: true },
-        }),
-      ),
-    )
   })
 
   it('asks for the month chosen and moves to another one', async () => {
@@ -815,13 +756,13 @@ describe('SavingsPage', () => {
         }),
       ),
     )
-    api.savingsControllerListGoals.mockImplementation(() => ok([]))
+    api.envelopesControllerList.mockImplementation(() => ok([]))
     renderPage()
     expect(
       await screen.findByText('Pas encore d’épargne à suivre'),
     ).toBeInTheDocument()
     expect(
-      await screen.findByText('Aucun objectif en cours'),
+      await screen.findByText('Mettre de l’argent de côté pour un projet'),
     ).toBeInTheDocument()
   })
 })

@@ -1,9 +1,7 @@
 import {
-  BadRequestException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common'
-import { and, asc, eq, gte, inArray, lt, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { AccountsService } from '#/accounts/accounts.service'
 import { resolvePeriod } from '#/coverage/coverage'
@@ -22,28 +20,22 @@ import {
   accountsTable,
   appSettingsTable,
   categoriesTable,
-  savingsGoalAccountsTable,
-  savingsGoalsTable,
   transactionLinesView,
   transactionsTable,
-  type SelectSavingsGoal,
 } from '#/database/schema'
 import { parisToday } from '#/investments/days'
 import { InvestmentsService } from '#/investments/investments.service'
 import { monthBounds } from '#/transactions/transactions.service'
 import {
   AVERAGE_WINDOWS,
-  type CreateGoalDto,
   PROJECTION_WINDOW,
-  type SavingsGoalDto,
   type SavingsMonthDto,
   type SavingsMovedDto,
   type SavingsOverviewDto,
   type SavingsTargetResultDto,
-  type UpdateGoalDto,
 } from './dto/savings.dto'
 import { MOVED_CATEGORIES, savingsAccountsHaveRows } from './moved'
-import { averageOver, goalPlan, type MonthFigures } from './savings-math'
+import { averageOver, type MonthFigures } from './savings-math'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -342,215 +334,6 @@ export class SavingsService {
     }
     return { monthlyTargetCents }
   }
-
-  /* ==========================================================================
-   * GOALS
-   * ======================================================================= */
-
-  /** Active goals first (no date last), then archived ones when asked. */
-  async listGoals(
-    { includeArchived = false }: { includeArchived?: boolean } = {},
-    {
-      now = new Date(),
-      executor = this.db,
-    }: { now?: Date; executor?: Executor } = {},
-  ): Promise<SavingsGoalDto[]> {
-    const g = savingsGoalsTable
-    const goals = await executor
-      .select()
-      .from(g)
-      .where(includeArchived ? undefined : sql`${g.archivedAt} is null`)
-      .orderBy(
-        sql`${g.archivedAt} is not null`,
-        sql`${g.targetDate} asc nulls last`,
-        asc(g.createdAt),
-        asc(g.id),
-      )
-    return this.withProgress(goals, now, executor)
-  }
-
-  async createGoal(
-    dto: CreateGoalDto,
-    {
-      now = new Date(),
-      executor = this.db,
-    }: { now?: Date; executor?: Executor } = {},
-  ): Promise<SavingsGoalDto> {
-    const source = dto.source ?? 'accounts'
-    const accountIds = dto.accountIds ?? []
-    assertSource(source, accountIds)
-    await this.assertAccountsExist(accountIds, executor)
-    const [goal] = await executor
-      .insert(savingsGoalsTable)
-      .values({
-        name: dto.name,
-        targetCents: dto.targetCents,
-        targetDate: dto.targetDate ?? null,
-        source,
-        manualAmountCents:
-          source === 'manual' ? (dto.manualAmountCents ?? 0) : null,
-        color: dto.color ?? null,
-      })
-      .returning()
-    await this.linkAccounts(goal.id, accountIds, executor)
-    const [result] = await this.withProgress([goal], now, executor)
-    return result
-  }
-
-  async updateGoal(
-    id: string,
-    dto: UpdateGoalDto,
-    {
-      now = new Date(),
-      executor = this.db,
-    }: { now?: Date; executor?: Executor } = {},
-  ): Promise<SavingsGoalDto> {
-    const existing = await this.findGoal(id, executor)
-    const source = dto.source ?? existing.source
-    const accountIds =
-      dto.accountIds ?? (await this.linkedAccountIds([id], executor)).get(id)!
-    assertSource(source, accountIds)
-    if (dto.accountIds) await this.assertAccountsExist(dto.accountIds, executor)
-
-    const set: Partial<SelectSavingsGoal> = { updatedAt: now }
-    if (dto.name !== undefined) set.name = dto.name
-    if (dto.targetCents !== undefined) set.targetCents = dto.targetCents
-    if (dto.targetDate !== undefined) set.targetDate = dto.targetDate
-    if (dto.color !== undefined) set.color = dto.color
-    set.source = source
-    set.manualAmountCents =
-      source === 'manual'
-        ? (dto.manualAmountCents ?? existing.manualAmountCents ?? 0)
-        : null
-    if (dto.archived !== undefined) {
-      set.archivedAt = dto.archived ? (existing.archivedAt ?? now) : null
-    }
-
-    const [goal] = await executor
-      .update(savingsGoalsTable)
-      .set(set)
-      .where(eq(savingsGoalsTable.id, id))
-      .returning()
-    if (dto.accountIds) {
-      await executor
-        .delete(savingsGoalAccountsTable)
-        .where(eq(savingsGoalAccountsTable.goalId, id))
-      await this.linkAccounts(id, dto.accountIds, executor)
-    }
-    const [result] = await this.withProgress([goal], now, executor)
-    return result
-  }
-
-  async removeGoal(id: string, executor: Executor = this.db): Promise<void> {
-    const deleted = await executor
-      .delete(savingsGoalsTable)
-      .where(eq(savingsGoalsTable.id, id))
-      .returning({ id: savingsGoalsTable.id })
-    if (deleted.length === 0) throw new NotFoundException('Goal not found')
-  }
-
-  private async findGoal(
-    id: string,
-    executor: Executor,
-  ): Promise<SelectSavingsGoal> {
-    const [goal] = await executor
-      .select()
-      .from(savingsGoalsTable)
-      .where(eq(savingsGoalsTable.id, id))
-    if (!goal) throw new NotFoundException('Goal not found')
-    return goal
-  }
-
-  private async assertAccountsExist(ids: string[], executor: Executor) {
-    if (ids.length === 0) return
-    const found = await executor
-      .select({ id: accountsTable.id })
-      .from(accountsTable)
-      .where(inArray(accountsTable.id, ids))
-    if (found.length !== ids.length) {
-      throw new BadRequestException('Unknown account in accountIds')
-    }
-  }
-
-  private async linkAccounts(
-    goalId: string,
-    accountIds: string[],
-    executor: Executor,
-  ) {
-    if (accountIds.length === 0) return
-    await executor
-      .insert(savingsGoalAccountsTable)
-      .values(accountIds.map((accountId) => ({ goalId, accountId })))
-  }
-
-  private async linkedAccountIds(
-    goalIds: string[],
-    executor: Executor,
-  ): Promise<Map<string, string[]>> {
-    const links = new Map(goalIds.map((id) => [id, [] as string[]]))
-    if (goalIds.length === 0) return links
-    const rows = await executor
-      .select({
-        goalId: savingsGoalAccountsTable.goalId,
-        accountId: savingsGoalAccountsTable.accountId,
-      })
-      .from(savingsGoalAccountsTable)
-      .innerJoin(
-        accountsTable,
-        eq(accountsTable.id, savingsGoalAccountsTable.accountId),
-      )
-      .where(inArray(savingsGoalAccountsTable.goalId, goalIds))
-      .orderBy(asc(accountsTable.position), asc(accountsTable.createdAt))
-    for (const row of rows) links.get(row.goalId)!.push(row.accountId)
-    return links
-  }
-
-  /** Goals with their progress, plan and projection. */
-  private async withProgress(
-    goals: SelectSavingsGoal[],
-    now: Date,
-    executor: Executor,
-  ): Promise<SavingsGoalDto[]> {
-    if (goals.length === 0) return []
-    const [links, accounts, average] = await Promise.all([
-      this.linkedAccountIds(
-        goals.map((goal) => goal.id),
-        executor,
-      ),
-      this.accounts.list({ includeArchived: true }, executor),
-      this.projectionAverage(now, executor),
-    ])
-    const balances = new Map(
-      accounts.map((account) => [account.id, account.balanceCents ?? 0]),
-    )
-    const today = parisToday(now)
-
-    return goals.map((goal) => {
-      const accountIds = links.get(goal.id) ?? []
-      const currentCents =
-        goal.source === 'manual'
-          ? (goal.manualAmountCents ?? 0)
-          : accountIds.reduce((sum, id) => sum + (balances.get(id) ?? 0), 0)
-      return {
-        id: goal.id,
-        name: goal.name,
-        targetCents: goal.targetCents,
-        targetDate: goal.targetDate,
-        source: goal.source,
-        manualAmountCents: goal.manualAmountCents,
-        accountIds,
-        color: goal.color,
-        archived: goal.archivedAt !== null,
-        ...goalPlan({
-          currentCents,
-          targetCents: goal.targetCents,
-          targetDate: goal.targetDate,
-          today,
-          averageMonthlyCents: average,
-        }),
-      }
-    })
-  }
 }
 
 function emptyFigures(month: string): MonthFigures {
@@ -585,13 +368,5 @@ function flowOf(row: MonthFigures, until: string): MonthFlowDto {
     oneOffIncomeCents: row.oneOffIncomeCents,
     oneOffExpenseCents: row.oneOffExpenseCents,
     savingsRate: savingsRate(row.incomeCents, netCents),
-  }
-}
-
-function assertSource(source: string, accountIds: string[]) {
-  if (source === 'accounts' && accountIds.length === 0) {
-    throw new BadRequestException(
-      'A goal measured on accounts needs at least one account',
-    )
   }
 }

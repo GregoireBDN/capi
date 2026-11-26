@@ -34,6 +34,7 @@ import {
 } from '#/database/schema'
 import { daysBetween } from '#/investments/days'
 import { RecurringService } from '#/recurring/recurring.service'
+import { EnvelopesService } from '#/envelopes/envelopes.service'
 import { SavingsService } from '#/savings/savings.service'
 import {
   ACKNOWLEDGEABLE_STEPS,
@@ -141,6 +142,7 @@ export class MonthCloseService {
     private readonly budgets: BudgetsService,
     private readonly recurring: RecurringService,
     private readonly savings: SavingsService,
+    private readonly envelopes: EnvelopesService,
   ) {}
 
   private get db(): Db {
@@ -162,7 +164,7 @@ export class MonthCloseService {
       suggested,
       confirmed,
       target,
-      goals,
+      envelopes,
     ] = await Promise.all([
       this.find(month, executor),
       this.dashboard.review(month, { now, executor }),
@@ -172,7 +174,7 @@ export class MonthCloseService {
       this.suggestedCount(executor),
       this.recurring.list('confirmed'),
       this.savings.readTarget(executor),
-      this.savings.listGoals({}, { now, executor }),
+      this.envelopes.list({}, { now, executor }),
     ])
 
     // Imported accounts only: a meal-voucher card is entered by hand (#298).
@@ -318,14 +320,16 @@ export class MonthCloseService {
         netCents: review.flow.netCents,
         targetCents: target,
         gapCents: target === null ? null : review.flow.netCents - target,
-        goals: goals.map((goal) => ({
-          id: goal.id,
-          name: goal.name,
-          targetCents: goal.targetCents,
-          currentCents: goal.currentCents,
-          progressRatio: goal.progressRatio,
-          reached: goal.reached,
-          targetDate: goal.targetDate,
+        envelopes: envelopes.map((envelope) => ({
+          id: envelope.id,
+          name: envelope.name,
+          icon: envelope.icon,
+          color: envelope.color,
+          targetCents: envelope.targetCents,
+          totalCents: envelope.totalCents,
+          progressRatio: envelope.plan.progressRatio,
+          reached: envelope.plan.reached,
+          dueDate: envelope.dueDate,
         })),
       },
       investments: { accounts: investments },

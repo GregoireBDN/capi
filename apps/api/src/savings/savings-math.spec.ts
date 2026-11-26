@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   averageOver,
-  goalPlan,
   type MonthFigures,
   monthsLeft,
 } from './savings-math'
@@ -98,102 +97,5 @@ describe('averageOver', () => {
       savingsRate: null,
     })
     expect(averageOver(data, '2026-11', 3, '2026-11').monthCount).toBe(0)
-  })
-})
-
-describe('goalPlan', () => {
-  const base = {
-    targetCents: 200_000,
-    today: TODAY,
-    averageMonthlyCents: 40_000,
-  }
-
-  it('computes progress, the monthly amount needed and the reach date', () => {
-    expect(
-      goalPlan({ ...base, currentCents: 50_000, targetDate: '2027-03-31' }),
-    ).toEqual({
-      currentCents: 50_000,
-      progressRatio: 0.25,
-      remainingCents: 150_000,
-      reached: false,
-      monthsLeft: 5,
-      targetDatePassed: false,
-      requiredMonthlyCents: 30_000,
-      projection: {
-        averageMonthlyCents: 40_000,
-        reachable: true,
-        monthsNeeded: 4,
-        projectedDate: '2027-02-28',
-        onTrack: true,
-      },
-    })
-  })
-
-  it('rounds the monthly amount up and flags a late projection', () => {
-    const plan = goalPlan({
-      ...base,
-      currentCents: 0,
-      targetDate: '2027-01-31',
-    })
-    expect(plan.monthsLeft).toBe(3)
-    expect(plan.requiredMonthlyCents).toBe(66_667)
-    expect(plan.projection.projectedDate).toBe('2027-03-31')
-    expect(plan.projection.onTrack).toBe(false)
-  })
-
-  it('has no monthly amount once the target date has passed', () => {
-    const plan = goalPlan({
-      ...base,
-      currentCents: 0,
-      targetDate: '2026-10-31',
-    })
-    expect(plan.targetDatePassed).toBe(true)
-    expect(plan.monthsLeft).toBe(0)
-    expect(plan.requiredMonthlyCents).toBeNull()
-    expect(plan.projection.reachable).toBe(true)
-    expect(plan.projection.onTrack).toBe(false)
-  })
-
-  it('is not reachable when the average is zero, negative or unknown', () => {
-    for (const averageMonthlyCents of [0, -10_000, null]) {
-      const plan = goalPlan({
-        ...base,
-        averageMonthlyCents,
-        currentCents: 0,
-        targetDate: '2027-12-31',
-      })
-      expect(plan.projection).toEqual({
-        averageMonthlyCents,
-        reachable: false,
-        monthsNeeded: null,
-        projectedDate: null,
-        onTrack: false,
-      })
-      expect(plan.requiredMonthlyCents).toBe(Math.ceil(200_000 / 14))
-    }
-  })
-
-  it('has no date-based figures without a target date', () => {
-    const plan = goalPlan({ ...base, currentCents: 0, targetDate: null })
-    expect(plan.monthsLeft).toBeNull()
-    expect(plan.requiredMonthlyCents).toBeNull()
-    expect(plan.projection.onTrack).toBeNull()
-    expect(plan.projection.projectedDate).toBe('2027-03-31')
-  })
-
-  it('is reached once the current amount covers the target', () => {
-    const plan = goalPlan({
-      ...base,
-      averageMonthlyCents: -5_000,
-      currentCents: 250_000,
-      targetDate: '2026-10-31',
-    })
-    expect(plan).toMatchObject({
-      progressRatio: 1.25,
-      remainingCents: 0,
-      reached: true,
-      requiredMonthlyCents: 0,
-      projection: { reachable: true, monthsNeeded: 0, onTrack: true },
-    })
   })
 })

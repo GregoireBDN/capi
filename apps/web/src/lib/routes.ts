@@ -10,6 +10,7 @@ export const ROUTES = {
   subscriptions: '/subscriptions',
   forecast: '/forecast',
   savings: '/savings',
+  envelope: '/envelopes/$envelopeId',
   owed: '/owed',
   owedContact: '/owed/$contactId',
   crypto: '/crypto',

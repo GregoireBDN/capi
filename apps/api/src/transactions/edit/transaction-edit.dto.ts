@@ -71,6 +71,24 @@ export class EditRepaymentsDto {
   link?: EditRepaymentLinkDto
 }
 
+/** The envelope an expense or a transfer out is attached to (#430). */
+export class EditEnvelopeDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  @IsUUID()
+  envelopeId!: string
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    description:
+      'What it pays of the expense or carries with the transfer; omitted = all it can (`POST /envelopes/{id}/transactions`).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  amountCents?: number
+}
+
 /**
  * Every change of the transaction editor (#435), saved at once: each part
  * has the semantics of its own route, and all of them are applied in one
@@ -142,6 +160,17 @@ export class SaveTransactionEditDto {
   @Min(PREPAID_TERM_MIN_MONTHS)
   @Max(PREPAID_TERM_MAX_MONTHS)
   prepaidTermMonths?: number | null
+
+  @ApiPropertyOptional({
+    type: EditEnvelopeDto,
+    nullable: true,
+    description:
+      'The envelope that pays this expense or carries this transfer’s money (#430): detached first when it changes, attached after the other fields; `null` detaches it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EditEnvelopeDto)
+  envelope?: EditEnvelopeDto | null
 
   @ApiPropertyOptional({ type: EditRepaymentsDto })
   @IsOptional()

@@ -19,6 +19,9 @@ import {
   budgetsTable,
   categoriesTable,
   categorizationRulesTable,
+  envelopeMovementsTable,
+  envelopeSplitKeysTable,
+  envelopesTable,
   contactsTable,
   cryptoHoldingsTable,
   cryptoImportsTable,
@@ -31,8 +34,6 @@ import {
   positionStatementsTable,
   receivablesTable,
   recurringItemsTable,
-  savingsGoalAccountsTable,
-  savingsGoalsTable,
   securitiesTable,
   securityPricesTable,
   type SelectCategorizationRule,
@@ -59,6 +60,8 @@ import {
 } from '#/recurring/dates'
 import { OwedService } from '#/owed/owed.service'
 import { RecurringService } from '#/recurring/recurring.service'
+import { AccountsService } from '#/accounts/accounts.service'
+import { EnvelopesService } from '#/envelopes/envelopes.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { MEAL_VOUCHER_DAILY_CAP_CENTS } from '#/transactions/manual-transactions.service'
 import { MONTHLY_TARGET_KEY } from '#/savings/savings.service'
@@ -142,7 +145,7 @@ export interface DemoCounts {
   snapshots: number
   rules: number
   budgets: number
-  savingsGoals: number
+  envelopes: number
   cryptoHoldings: number
   /** A PEA's position statements (#413). */
   positionStatements: number
@@ -1584,7 +1587,7 @@ export async function generateDemoData(
   )
   await db.insert(budgetsTable).values(budgetValues)
 
-  // Savings target and goals.
+  // Savings target.
   await db
     .insert(appSettingsTable)
     .values({ key: MONTHLY_TARGET_KEY, value: 60_000 })
@@ -1592,37 +1595,73 @@ export async function generateDemoData(
       target: appSettingsTable.key,
       set: { value: 60_000 },
     })
-  const goals = await db
-    .insert(savingsGoalsTable)
-    .values([
-      {
-        name: 'Épargne de précaution',
-        targetCents: 1_000_000,
-        source: 'accounts',
-        color: '#0284c7',
-      },
-      {
-        name: 'Voyage au Japon',
-        targetCents: 400_000,
-        targetDate: addMonths(monthStart(today), 8),
-        source: 'manual',
-        manualAmountCents: 120_000,
-        color: '#db2777',
-      },
-      {
-        name: 'Apport immobilier',
-        targetCents: 5_000_000,
-        targetDate: addMonths(monthStart(today), 60),
-        source: 'accounts',
-        color: '#15803d',
-      },
-    ])
-    .returning()
-  await db.insert(savingsGoalAccountsTable).values([
-    { goalId: goals[0].id, accountId: livret.id },
-    { goalId: goals[2].id, accountId: pea.id },
-    { goalId: goals[2].id, accountId: lifeInsurance.id },
-  ])
+  // Envelopes (#430), through the app's own service: what used to be the
+  // savings goals, money set aside on the Livret A and the checking account.
+  const envelopes = new EnvelopesService(
+    { db } as never,
+    new AccountsService({ db } as never),
+  )
+  const precaution = await envelopes.create({
+    name: 'Imprévus',
+    icon: 'shield',
+    color: '#0284c7',
+    targetCents: 600_000,
+    start: [{ accountId: livret.id, amountCents: 350_000 }],
+  })
+  const summer = await envelopes.create({
+    name: 'Vacances d’été',
+    icon: 'plane',
+    color: '#db2777',
+    targetCents: 180_000,
+    dueDate: dayIn(addMonths(monthStart(today), 7), 1),
+    categoryIds: [category('travel').id],
+    start: [
+      { accountId: livret.id, amountCents: 90_000 },
+      { accountId: checking.id, amountCents: 60_000 },
+    ],
+  })
+  await envelopes.create({
+    name: 'Apport immobilier',
+    icon: 'house',
+    color: '#15803d',
+    targetCents: 5_000_000,
+    dueDate: dayIn(addMonths(monthStart(today), 60), 1),
+    start: [{ accountId: livret.id, amountCents: 400_000 }],
+  })
+  // Set aside eight months ago, so « Évolution » has a past.
+  const setAsideOn = addMonths(monthStart(today), -8)
+  await db
+    .update(envelopeMovementsTable)
+    .set({ onDate: setAsideOn })
+    .where(eq(envelopeMovementsTable.reason, 'start'))
+  await db
+    .update(envelopesTable)
+    .set({ createdAt: new Date(`${setAsideOn}T12:00:00Z`) })
+  // The plane tickets, paid by the summer envelope: its month's budget line.
+  const [tickets] = await db
+    .select({ id: transactionsTable.id })
+    .from(transactionsTable)
+    .where(sql`${transactionsTable.rawLabel} like '%AIR FRANCE%'`)
+    .limit(1)
+  if (tickets) {
+    await envelopes.attach(summer.id, { transactionId: tickets.id })
+  }
+  // Each saving on the Livret A offers 30 % for the summer, 20 % for « Imprévus ».
+  await envelopes.setSplitKey(livret.id, {
+    shares: [
+      { envelopeId: summer.id, basisPoints: 3_000 },
+      { envelopeId: precaution.id, basisPoints: 2_000 },
+    ],
+  })
+  // The key dates from now: only the latest saving waits to be split, as
+  // after an import (« À ranger »).
+  await db.execute(
+    sql`update ${envelopeSplitKeysTable} set created_at = clock_timestamp()`,
+  )
+  await db.execute(
+    sql`update ${transactionsTable} set created_at = clock_timestamp() where id = (select id from ${transactionsTable} where account_id = ${livret.id} and amount_cents > 0 and kind in ('income', 'transfer') order by booking_date desc limit 1)`,
+  )
+  const envelopeCount = 3
 
   // Recurring items, as the app detects them; the usual ones confirmed.
   await new RecurringService({ db } as never).detect(today)
@@ -1713,7 +1752,7 @@ export async function generateDemoData(
       snapshots: snapshotCount,
       rules: rules.length,
       budgets: budgetValues.length,
-      savingsGoals: goals.length,
+      envelopes: envelopeCount,
       cryptoHoldings: holdings.length,
       positionStatements: peaLines.statements + ctoLines.statements,
       dividends: dividendCount,

@@ -34,6 +34,7 @@ import { Route as AppSettingsProfileRouteImport } from './routes/_app/_settings/
 import { Route as AppSettingsRulesRouteImport } from './routes/_app/_settings/rules'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts.$accountId'
+import { Route as AppEnvelopesEnvelopeIdRouteImport } from './routes/_app/envelopes.$envelopeId'
 import { Route as AppOwedIndexRouteImport } from './routes/_app/owed.index'
 import { Route as AppOwedContactIdRouteImport } from './routes/_app/owed.$contactId'
 import { Route as AppSettingsSettingsIndexRouteImport } from './routes/_app/_settings/settings.index'
@@ -166,6 +167,11 @@ const AppAccountsAccountIdRoute = AppAccountsAccountIdRouteImport.update({
   path: '/accounts/$accountId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEnvelopesEnvelopeIdRoute = AppEnvelopesEnvelopeIdRouteImport.update({
+  id: '/envelopes/$envelopeId',
+  path: '/envelopes/$envelopeId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppOwedIndexRoute = AppOwedIndexRouteImport.update({
   id: '/owed/',
   path: '/owed/',
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppSettingsProfileRoute
   '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/envelopes/$envelopeId': typeof AppEnvelopesEnvelopeIdRoute
   '/owed/$contactId': typeof AppOwedContactIdRoute
   '/accounts/': typeof AppAccountsIndexRoute
   '/owed/': typeof AppOwedIndexRoute
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppSettingsProfileRoute
   '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/envelopes/$envelopeId': typeof AppEnvelopesEnvelopeIdRoute
   '/owed/$contactId': typeof AppOwedContactIdRoute
   '/accounts': typeof AppAccountsIndexRoute
   '/owed': typeof AppOwedIndexRoute
@@ -305,6 +313,7 @@ export interface FileRoutesById {
   '/_app/_settings/profile': typeof AppSettingsProfileRoute
   '/_app/_settings/rules': typeof AppSettingsRulesRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/_app/envelopes/$envelopeId': typeof AppEnvelopesEnvelopeIdRoute
   '/_app/owed/$contactId': typeof AppOwedContactIdRoute
   '/_app/accounts/': typeof AppAccountsIndexRoute
   '/_app/owed/': typeof AppOwedIndexRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/rules'
     | '/accounts/$accountId'
+    | '/envelopes/$envelopeId'
     | '/owed/$contactId'
     | '/accounts/'
     | '/owed/'
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/rules'
     | '/accounts/$accountId'
+    | '/envelopes/$envelopeId'
     | '/owed/$contactId'
     | '/accounts'
     | '/owed'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/_app/_settings/profile'
     | '/_app/_settings/rules'
     | '/_app/accounts/$accountId'
+    | '/_app/envelopes/$envelopeId'
     | '/_app/owed/$contactId'
     | '/_app/accounts/'
     | '/_app/owed/'
@@ -606,6 +618,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountsAccountIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/envelopes/$envelopeId': {
+      id: '/_app/envelopes/$envelopeId'
+      path: '/envelopes/$envelopeId'
+      fullPath: '/envelopes/$envelopeId'
+      preLoaderRoute: typeof AppEnvelopesEnvelopeIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/owed/': {
       id: '/_app/owed/'
       path: '/owed'
@@ -708,6 +727,7 @@ interface AppRouteChildren {
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
   AppAccountsAccountIdRoute: typeof AppAccountsAccountIdRoute
+  AppEnvelopesEnvelopeIdRoute: typeof AppEnvelopesEnvelopeIdRoute
   AppOwedContactIdRoute: typeof AppOwedContactIdRoute
   AppAccountsIndexRoute: typeof AppAccountsIndexRoute
   AppOwedIndexRoute: typeof AppOwedIndexRoute
@@ -728,6 +748,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppAccountsAccountIdRoute: AppAccountsAccountIdRoute,
+  AppEnvelopesEnvelopeIdRoute: AppEnvelopesEnvelopeIdRoute,
   AppOwedContactIdRoute: AppOwedContactIdRoute,
   AppAccountsIndexRoute: AppAccountsIndexRoute,
   AppOwedIndexRoute: AppOwedIndexRoute,

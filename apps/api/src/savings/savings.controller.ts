@@ -1,13 +1,7 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
   Put,
   Query,
   UseGuards,
@@ -16,12 +10,8 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiParam,
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -29,19 +19,14 @@ import {
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
-  CreateGoalDto,
-  ListGoalsQueryDto,
   SAVINGS_MONTHS_DEFAULT,
-  SavingsGoalDto,
   SavingsOverviewDto,
   SavingsOverviewQueryDto,
   SavingsTargetDto,
   SavingsTargetResultDto,
-  UpdateGoalDto,
 } from './dto/savings.dto'
 import { SavingsService } from './savings.service'
 
-const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
 
 @ApiTags('Savings')
 @ApiCookieAuth('token')
@@ -79,62 +64,5 @@ export class SavingsController {
   @ApiBadRequestResponse({ description: 'Invalid amount.' })
   setTarget(@Body() dto: SavingsTargetDto): Promise<SavingsTargetResultDto> {
     return this.savings.setTarget(dto.monthlyTargetCents)
-  }
-
-  @Get('goals')
-  @ApiOperation({
-    summary: 'Savings goals with progress and projection',
-    description:
-      'Each goal comes with its current amount (linked accounts’ balances or manual amount), progress, the saving needed per month to reach it by its date, and the date it would be reached at the average monthly savings (6 full months, one-offs excluded).',
-  })
-  @ApiQuery({ type: ListGoalsQueryDto })
-  @ApiOkResponse({ type: [SavingsGoalDto] })
-  listGoals(@Query() query: ListGoalsQueryDto): Promise<SavingsGoalDto[]> {
-    return this.savings.listGoals({ includeArchived: query.includeArchived })
-  }
-
-  @Post('goals')
-  @TokenAccess('write')
-  @ApiOperation({ summary: 'Create a savings goal' })
-  @ApiBody({ type: CreateGoalDto })
-  @ApiCreatedResponse({ type: SavingsGoalDto })
-  @ApiBadRequestResponse({
-    description:
-      'Invalid body, unknown account, or `source = accounts` without accounts.',
-  })
-  createGoal(@Body() dto: CreateGoalDto): Promise<SavingsGoalDto> {
-    return this.savings.createGoal(dto)
-  }
-
-  @Patch('goals/:id')
-  @TokenAccess('write')
-  @ApiOperation({
-    summary: 'Change, archive or restore a savings goal',
-    description:
-      'Omitted fields keep their value; `accountIds` replaces the linked accounts.',
-  })
-  @ApiParam(ID_PARAM)
-  @ApiBody({ type: UpdateGoalDto })
-  @ApiOkResponse({ type: SavingsGoalDto })
-  @ApiBadRequestResponse({
-    description:
-      'Invalid body, unknown account, or `source = accounts` without accounts.',
-  })
-  @ApiNotFoundResponse()
-  updateGoal(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateGoalDto,
-  ): Promise<SavingsGoalDto> {
-    return this.savings.updateGoal(id, dto)
-  }
-
-  @Delete('goals/:id')
-  @HttpCode(204)
-  @ApiOperation({ summary: 'Delete a savings goal' })
-  @ApiParam(ID_PARAM)
-  @ApiNoContentResponse()
-  @ApiNotFoundResponse()
-  async removeGoal(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.savings.removeGoal(id)
   }
 }
