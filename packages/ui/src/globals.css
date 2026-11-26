@@ -88,6 +88,26 @@
   box-shadow: var(--glass-edge), var(--glass-shadow-sm);
 }
 
+/* A key in relief on a hollow bar (#505, the owner: the bar hollow, what
+   is chosen or can be pressed raised): the raised well with a firmer
+   shadow, so it stands out. */
+@utility glass-raised {
+  background-color: var(--card);
+  box-shadow:
+    var(--glass-edge),
+    0 0 0 0.5px oklch(from var(--foreground) l c h / 8%),
+    0 1px 3px oklch(0.3 0.03 255 / 18%),
+    0 3px 8px -2px oklch(0.3 0.03 255 / 14%);
+  @variant dark {
+    background-color: oklch(from var(--card) calc(l + 0.08) c h);
+    box-shadow:
+      var(--glass-edge),
+      0 0 0 0.5px rgb(255 255 255 / 7%),
+      0 1px 3px rgb(0 0 0 / 45%),
+      0 3px 8px -2px rgb(0 0 0 / 35%);
+  }
+}
+
 /* A field (#507, the owner's « B · Creusé »): a faint hollow, no border. On
    focus it turns the card's colour with a 1.5px primary edge (≥ 3:1) and a
    soft glow; invalid, a red tint, a 2px destructive edge and glow (beside an
