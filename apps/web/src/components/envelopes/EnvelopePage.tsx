@@ -1,6 +1,5 @@
 import {
   Badge,
-  Button,
   Card,
   CardContent,
   CardHeader,
@@ -8,12 +7,7 @@ import {
   Skeleton,
 } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
-import {
-  ArrowDownToLineIcon,
-  ArrowUpFromLineIcon,
-  LandmarkIcon,
-  PencilIcon,
-} from 'lucide-react'
+import { LandmarkIcon, MinusIcon, PencilIcon, PlusIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { EnvelopeDetailDto } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -136,22 +130,36 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
               </p>
             )}
             {!envelope.archived && (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  iconStart={<ArrowDownToLineIcon />}
-                  onClick={() => setMoving('add')}
-                >
-                  Ajouter
-                </Button>
-                <Button
-                  variant="secondary"
-                  outline
-                  iconStart={<ArrowUpFromLineIcon />}
-                  disabled={envelope.totalCents <= 0}
-                  onClick={() => setMoving('withdraw')}
-                >
-                  Retirer
-                </Button>
+              <div className="flex justify-center gap-10 pt-1">
+                {/* The owner's « A. Ronds » (#430): + filled, − light. */}
+                {(
+                  [
+                    ['add', 'Ajouter', <PlusIcon key="i" />],
+                    ['withdraw', 'Retirer', <MinusIcon key="i" />],
+                  ] as const
+                ).map(([mode, label, icon]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={mode === 'withdraw' && envelope.totalCents <= 0}
+                    onClick={() => setMoving(mode)}
+                    className="focus-visible:ring-ring flex flex-col items-center gap-1.5 rounded-xl text-xs font-medium outline-none focus-visible:ring-2 disabled:opacity-40"
+                  >
+                    <span
+                      className="grid size-14 place-items-center rounded-full [&_svg]:size-6"
+                      style={{
+                        background:
+                          mode === 'add'
+                            ? color
+                            : `color-mix(in srgb, ${color} 14%, transparent)`,
+                        color: mode === 'add' ? 'white' : color,
+                      }}
+                    >
+                      {icon}
+                    </span>
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
           </CardContent>
