@@ -201,10 +201,6 @@ export function BalancesElement({
     widget.settings.balancesSort === 'asc'
       ? sortByBalance(picked, widget.settings.balancesSort)
       : picked
-  const largest = Math.max(
-    0,
-    ...accounts.map((account) => account.balanceCents ?? 0),
-  )
   return (
     <ElementCard title="Soldes" to={ROUTES.accounts} className="@container">
       {accounts.length === 0 ? (
@@ -236,18 +232,6 @@ export function BalancesElement({
                     ? '—'
                     : formatWholeEuros(account.balanceCents)}
                 </span>
-                {/* On a tile, its share of the largest balance. */}
-                <span
-                  aria-hidden
-                  className="bg-muted hidden h-1 basis-full overflow-hidden rounded-full @lg:block"
-                >
-                  <span
-                    className="bg-primary/60 block h-full rounded-full"
-                    style={{
-                      width: `${share(account.balanceCents, largest)}%`,
-                    }}
-                  />
-                </span>
               </Link>
             </li>
           ))}
@@ -255,12 +239,6 @@ export function BalancesElement({
       )}
     </ElementCard>
   )
-}
-
-/** A balance as a percentage of the largest one, 0 when not positive. */
-function share(balance: number | null, largest: number): number {
-  if (balance === null || balance <= 0 || largest <= 0) return 0
-  return Math.max(2, Math.round((balance / largest) * 100))
 }
 
 /** By balance, largest or smallest first; an unknown balance last. */
@@ -282,8 +260,11 @@ function balanceDetail(
   year: string,
 ): ReactNode {
   const parts: ReactNode[] = []
+  // Always a line, so every account reads the same (#495).
   if (inEnvelopes && account.balanceCents !== null) {
     parts.push(`${formatWholeEuros(account.balanceCents - inEnvelopes)} libre`)
+  } else {
+    parts.push('Pas d’enveloppe')
   }
   if (account.stale && account.dataUntil) {
     parts.push(
