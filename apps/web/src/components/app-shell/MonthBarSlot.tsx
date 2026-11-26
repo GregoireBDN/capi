@@ -11,15 +11,16 @@ import { MovementsTabs } from '#/components/spending/MovementsTabs'
  * page's route declares `staticData.monthBar`, so the bar's room is kept
  * from the first render until its month is in (`data-month-placeholder`,
  * hidden by `globals.css` then): nothing moves on load. On Mouvements
- * and Opérations, the two tabs « Résumé · Opérations » follow the month in
- * the same bar (#498, `staticData.movementsTab`).
+ * and Opérations, the two tabs « Résumé · Opérations » come above the month
+ * in the same bar (#498, `staticData.movementsTab`). The bar is glass, one
+ * block with the header, no line between them (#434, the owner's choice).
  */
 export function MonthBarSlot() {
   const setMonthSlot = useSetPageMonthSlot()
   const monthPage = useMatches({
     select: (matches) => matches.some((match) => match.staticData.monthBar),
   })
-  // Mouvements' two tabs under its month (#498), with the month in the URL.
+  // Mouvements' two tabs above its month (#498), with the month in the URL.
   const tabs = useMatches({
     select: (matches) => {
       const match = matches.find((m) => m.staticData.movementsTab)
@@ -33,12 +34,19 @@ export function MonthBarSlot() {
   })
   return (
     <div
+      data-month-bar={monthPage || undefined}
       className={
         // Shown on a month page only: once its month is in, or keeping its
-        // room until then.
-        'z-10 hidden shrink-0 border-b bg-(--header-bg) backdrop-blur-lg has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block'
+        // room until then. Glass (#434): a sheen, a bright top edge and a
+        // shadow below instead of a line, one block with the header.
+        'relative z-10 hidden shrink-0 bg-(--header-bg) [background-image:var(--glass-sheen)] shadow-[inset_0_1px_0_var(--glass-edge),0_10px_24px_-14px_var(--glass-shadow)] backdrop-blur-xl backdrop-saturate-150 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block'
       }
     >
+      {tabs && (
+        <div className="mx-auto w-full max-w-5xl px-2 sm:px-4">
+          <MovementsTabs current={tabs.current} month={tabs.month} />
+        </div>
+      )}
       {/* The bar fills the page's column, as wide as its content. */}
       <div
         ref={setMonthSlot}
@@ -46,11 +54,6 @@ export function MonthBarSlot() {
         className="@container mx-auto flex h-12 w-full max-w-5xl items-center px-2 empty:hidden sm:px-4"
       />
       {monthPage && <div data-month-placeholder aria-hidden className="h-12" />}
-      {tabs && (
-        <div className="mx-auto w-full max-w-5xl px-2 sm:px-4">
-          <MovementsTabs current={tabs.current} month={tabs.month} />
-        </div>
-      )}
     </div>
   )
 }

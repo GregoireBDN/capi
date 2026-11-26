@@ -1,6 +1,5 @@
 import { cn, CountPill } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeftRightIcon, ChartPieIcon } from 'lucide-react'
 import { plural } from '#/lib/plural'
 import { useKnownReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
@@ -12,23 +11,21 @@ const TABS = [
     key: 'summary',
     to: ROUTES.spending,
     label: 'Résumé',
-    icon: ChartPieIcon,
   },
   {
     key: 'operations',
     to: ROUTES.transactions,
     label: 'Opérations',
-    icon: ArrowLeftRightIcon,
   },
 ] as const
 
 /**
- * « Résumé · Opérations » (#498, with #434, the owner's choice: tabs right
- * under the month, part of the month bar): Mouvements and Opérations as two
+ * « Résumé · Opérations » (#498, with #434, the owner's choice: compact
+ * tabs right above the month, part of the glass month bar): Mouvements and Opérations as two
  * tabs of one page, each its own URL, one tap between them both ways (they
  * were a « ⋮ » item and a breadcrumb, #393). Rendered by `MonthBarSlot` on
  * the routes that declare `staticData.movementsTab`, in the bar's colours,
- * the current tab underlined on the bar's own bottom line. The month shown
+ * the current tab underlined. The month shown
  * is carried (none from « Toutes les dates »); « Opérations » carries the
  * number of transactions to review, as the sidebar's « Mouvements » does.
  */
@@ -48,7 +45,7 @@ export function MovementsTabs({
       data-slot="movements-tabs"
       className="grid grid-cols-2"
     >
-      {TABS.map(({ key, to, label, icon: Icon }) => {
+      {TABS.map(({ key, to, label }) => {
         const active = key === current
         return (
           <Link
@@ -58,14 +55,13 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              '-mb-px flex h-11 min-w-0 items-center justify-center gap-2 border-b-2 text-[15px] font-medium whitespace-nowrap transition-colors outline-none',
+              'relative flex h-10 min-w-0 border-b-2 items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-colors outline-none',
               'focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset',
               active
                 ? 'border-primary text-primary'
                 : 'text-muted-foreground hover:text-foreground border-transparent',
             )}
           >
-            <Icon aria-hidden className="size-[18px] shrink-0" />
             {label}
             {key === 'operations' &&
               reviewCount !== null &&
