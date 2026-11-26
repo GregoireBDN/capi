@@ -4,7 +4,7 @@ import {
   EllipsisVerticalIcon,
   PencilIcon,
   PlusIcon,
-    WifiIcon,
+  WifiIcon,
 } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 

@@ -257,8 +257,10 @@ const linkStyles: Record<SemanticVariant, string> = {
   primary: 'text-primary underline-offset-4 hover:underline',
   secondary:
     'text-muted-foreground underline-offset-4 hover:underline hover:text-foreground',
-  success: 'text-success-foreground dark:text-success underline-offset-4 hover:underline',
-  warning: 'text-warning-foreground dark:text-warning underline-offset-4 hover:underline',
+  success:
+    'text-success-foreground dark:text-success underline-offset-4 hover:underline',
+  warning:
+    'text-warning-foreground dark:text-warning underline-offset-4 hover:underline',
   danger: 'text-destructive underline-offset-4 hover:underline',
   info: 'text-info-foreground dark:text-info underline-offset-4 hover:underline',
 }

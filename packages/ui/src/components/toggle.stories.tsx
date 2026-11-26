@@ -47,7 +47,9 @@ export const Playground: Story = {
 }
 
 export const Variants: Story = {
-  parameters: { docs: { description: { story: 'Variant + size combinations.' } } },
+  parameters: {
+    docs: { description: { story: 'Variant + size combinations.' } },
+  },
   render: () => (
     <div className="flex flex-wrap items-center gap-3">
       <Toggle aria-label="Bold">
