@@ -6,7 +6,11 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
-import { accountsTable, envelopesTable } from '#/database/schema'
+import {
+  accountsTable,
+  categoriesTable,
+  envelopesTable,
+} from '#/database/schema'
 import type { DashboardWidgetDto } from './dashboard-layout.dto'
 import {
   DEFAULT_DASHBOARD_LAYOUT,
@@ -32,6 +36,7 @@ function item(
     hidden: false,
     accountIds: null,
     envelopeIds: null,
+    categoryIds: null,
     settings: {},
     ...values,
   }
@@ -140,6 +145,37 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
         item('net_worth', { accountIds: [savings.id] }),
         item('balances'),
       ])
+    })
+  })
+
+  it('saves the chosen budget categories in their order, expenses only', async () => {
+    await inRollback(async (layout, tx) => {
+      const [groceries, transport, salary] = await tx
+        .insert(categoriesTable)
+        .values([
+          {
+            slug: 'fictive-groceries',
+            name: 'Courses fictives',
+            kind: 'expense',
+          },
+          {
+            slug: 'fictive-transport',
+            name: 'Transport fictif',
+            kind: 'expense',
+          },
+          { slug: 'fictive-salary', name: 'Salaire fictif', kind: 'income' },
+        ])
+        .returning()
+      const saved = await layout.replace([
+        item('tracked_budgets', { categoryIds: [transport.id, groceries.id] }),
+      ])
+      expect(saved.widgets[0].categoryIds).toEqual([transport.id, groceries.id])
+      await expect(
+        layout.replace([item('tracked_budgets', { categoryIds: [salary.id] })]),
+      ).rejects.toThrow(BadRequestException)
+      await expect(
+        layout.replace([item('owed', { categoryIds: [groceries.id] })]),
+      ).rejects.toThrow(BadRequestException)
     })
   })
 

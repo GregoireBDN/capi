@@ -169,6 +169,7 @@ const envelopes: EnvelopesDto = {
       color: null,
       icon: null,
       targetCents: 10_000,
+      tracked: true,
       spentCents: 2_000,
       manualCents: 0,
       envelopePaidCents: 0,
@@ -184,6 +185,7 @@ const envelopes: EnvelopesDto = {
       color: '#db2777',
       icon: 'party-popper',
       targetCents: 15_000,
+      tracked: true,
       spentCents: 9_000,
       manualCents: 2_500,
       envelopePaidCents: 0,
@@ -195,13 +197,13 @@ const envelopes: EnvelopesDto = {
   ],
 }
 
-function renderCard() {
+function renderCard(categoryIds: string[] | null = null) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MonthEnvelopes />
+      <MonthEnvelopes categoryIds={categoryIds} />
     </QueryClientProvider>,
   )
 }
@@ -238,6 +240,28 @@ function currentStep(dialog: HTMLElement): string {
 }
 
 describe('MonthEnvelopes', () => {
+  it('shows the budgets chosen in its settings, in their order, tracked or not', async () => {
+    api.budgetsControllerEnvelopes.mockImplementation(() =>
+      ok({
+        ...envelopes,
+        items: envelopes.items.map((item) =>
+          item.categoryId === OUTINGS ? { ...item, tracked: false } : item,
+        ),
+      }),
+    )
+    renderCard([OUTINGS, SHOPPING])
+    const card = await screen.findByRole('region', { name: 'Budgets suivis' })
+    await within(card).findByRole('meter', { name: 'Sorties' })
+    expect(
+      within(card)
+        .getAllByRole('meter')
+        .map((meter) => meter.getAttribute('aria-label')),
+    ).toEqual(['Sorties', 'Shopping'])
+    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith(
+      expect.objectContaining({ query: { all: true } }),
+    )
+  })
+
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
 

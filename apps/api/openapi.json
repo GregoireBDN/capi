@@ -5656,7 +5656,7 @@
     },
     "/api/budgets/envelopes": {
       "get": {
-        "description": "Budget lines flagged `tracked` for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
+        "description": "Budget lines flagged `tracked` (every expense line with `all`) for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
         "operationId": "BudgetsController_envelopes",
         "parameters": [
           {
@@ -5668,6 +5668,15 @@
               "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
               "example": "2026-11",
               "type": "string"
+            }
+          },
+          {
+            "description": "Every expense budget line of the month, tracked or not (`tracked` says which), for the dashboard’s « Budgets suivis » on chosen categories (#495). Default: the tracked lines only.",
+            "required": false,
+            "name": "all",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -17242,6 +17251,10 @@
             "type": "integer",
             "description": "Monthly target in cents."
           },
+          "tracked": {
+            "type": "boolean",
+            "description": "Flagged « suivre pendant le mois »; always true unless `all` was asked."
+          },
           "spentCents": {
             "type": "integer",
             "description": "Spent during the month (so far for the current one), in positive cents: imported and manual `expense` transactions of the category (refunds reduce it)."
@@ -17282,6 +17295,7 @@
           "color",
           "icon",
           "targetCents",
+          "tracked",
           "spentCents",
           "manualCents",
           "envelopePaidCents",
@@ -17897,6 +17911,15 @@
           "envelopeIds": {
             "nullable": true,
             "description": "`envelopes` only: the envelopes shown; null = all of them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "categoryIds": {
+            "nullable": true,
+            "description": "`tracked_budgets` only: the expense categories shown, in their order; null = the budget lines flagged « suivre pendant le mois ».",
             "type": "array",
             "items": {
               "type": "string",

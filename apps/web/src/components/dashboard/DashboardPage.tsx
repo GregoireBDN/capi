@@ -349,7 +349,7 @@ function DashboardElements({
       case 'todo':
         return <DashboardTodos todos={todos} today={today} />
       case 'tracked_budgets':
-        return <MonthEnvelopes />
+        return <MonthEnvelopes categoryIds={widget.categoryIds ?? null} />
       case 'forecast':
         return <ForecastElement widget={widget} onEdit={edit} />
       case 'net_worth':

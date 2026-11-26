@@ -116,6 +116,21 @@ export class DashboardWidgetDto {
   @IsUUID('all', { each: true })
   envelopeIds!: string[] | null
 
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    nullable: true,
+    required: false,
+    description:
+      '`tracked_budgets` only: the expense categories shown, in their order; null = the budget lines flagged « suivre pendant le mois ».',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(DASHBOARD_CHOICES_MAX)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  categoryIds?: string[] | null
+
   @ApiProperty({ type: DashboardWidgetSettingsDto })
   @ValidateNested()
   @Type(() => DashboardWidgetSettingsDto)

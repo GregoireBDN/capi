@@ -216,6 +216,7 @@ function widget(
     hidden: false,
     accountIds: null,
     envelopeIds: null,
+    categoryIds: null,
     settings: {},
     ...values,
   }

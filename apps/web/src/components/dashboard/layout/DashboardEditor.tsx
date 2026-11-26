@@ -20,6 +20,7 @@ import {
   PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
+  ShoppingCartIcon,
   PiggyBankIcon,
   UsersIcon,
   WalletIcon,
@@ -35,6 +36,8 @@ import type {
 import { SheetScroll, editorSide } from '#/components/sheets/form-sheet'
 import { AccountTypeBadge } from '#/components/transactions/filter-options'
 import { envelopesQuery } from '#/components/envelopes/queries'
+import { envelopesQuery as budgetLinesQuery } from '#/components/expenses/queries'
+import { CategoryAvatar } from '#/components/categories/category-icons'
 import { accountsQuery } from '#/lib/queries'
 import { CATALOGUE_ORDER, ELEMENTS, newElement } from './catalogue'
 import { resetDashboardLayout, saveDashboardLayout } from './queries'
@@ -298,12 +301,13 @@ function Editor({
   )
 }
 
-/** The elements with something to set: their accounts, envelopes or own choices. */
+/** The elements with something to set: their accounts, envelopes, budgets or own choices. */
 function hasSettings(type: DashboardWidgetType): boolean {
   const info = ELEMENTS[type]
   return (
     Boolean(info.accountTypes) ||
     Boolean(info.envelopes) ||
+    Boolean(info.budgets) ||
     type === 'balances' ||
     type === 'upcoming_debits' ||
     type === 'owed'
@@ -562,6 +566,14 @@ function ElementSettings({
           />
         </Section>
       )}
+      {info.budgets && (
+        <Section icon={<ShoppingCartIcon />} title="Budgets">
+          <BudgetChoice
+            value={widget.categoryIds ?? null}
+            onChange={(categoryIds) => onChange({ categoryIds })}
+          />
+        </Section>
+      )}
       {info.envelopes && (
         <Section icon={<PiggyBankIcon />} title="Enveloppes">
           <EnvelopeChoice
@@ -688,6 +700,51 @@ function AccountChoice({
         name: account.name,
         badge: <AccountTypeBadge type={account.type} />,
       }))}
+    />
+  )
+}
+
+/**
+ * The month's budget lines, each with its eye, dragged in order (#495). Until
+ * the owner changes something, the shown ones are those flagged « suivre
+ * pendant le mois » (`null`); after, exactly the chosen ones, in their order
+ * (all of them too, never back to `null`).
+ */
+function BudgetChoice({
+  value,
+  onChange,
+}: {
+  value: string[] | null
+  onChange: (value: string[]) => void
+}) {
+  const { data } = useQuery(budgetLinesQuery(undefined, { all: true }))
+  const lines = data?.items ?? []
+  if (data && lines.length === 0) {
+    return (
+      <p className="text-muted-foreground px-1 text-sm">
+        Aucun budget ce mois-ci : fixe-les sur la page Budget.
+      </p>
+    )
+  }
+  const items = lines.map((line) => ({
+    id: line.categoryId,
+    name: line.name,
+    badge: (
+      <CategoryAvatar
+        category={{ color: line.color, icon: line.icon }}
+        className="size-[32px]"
+      />
+    ),
+  }))
+  const tracked = lines
+    .filter((line) => line.tracked)
+    .map((line) => line.categoryId)
+  return (
+    <Choice
+      value={value ?? tracked}
+      sortable
+      onChange={(ids) => onChange(ids ?? items.map((item) => item.id))}
+      items={items}
     />
   )
 }

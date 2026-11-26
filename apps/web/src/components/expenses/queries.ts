@@ -18,21 +18,26 @@ import { ApiRequestError, unwrap } from '#/lib/queries'
 
 export const envelopeKeys = {
   all: ['envelopes'] as const,
-  month: (month: string | undefined) =>
-    ['envelopes', month ?? 'current'] as const,
+  month: (month: string | undefined, all = false) =>
+    ['envelopes', month ?? 'current', ...(all ? ['all'] : [])] as const,
 }
 
 /**
  * Envelopes of `month`; without it, the current month (Europe/Paris,
- * decided by the API).
+ * decided by the API). `all`: every expense budget line, tracked or not
+ * (#495, « Budgets suivis » on chosen categories).
  */
-export function envelopesQuery(month?: string) {
+export function envelopesQuery(month?: string, { all = false } = {}) {
   return queryOptions({
-    queryKey: envelopeKeys.month(month),
+    queryKey: envelopeKeys.month(month, all),
     queryFn: () =>
       unwrap(
         budgetsControllerEnvelopes({
-          ...(month ? { query: { month } } : {}),
+          ...(month || all
+            ? {
+                query: { ...(month ? { month } : {}), ...(all ? { all } : {}) },
+              }
+            : {}),
           throwOnError: false,
         }),
       ),

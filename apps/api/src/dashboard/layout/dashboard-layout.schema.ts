@@ -11,6 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { accountsTable } from '#/accounts/accounts.schema'
+import { categoriesTable } from '#/categories/categories.schema'
 import { coreColumns } from '#/database/schema/core.schema'
 import {
   DASHBOARD_ACCOUNT_WIDGET_TYPES,
@@ -46,6 +47,11 @@ export const dashboardWidgetsTable = pgTable(
     accountsChosen: boolean('accounts_chosen').notNull().default(false),
     /** The chosen envelopes only (`dashboard_widget_envelopes`), else all. */
     envelopesChosen: boolean('envelopes_chosen').notNull().default(false),
+    /**
+     * « Budgets suivis » on the chosen categories, in their order
+     * (`dashboard_widget_categories`), else the tracked budget lines.
+     */
+    categoriesChosen: boolean('categories_chosen').notNull().default(false),
     settings: jsonb('settings')
       .$type<Record<string, string | number | boolean>>()
       .notNull()
@@ -66,6 +72,10 @@ export const dashboardWidgetsTable = pgTable(
     check(
       'dashboard_widgets_envelopes_chosen_type',
       sql`not ${t.envelopesChosen} or ${t.type} = 'envelopes'`,
+    ),
+    check(
+      'dashboard_widgets_categories_chosen_type',
+      sql`not ${t.categoriesChosen} or ${t.type} = 'tracked_budgets'`,
     ),
   ],
 )
@@ -110,6 +120,34 @@ export const dashboardWidgetEnvelopesTable = pgTable(
   (t) => [
     unique('dashboard_widget_envelopes_unique').on(t.widgetId, t.envelopeId),
     index().on(t.envelopeId),
+  ],
+)
+
+/**
+ * The expense categories « Budgets suivis » shows when it shows chosen
+ * ones (#495), in their order; a trigger refuses any other kind.
+ */
+export const dashboardWidgetCategoriesTable = pgTable(
+  'dashboard_widget_categories',
+  {
+    ...coreColumns,
+    widgetId: uuid('widget_id')
+      .notNull()
+      .references(() => dashboardWidgetsTable.id, { onDelete: 'cascade' }),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => categoriesTable.id, { onDelete: 'cascade' }),
+    /** The category's place in the element, from 0. */
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    unique('dashboard_widget_categories_unique').on(t.widgetId, t.categoryId),
+    unique('dashboard_widget_categories_position_unique').on(
+      t.widgetId,
+      t.position,
+    ),
+    check('dashboard_widget_categories_position', sql`${t.position} >= 0`),
+    index().on(t.categoryId),
   ],
 )
 

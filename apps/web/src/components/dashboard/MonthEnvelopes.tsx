@@ -23,8 +23,25 @@ const WARNING_THRESHOLD = 0.8
  * ajouter »). « Ajouter une dépense » is an item of
  * the page's « ⋮ » (#386). The detail and past months are on Budget.
  */
-export function MonthEnvelopes() {
-  const envelopes = useQuery(envelopesQuery())
+export function MonthEnvelopes({
+  categoryIds = null,
+}: {
+  /**
+   * The budgets chosen in the element's settings, in their order (#495);
+   * null = the lines flagged « suivre pendant le mois ».
+   */
+  categoryIds?: string[] | null
+} = {}) {
+  const query = useQuery(
+    envelopesQuery(undefined, { all: categoryIds !== null }),
+  )
+  const envelopes = {
+    ...query,
+    data:
+      query.data && categoryIds !== null
+        ? { ...query.data, items: pickLines(query.data.items, categoryIds) }
+        : query.data,
+  }
   const [sheet, setSheet] = useState<{ open: boolean; categoryId?: string }>({
     open: false,
   })
@@ -90,6 +107,14 @@ export function MonthEnvelopes() {
       />
     </section>
   )
+}
+
+/** The chosen categories' lines in the chosen order; one without a budget this month is left out. */
+export function pickLines<T extends { categoryId: string }>(
+  items: T[],
+  ids: string[],
+): T[] {
+  return ids.flatMap((id) => items.find((item) => item.categoryId === id) ?? [])
 }
 
 function EnvelopeList({

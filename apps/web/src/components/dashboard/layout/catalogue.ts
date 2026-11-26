@@ -28,6 +28,8 @@ export interface ElementInfo {
   accountTypes?: readonly AccountType[]
   /** It shows envelopes (all of them or the chosen ones). */
   envelopes?: boolean
+  /** It shows budget lines (the tracked ones or the chosen ones, #495). */
+  budgets?: boolean
 }
 
 const BANK: readonly AccountType[] = ['checking', 'savings']
@@ -62,6 +64,7 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     name: 'Budgets suivis',
     icon: ShoppingCartIcon,
     tone: 'bg-chart-2/15 text-chart-2',
+    budgets: true,
   },
   month_flows: {
     type: 'month_flows',
@@ -140,6 +143,7 @@ export function newElement(type: DashboardWidgetType): DashboardWidgetDto {
     hidden: false,
     accountIds: null,
     envelopeIds: null,
+    categoryIds: null,
     settings: {},
   }
 }

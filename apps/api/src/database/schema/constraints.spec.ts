@@ -7,8 +7,10 @@ import * as schema from './index'
 import {
   accountsTable,
   balanceSnapshotsTable,
+  categoriesTable,
   contactsTable,
   dashboardWidgetAccountsTable,
+  dashboardWidgetCategoriesTable,
   dashboardWidgetEnvelopesTable,
   dashboardWidgetsTable,
   envelopesTable,
@@ -1452,6 +1454,84 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
             position: -1,
           }),
         )
+      })
+    })
+  })
+
+  describe('dashboard « Budgets suivis » categories (#495)', () => {
+    async function category(
+      tx: Tx,
+      kind: 'expense' | 'income' = 'expense',
+      slug = `fictive-${kind}`,
+    ) {
+      const [created] = await tx
+        .insert(categoriesTable)
+        .values({ slug, name: slug, kind })
+        .returning()
+      return created
+    }
+
+    it('chooses categories only on Budgets suivis, only while chosen ones are shown, expenses only', async () => {
+      await inRollback(async (tx) => {
+        const groceries = await category(tx)
+        const salary = await category(tx, 'income')
+        const transport = await category(tx, 'expense', 'fictive-transport')
+        await refused(tx, 'dashboard_widgets_categories_chosen_type', (n) =>
+          n
+            .insert(dashboardWidgetsTable)
+            .values({ type: 'owed', position: 0, categoriesChosen: true }),
+        )
+        const [tracked] = await tx
+          .insert(dashboardWidgetsTable)
+          .values({ type: 'tracked_budgets', position: 0 })
+          .returning()
+        await refused(tx, 'dashboard_widget_categories_chosen', (n) =>
+          n.insert(dashboardWidgetCategoriesTable).values({
+            widgetId: tracked.id,
+            categoryId: groceries.id,
+            position: 0,
+          }),
+        )
+        await tx
+          .update(dashboardWidgetsTable)
+          .set({ categoriesChosen: true })
+          .where(eq(dashboardWidgetsTable.id, tracked.id))
+        await refused(tx, 'dashboard_widget_categories_expense', (n) =>
+          n.insert(dashboardWidgetCategoriesTable).values({
+            widgetId: tracked.id,
+            categoryId: salary.id,
+            position: 0,
+          }),
+        )
+        await tx.insert(dashboardWidgetCategoriesTable).values({
+          widgetId: tracked.id,
+          categoryId: groceries.id,
+          position: 0,
+        })
+        await refused(tx, 'dashboard_widget_categories_position', (n) =>
+          n.insert(dashboardWidgetCategoriesTable).values({
+            widgetId: tracked.id,
+            categoryId: transport.id,
+            position: -1,
+          }),
+        )
+        // Back to the tracked lines without clearing them: refused.
+        await refused(tx, 'dashboard_widget_categories_chosen', (n) =>
+          n
+            .update(dashboardWidgetsTable)
+            .set({ categoriesChosen: false })
+            .where(eq(dashboardWidgetsTable.id, tracked.id)),
+        )
+        // No longer an expense: it leaves the element in the same write.
+        await tx
+          .update(categoriesTable)
+          .set({ kind: 'income' })
+          .where(eq(categoriesTable.id, groceries.id))
+        const left = await tx
+          .select()
+          .from(dashboardWidgetCategoriesTable)
+          .where(eq(dashboardWidgetCategoriesTable.widgetId, tracked.id))
+        expect(left).toEqual([])
       })
     })
   })

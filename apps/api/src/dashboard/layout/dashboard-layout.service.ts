@@ -1,11 +1,13 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common'
-import { asc, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
   accountsTable,
+  categoriesTable,
   dashboardWidgetAccountsTable,
+  dashboardWidgetCategoriesTable,
   dashboardWidgetEnvelopesTable,
   dashboardWidgetsTable,
   envelopesTable,
@@ -41,6 +43,7 @@ function widget(type: DashboardWidgetType): DashboardWidgetDto {
     hidden: false,
     accountIds: null,
     envelopeIds: null,
+    categoryIds: null,
     settings: {},
   }
 }
@@ -82,7 +85,7 @@ export class DashboardLayoutService {
       return { custom: false, widgets: DEFAULT_DASHBOARD_LAYOUT }
     }
     const ids = rows.map((row) => row.id)
-    const [accounts, envelopes] = await Promise.all([
+    const [accounts, envelopes, categories] = await Promise.all([
       this.db
         .select()
         .from(dashboardWidgetAccountsTable)
@@ -92,6 +95,11 @@ export class DashboardLayoutService {
         .select()
         .from(dashboardWidgetEnvelopesTable)
         .where(inArray(dashboardWidgetEnvelopesTable.widgetId, ids)),
+      this.db
+        .select()
+        .from(dashboardWidgetCategoriesTable)
+        .where(inArray(dashboardWidgetCategoriesTable.widgetId, ids))
+        .orderBy(asc(dashboardWidgetCategoriesTable.position)),
     ])
     return {
       custom: true,
@@ -108,6 +116,11 @@ export class DashboardLayoutService {
               .filter((link) => link.widgetId === row.id)
               .map((link) => link.envelopeId)
           : null,
+        categoryIds: row.categoriesChosen
+          ? categories
+              .filter((link) => link.widgetId === row.id)
+              .map((link) => link.categoryId)
+          : null,
         settings: row.settings as DashboardWidgetSettingsDto,
       })),
     }
@@ -121,6 +134,7 @@ export class DashboardLayoutService {
         tx,
         widgets.flatMap((item) => item.accountIds ?? []),
         widgets.flatMap((item) => item.envelopeIds ?? []),
+        widgets.flatMap((item) => item.categoryIds ?? []),
       )
       await tx.delete(dashboardWidgetsTable)
       for (const [position, item] of widgets.entries()) {
@@ -132,6 +146,7 @@ export class DashboardLayoutService {
             hidden: item.hidden,
             accountsChosen: item.accountIds !== null,
             envelopesChosen: item.envelopeIds !== null,
+            categoriesChosen: item.categoryIds !== null,
             settings: settingsOf(item),
           })
           .returning({ id: dashboardWidgetsTable.id })
@@ -140,6 +155,15 @@ export class DashboardLayoutService {
             item.accountIds.map((accountId, position) => ({
               widgetId: row.id,
               accountId,
+              position,
+            })),
+          )
+        }
+        if (item.categoryIds?.length) {
+          await tx.insert(dashboardWidgetCategoriesTable).values(
+            item.categoryIds.map((categoryId, position) => ({
+              widgetId: row.id,
+              categoryId,
               position,
             })),
           )
@@ -177,9 +201,15 @@ function validate(widgets: DashboardWidgetDto[]) {
     seen.add(item.type)
     item.accountIds ??= null
     item.envelopeIds ??= null
+    item.categoryIds ??= null
     if (item.accountIds !== null && !ACCOUNT_TYPES.has(item.type)) {
       throw new BadRequestException(
         `Element ${item.type} does not show accounts.`,
+      )
+    }
+    if (item.categoryIds !== null && item.type !== 'tracked_budgets') {
+      throw new BadRequestException(
+        `Element ${item.type} does not show budget categories.`,
       )
     }
     if (item.envelopeIds !== null && item.type !== 'envelopes') {
@@ -211,6 +241,7 @@ async function checkExists(
   tx: Parameters<Parameters<Db['transaction']>[0]>[0],
   accountIds: string[],
   envelopeIds: string[],
+  categoryIds: string[],
 ) {
   const unique = (ids: string[]) => [...new Set(ids)]
   if (accountIds.length > 0) {
@@ -231,6 +262,21 @@ async function checkExists(
       .where(inArray(envelopesTable.id, ids))
     if (found.length !== ids.length) {
       throw new BadRequestException('Unknown envelope.')
+    }
+  }
+  if (categoryIds.length > 0) {
+    const ids = unique(categoryIds)
+    const found = await tx
+      .select({ id: categoriesTable.id })
+      .from(categoriesTable)
+      .where(
+        and(
+          inArray(categoriesTable.id, ids),
+          eq(categoriesTable.kind, 'expense'),
+        ),
+      )
+    if (found.length !== ids.length) {
+      throw new BadRequestException('Unknown expense category.')
     }
   }
 }
