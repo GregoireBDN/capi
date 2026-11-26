@@ -66,7 +66,7 @@ export function AppHeader({ user }: { user: UserDto }) {
         variant="secondary"
         ghost
         iconOnly
-        className="relative md:hidden [&_svg]:size-[1.1rem]"
+        className="text-foreground relative rounded-full md:hidden [&_svg]:size-[1.1rem]"
         aria-label="Ouvrir le menu"
         aria-expanded={openMobile}
         onClick={() => setOpenMobile(true)}
@@ -79,8 +79,10 @@ export function AppHeader({ user }: { user: UserDto }) {
       >
         {/* On staging phones the mark alone: the badge takes the room of
             « api » (both would push the avatar out at 320px). */}
+        {/* 44px like the buttons, moved down by half the « p »'s descender
+            so « Ca » sits on the header's middle line (#434). */}
         <CapiWordmark
-          className="h-9"
+          className="h-8 translate-y-[9%]"
           onBanner={staging}
           markOnPhones={staging}
         />
