@@ -9,6 +9,8 @@ import {
   ChevronRightIcon,
   PiggyBankIcon,
   Settings2Icon,
+  TrendingDownIcon,
+  TrendingUpIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
@@ -32,7 +34,6 @@ import { formatSignedWholeEuros, formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { ForecastPath } from '../ForecastCard'
-import { NetWorthRow } from '../GlanceCard'
 import { dashboardHistoryQuery } from '../queries'
 
 /**
@@ -290,66 +291,182 @@ function balanceDetail(
  * Patrimoine, Fin de mois on their own
  * ------------------------------------------------------------------------- */
 
+const monthYear = new Intl.DateTimeFormat('fr-FR', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+/** `2025-11` → « nov. 2025 ». */
+function formatMonthYear(month: string): string {
+  return monthYear.format(new Date(`${month}-01T00:00:00Z`))
+}
+
+/** « en 1 an », « en 3 ans ». */
+function inYears(years: number): string {
+  return years === 1 ? 'en 1 an' : `en ${years} ans`
+}
+
+/** A change as a pill, green up, red down: never a sentence. */
+function ChangePill({ cents, label }: { cents: number; label: string }) {
+  return (
+    <span
+      className={cn(
+        'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums',
+        cents >= 0
+          ? 'bg-chart-delta-good/10 text-chart-delta-good'
+          : 'bg-chart-delta-bad/10 text-chart-delta-bad',
+      )}
+    >
+      {cents >= 0 ? (
+        <TrendingUpIcon aria-hidden className="size-3.5" />
+      ) : (
+        <TrendingDownIcon aria-hidden className="size-3.5" />
+      )}
+      {formatSignedWholeEuros(cents)} {label}
+    </span>
+  )
+}
+
+/** The month ends as a line over a soft area, today as a dot. */
+function WorthCurve({ values }: { values: number[] }) {
+  const w = 300
+  const h = 56
+  const low = Math.min(...values)
+  const high = Math.max(...values)
+  const span = high - low || 1
+  const x = (i: number) => (i / (values.length - 1)) * w
+  const y = (v: number) => h - 4 - ((v - low) / span) * (h - 8)
+  const line = values
+    .map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+    .join(' ')
+  return (
+    <svg
+      aria-hidden
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      className="block h-14 w-full overflow-visible"
+    >
+      <path
+        d={`${line} L${w},${h} L0,${h} Z`}
+        className="fill-primary/10"
+        stroke="none"
+      />
+      <path
+        d={line}
+        fill="none"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        className="stroke-primary"
+      />
+    </svg>
+  )
+}
+
 /**
- * « Patrimoine » in its own card. On chosen accounts it is titled « n
- * comptes », never passed off as the whole; its change is against those
- * accounts' balances at the last month end (`GET /dashboard/history`).
+ * « Patrimoine » (#495, the owner's « A. Courbe »): today's net worth in
+ * large, its change since the last month end as a pill, then its month ends
+ * over the last 1, 3 or 10 years (`netWorthYears`) as a curve, with what it
+ * gained over them. On chosen accounts it is titled « n comptes », never
+ * passed off as the whole, and every figure is those accounts' own.
  */
 export function NetWorthElement({
   overview,
   widget,
-  year,
   onEdit,
 }: {
   overview: DashboardOverviewDto
   widget: DashboardWidgetDto
-  year: string
   onEdit?: () => void
 }) {
+  const years = widget.settings.netWorthYears ?? 1
+  // The month ends from the same month `years` ago to the current one.
+  const history = useQuery(dashboardHistoryQuery(years * 12 + 1))
   const chosen = widget.accountIds
-  const history = useQuery({
-    ...dashboardHistoryQuery(2),
-    enabled: chosen !== null,
-  })
-  if (chosen === null) {
-    return (
-      <Card className="min-w-0 px-2 py-1.5">
-        <NetWorthRow netWorth={overview.netWorth} year={year} />
-      </Card>
-    )
-  }
-  const accounts = pickAccounts(overview.accounts, chosen)
-  if (accounts.length === 0) {
+  const accounts =
+    chosen === null ? null : pickAccounts(overview.accounts, chosen)
+  const title =
+    accounts === null
+      ? 'Patrimoine'
+      : `Patrimoine · ${accounts.length === 1 ? '1 compte' : `${accounts.length} comptes`}`
+  if (accounts?.length === 0) {
     return (
       <ElementCard title="Patrimoine" to={ROUTES.accounts}>
         <NoAccountLeft onEdit={onEdit} />
       </ElementCard>
     )
   }
-  const ids = new Set(accounts.map((account) => account.id))
-  const total = accounts.reduce(
-    (sum, account) => sum + (account.balanceCents ?? 0),
-    0,
-  )
-  // The month before the current one in the history, oldest first.
-  const monthEnd = history.data?.months.at(-2)
-  const previous = monthEnd
-    ? monthEnd.accounts
-        .filter((account) => ids.has(account.accountId))
-        .reduce((sum, account) => sum + account.balanceCents, 0)
-    : null
+  const ids = accounts === null ? null : new Set(accounts.map((a) => a.id))
+  const total =
+    accounts === null
+      ? overview.netWorth.totalCents
+      : accounts.reduce((sum, account) => sum + (account.balanceCents ?? 0), 0)
+  // Each month end's value, the months before any balance left out; the
+  // current month is today's figure.
+  const months = history.data?.months ?? []
+  const points = months.slice(0, -1).flatMap((month) => {
+    const value =
+      ids === null
+        ? month.netWorthCents
+        : month.accounts.some((account) => ids.has(account.accountId))
+          ? month.accounts
+              .filter((account) => ids.has(account.accountId))
+              .reduce((sum, account) => sum + account.balanceCents, 0)
+          : null
+    return value === null ? [] : [{ month: month.month, value }]
+  })
+  const previous = points.at(-1)?.value ?? null
+  const first = points.at(0)
+  const values = [...points.map((point) => point.value), total]
+  // The whole period known: « en 3 ans », else « depuis » the first month end.
+  const full =
+    months.length >= years * 12 + 1 && first?.month === months[0].month
   return (
-    <Card className="min-w-0 px-2 py-1.5">
-      <NetWorthRow
-        title={`Patrimoine · ${accounts.length === 1 ? '1 compte' : `${accounts.length} comptes`}`}
-        netWorth={{
-          totalCents: total,
-          previousMonthEnd: overview.netWorth.previousMonthEnd,
-          previousMonthEndCents: previous,
-        }}
-        year={year}
-      />
-    </Card>
+    <ElementCard title={title} to={ROUTES.accounts}>
+      <div className="space-y-2 px-2 pb-1">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <span
+            data-testid="net-worth"
+            className="text-[2rem] leading-tight font-semibold tracking-tight whitespace-nowrap tabular-nums"
+          >
+            {formatWholeEuros(total)}
+          </span>
+          {previous !== null && (
+            <ChangePill cents={total - previous} label="ce mois" />
+          )}
+        </div>
+        {history.isPending ? (
+          <Skeleton className="h-14 w-full" />
+        ) : (
+          first &&
+          values.length > 2 && (
+            <>
+              <WorthCurve values={values} />
+              <div className="flex justify-between gap-3 text-xs">
+                <span className="text-muted-foreground">
+                  {full && formatMonthYear(first.month)}
+                </span>
+                <span
+                  data-testid="net-worth-gain"
+                  className={cn(
+                    'font-medium whitespace-nowrap tabular-nums',
+                    total >= first.value
+                      ? 'text-chart-delta-good'
+                      : 'text-chart-delta-bad',
+                  )}
+                >
+                  {formatSignedWholeEuros(total - first.value)}{' '}
+                  {full
+                    ? inYears(years)
+                    : `depuis ${formatMonthYear(first.month)}`}
+                </span>
+              </div>
+            </>
+          )
+        )}
+      </div>
+    </ElementCard>
   )
 }
 

@@ -107,7 +107,7 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
         item('owed', { settings: { owedSide: 'i_owe' } }),
         item('upcoming_debits', { settings: { upcomingDays: 30 } }),
         item('envelopes', { envelopeIds: [trip.id] }),
-        item('net_worth', { hidden: true }),
+        item('net_worth', { hidden: true, settings: { netWorthYears: 3 } }),
       ])
       expect(saved.custom).toBe(true)
       expect(saved.widgets.map((w) => w.type)).toEqual([
@@ -125,7 +125,11 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
         envelopeIds: [trip.id],
         accountIds: null,
       })
-      expect(saved.widgets[4]).toMatchObject({ hidden: true, accountIds: null })
+      expect(saved.widgets[4]).toMatchObject({
+        hidden: true,
+        accountIds: null,
+        settings: { netWorthYears: 3 },
+      })
 
       // Saved again in another order: replaced as a whole.
       const again = await layout.replace([
@@ -158,6 +162,7 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
       await refused([item('owed', { accountIds: [checking.id] })])
       await refused([item('balances', { envelopeIds: [] })])
       await refused([item('balances', { settings: { upcomingDays: 7 } })])
+      await refused([item('owed', { settings: { netWorthYears: 1 } })])
       await refused([
         item('balances', {
           accountIds: ['00000000-0000-4000-8000-000000000000'],

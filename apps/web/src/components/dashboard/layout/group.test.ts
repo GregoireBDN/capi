@@ -9,7 +9,7 @@ const widget = (
 ) => ({ ...newElement(type), ...values })
 
 describe('groupWidgets', () => {
-  it('keeps today’s card: Fin de mois and Patrimoine in Reste à dépenser', () => {
+  it('keeps Fin de mois in Reste à dépenser, Patrimoine a card of its own', () => {
     const blocks = groupWidgets([
       widget('todo'),
       widget('left_to_spend'),
@@ -21,8 +21,10 @@ describe('groupWidgets', () => {
       'single',
       'glance',
       'single',
+      'single',
     ])
-    expect(blocks[1]).toMatchObject({ rows: ['forecast', 'net_worth'] })
+    expect(blocks[1]).toMatchObject({ rows: ['forecast'] })
+    expect(blocks[2].widget.type).toBe('net_worth')
   })
 
   it('draws them as cards of their own elsewhere or on chosen accounts', () => {
@@ -52,7 +54,7 @@ describe('groupWidgets', () => {
       widget('forecast', { hidden: true }),
       widget('net_worth'),
     ])
-    expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({ rows: ['net_worth'] })
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0]).toMatchObject({ rows: [] })
   })
 })

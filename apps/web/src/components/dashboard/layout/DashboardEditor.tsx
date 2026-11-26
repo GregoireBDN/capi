@@ -509,6 +509,22 @@ function ElementSettings({
           />
         </Section>
       )}
+      {widget.type === 'net_worth' && (
+        <Section icon={<CalendarIcon />} title="Période">
+          <ChoiceCards
+            label="Années"
+            value={String(widget.settings.netWorthYears ?? 1)}
+            onChange={(years) =>
+              setting({ netWorthYears: Number(years) as 1 | 3 | 10 })
+            }
+            options={[
+              { value: '1', label: '1 an', icon: <Big>1</Big> },
+              { value: '3', label: '3 ans', icon: <Big>3</Big> },
+              { value: '10', label: '10 ans', icon: <Big>10</Big> },
+            ]}
+          />
+        </Section>
+      )}
       {widget.type === 'owed' && (
         <Section icon={<UsersIcon />} title="Côté">
           <ChoiceCards

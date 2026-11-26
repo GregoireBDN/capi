@@ -300,11 +300,21 @@ beforeEach(() => {
     ok({
       months: [
         {
+          month: '2026-09',
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 1_400_000,
+          accounts: [
+            { accountId: pea.id, type: 'brokerage', balanceCents: 800_000 },
+          ],
+        },
+        {
           month: '2026-10',
           incomeCents: 0,
           expenseCents: 0,
           netCents: 0,
-          netWorthCents: 0,
+          netWorthCents: 1_500_000,
           accounts: [
             { accountId: pea.id, type: 'brokerage', balanceCents: 900_000 },
           ],
@@ -371,17 +381,20 @@ describe('DashboardPage', () => {
     const card = await screen.findByRole('region', {
       name: 'Reste à dépenser',
     })
-    const link = within(card).getByRole('link', { name: /Reste à dépenser/ })
+    const link = within(card).getByRole('link', { name: /Reste · novembre/ })
     expect(link).toHaveAttribute('href', '/budget')
     expect(screen.getByTestId('left-to-spend')).toHaveTextContent(
       euros(100_000),
     )
-    // Read to the 19th, the day the data goes to: 2 000 € × 19 / 30.
-    expect(card).toHaveTextContent(`${euros(26_667)} sous le rythme`)
-    expect(card).toHaveTextContent(
-      `${euros(100_000)} sur ${euros(200_000)} · ${euros(8_800)} hors budget`,
+    // Read to the 19th, the day the data goes to: 11 days left, 1 000 € / 11.
+    expect(screen.getByTestId('per-day')).toHaveTextContent(
+      `${euros(9_000)}par jour · 11 j`,
     )
-    expect(card).toHaveTextContent('À jour au 19 nov.')
+    // Behind the pace of 2 000 € × 19 / 30: a pill, no sentence.
+    expect(screen.getByTestId('pace')).toHaveTextContent('Bon rythme')
+    expect(card).toHaveTextContent(`sur ${euros(200_000)}`)
+    expect(card).not.toHaveTextContent('hors budget')
+    expect(screen.getByTestId('data-until')).toHaveTextContent('au 19 nov.')
     expect(
       within(card).getByRole('meter', { name: 'Budget du mois' }),
     ).toHaveAttribute('aria-valuenow', '100000')
@@ -399,8 +412,9 @@ describe('DashboardPage', () => {
     renderPage()
     const amount = await screen.findByTestId('left-to-spend')
     expect(amount).toHaveTextContent(euros(12_000))
-    expect(screen.getByText(/Budget dépassé en novembre/)).toBeInTheDocument()
-    expect(screen.getByText('Jour 19 sur 30')).toBeInTheDocument()
+    expect(screen.getByText('Dépassé · novembre')).toBeInTheDocument()
+    expect(screen.getByTestId('pace')).toHaveTextContent('Dépassé')
+    expect(screen.queryByTestId('per-day')).not.toBeInTheDocument()
   })
 
   it('offers to set a budget when the month has none', async () => {
@@ -450,12 +464,18 @@ describe('DashboardPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows today’s net worth with its change, opening the accounts', async () => {
+  it('shows today’s net worth, its change this month and its curve, opening the accounts', async () => {
     renderPage()
-    const row = await screen.findByRole('link', { name: /Patrimoine/ })
-    expect(row).toHaveAttribute('href', '/accounts')
-    expect(row).toHaveTextContent(euros(1_623_456))
-    expect(row).toHaveTextContent(`+${euros(123_456)} depuis le 31 oct.`)
+    const link = await screen.findByRole('link', { name: /Patrimoine/ })
+    expect(link).toHaveAttribute('href', '/accounts')
+    expect(screen.getByTestId('net-worth')).toHaveTextContent(euros(1_623_456))
+    expect(
+      await screen.findByText(`+${euros(123_456)} ce mois`),
+    ).toBeInTheDocument()
+    // A year asked, less known: the gain since the first month end.
+    expect(await screen.findByTestId('net-worth-gain')).toHaveTextContent(
+      `+${euros(223_456)} depuis sept. 2026`,
+    )
     // The accounts themselves are on Comptes.
     expect(screen.queryByText('PEA test')).not.toBeInTheDocument()
   })
@@ -554,7 +574,7 @@ describe('DashboardPage', () => {
     expect(links()[5]).toHaveAttribute('href', '/subscriptions')
     expect(links()[6]).toHaveAttribute('href', '/accounts')
     // The figures say how old they are.
-    expect(screen.getByText(/Chiffres au/)).toHaveTextContent(
+    expect(screen.getByTestId('data-until')).toHaveTextContent(
       'Chiffres au 11 nov.',
     )
   })
@@ -645,8 +665,11 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Patrimoine · 1 compte')).toBeInTheDocument()
     expect(screen.getByText(euros(1_000_000))).toBeInTheDocument()
     expect(
-      await screen.findByText(`+${euros(100_000)} depuis le 31 oct.`),
+      await screen.findByText(`+${euros(100_000)} ce mois`),
     ).toBeInTheDocument()
+    expect(screen.getByTestId('net-worth-gain')).toHaveTextContent(
+      `+${euros(200_000)} depuis sept. 2026`,
+    )
     expect(screen.queryByTestId('left-to-spend')).not.toBeInTheDocument()
     expect(
       [...document.querySelectorAll('[data-element]')].map((element) =>

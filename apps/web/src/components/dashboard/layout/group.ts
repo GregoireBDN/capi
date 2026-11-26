@@ -1,6 +1,6 @@
 import type { DashboardWidgetDto } from '#/api/types.gen'
 
-export type GlanceRowType = 'forecast' | 'net_worth'
+export type GlanceRowType = 'forecast'
 
 export type Block =
   | {
@@ -11,10 +11,11 @@ export type Block =
   | { kind: 'single'; widget: DashboardWidgetDto }
 
 /**
- * The visible elements as the page draws them (#495). « Fin de mois » and
- * « Patrimoine » placed right after « Reste à dépenser », on all their
- * accounts, stay rows of its card, as on today's dashboard (#405); anywhere
- * else, or on chosen accounts, each is a card of its own.
+ * The visible elements as the page draws them (#495). « Fin de mois »
+ * placed right after « Reste à dépenser », on all its accounts, stays a row
+ * of its card, as on today's dashboard (#405); anywhere else, or on chosen
+ * accounts, it is a card of its own. « Patrimoine », a curve since #495, is
+ * always a card of its own.
  */
 export function groupWidgets(widgets: DashboardWidgetDto[]): Block[] {
   const blocks: Block[] = []
@@ -23,7 +24,7 @@ export function groupWidgets(widgets: DashboardWidgetDto[]): Block[] {
     const last = blocks.at(-1)
     if (
       last?.kind === 'glance' &&
-      (widget.type === 'forecast' || widget.type === 'net_worth') &&
+      widget.type === 'forecast' &&
       widget.accountIds === null &&
       !last.rows.includes(widget.type)
     ) {

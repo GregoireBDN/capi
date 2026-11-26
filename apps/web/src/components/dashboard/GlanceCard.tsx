@@ -1,19 +1,18 @@
 import { Card, cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import {
-  CalendarCheckIcon,
+  CheckIcon,
   ChevronRightIcon,
-  LandmarkIcon,
+  GaugeIcon,
   TriangleAlertIcon,
 } from 'lucide-react'
-import type { MonthReviewDto, NetWorthDto } from '#/api/types.gen'
-import { formatSignedWholeEuros, formatWholeEuros } from '#/lib/money'
+import type { MonthReviewDto } from '#/api/types.gen'
+import { formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { SeeLink } from './DashboardCardHeader'
 import { formatMonthName } from './DashboardTodos'
 import { ForecastPath } from './ForecastCard'
-import { GlanceRow } from './GlanceRow'
 import { budgetPace, daysInMonth } from './glance'
 import type { Pace } from './glance'
 
@@ -31,55 +30,63 @@ export function readDay(review: MonthReviewDto, today: string): number {
   return Number(today.slice(8, 10))
 }
 
-function paceText(pace: Pace, day: number, days: number) {
-  switch (pace.state) {
-    case 'under':
-      return {
-        text: `${formatWholeEuros(-pace.aheadCents)} sous le rythme`,
-        className: 'text-chart-delta-good',
-      }
-    case 'on':
-      return { text: 'Dans le rythme', className: 'text-chart-delta-good' }
-    case 'ahead':
-      return {
-        text: `${formatWholeEuros(pace.aheadCents)} au-dessus du rythme`,
-        className: 'text-warning-foreground dark:text-warning',
-      }
-    case 'over':
-      return {
-        text: `Jour ${day} sur ${days}`,
-        className: 'text-chart-delta-bad',
-      }
-  }
+/** How the spending holds against the pace, as a pill: a word, no sentence. */
+function PacePill({ pace }: { pace: Pace }) {
+  const { label, className, Icon } =
+    pace.state === 'over'
+      ? {
+          label: 'Dépassé',
+          className: 'bg-chart-delta-bad/10 text-chart-delta-bad',
+          Icon: TriangleAlertIcon,
+        }
+      : pace.state === 'ahead'
+        ? {
+            label: 'Rythme rapide',
+            className:
+              'bg-warning/20 text-warning-foreground dark:text-warning',
+            Icon: GaugeIcon,
+          }
+        : {
+            label: 'Bon rythme',
+            className: 'bg-chart-delta-good/10 text-chart-delta-good',
+            Icon: CheckIcon,
+          }
+  return (
+    <span
+      data-testid="pace"
+      className={cn(
+        'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
+        className,
+      )}
+    >
+      <Icon aria-hidden className="size-3.5 shrink-0" />
+      {label}
+    </span>
+  )
 }
 
 /**
  * The dashboard's main card (#405, the owner's direction « A. À faire,
  * puis un chiffre »): what is left to spend this month in large, against an
  * even pace read up to the day the data goes to, how far the data goes
- * (in the warning tone once it is stale), then the end of the month and
- * today's net worth as two rows opening their pages.
+ * (in the warning tone once it is stale), then the end of the month as a
+ * row opening the forecast.
  */
 export function GlanceCard({
   review,
-  netWorth,
   today,
   dataUntil,
   stale,
-  rows = ['forecast', 'net_worth'],
+  rows = ['forecast'],
 }: {
   /** The current month's review. */
   review: MonthReviewDto
-  netWorth: NetWorthDto
   today: string
   /** The latest bank data (`GET /coverage`). */
   dataUntil: string | null
   stale: boolean
-  /**
-   * The rows under the figure, in order (#495): « Fin de mois » and
-   * « Patrimoine » by default, as the owner's layout places them.
-   */
-  rows?: readonly ('forecast' | 'net_worth')[]
+  /** The rows under the figure (#495): « Fin de mois » by default. */
+  rows?: readonly 'forecast'[]
 }) {
   const { budget } = review
   const month = formatMonthName(review.month)
@@ -91,7 +98,13 @@ export function GlanceCard({
     day,
     daysInMonth: days,
   })
-  const tone = paceText(pace, day, days)
+  // The days still to come after the last one known, and what is left
+  // for each of them (none once spent past the target or on the last day).
+  const daysLeft = days - day
+  const perDay =
+    !pace.over && daysLeft > 0
+      ? Math.floor(pace.leftCents / daysLeft / 100) * 100
+      : null
   const year = today.slice(0, 4)
 
   return (
@@ -110,11 +123,18 @@ export function GlanceCard({
             to={ROUTES.budget}
             className="hover:bg-muted/40 focus-visible:ring-ring -mx-2 block space-y-2 rounded-lg px-2 py-1 outline-none focus-visible:ring-2"
           >
-            <span className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
-              {pace.over ? 'Budget dépassé' : 'Reste à dépenser'} en {month}
-              <ChevronRightIcon aria-hidden className="size-4 shrink-0" />
+            <span className="text-muted-foreground flex min-h-6 items-center justify-between gap-3 text-xs">
+              <span>
+                {pace.over ? 'Dépassé' : 'Reste'} · {month}
+              </span>
+              <span className="flex items-center gap-2">
+                <DataNote dataUntil={dataUntil} stale={stale} year={year} />
+                <ChevronRightIcon aria-hidden className="size-4 shrink-0" />
+              </span>
             </span>
-            <span className="flex flex-wrap items-end justify-between gap-x-4">
+            {/* « B. Deux chiffres » (#495): what is left in large, what
+                that leaves per day for the days still to come beside it. */}
+            <span className="flex items-end gap-4">
               <span
                 data-testid="left-to-spend"
                 className={cn(
@@ -124,81 +144,45 @@ export function GlanceCard({
               >
                 {formatWholeEuros(Math.abs(pace.leftCents))}
               </span>
-              <span className={cn('pb-1 text-xs font-medium', tone.className)}>
-                {tone.text}
-              </span>
+              {perDay !== null && (
+                <span
+                  data-testid="per-day"
+                  className="border-l pb-1 pl-4 leading-tight"
+                >
+                  <span className="block text-lg font-semibold whitespace-nowrap tabular-nums">
+                    {formatWholeEuros(perDay)}
+                  </span>
+                  <span className="text-muted-foreground block text-xs whitespace-nowrap">
+                    par jour · {daysLeft} j
+                  </span>
+                </span>
+              )}
             </span>
             <PaceBar
               spentCents={budget.spentCents}
               targetCents={budget.targetCents}
               paceCents={pace.paceCents}
             />
-            <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-              <span className="text-muted-foreground tabular-nums">
-                {formatWholeEuros(budget.spentCents)} sur{' '}
-                {formatWholeEuros(budget.targetCents)}
-                {budget.unbudgetedCents > 0 &&
-                  ` · ${formatWholeEuros(budget.unbudgetedCents)} hors budget`}
+            <span className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+                sur {formatWholeEuros(budget.targetCents)}
               </span>
-              <DataNote dataUntil={dataUntil} stale={stale} year={year} />
+              <PacePill pace={pace} />
             </span>
           </Link>
         )}
         {budget.budgetCount === 0 && (
-          <DataNote dataUntil={dataUntil} stale={stale} year={year} />
+          <span className="text-muted-foreground flex text-xs">
+            <DataNote dataUntil={dataUntil} stale={stale} year={year} />
+          </span>
         )}
       </section>
-      {rows.length > 0 && (
+      {rows.includes('forecast') && (
         <div className="space-y-0.5 border-t pt-1.5">
-          {rows.map((row) =>
-            row === 'forecast' ? (
-              <ForecastPath key={row} />
-            ) : (
-              <NetWorthRow key={row} netWorth={netWorth} year={year} />
-            ),
-          )}
+          <ForecastPath />
         </div>
       )}
     </Card>
-  )
-}
-
-/**
- * « Patrimoine »: today's net worth (cash only, money owed beside it on
- * Comptes) and its change since the last month end; opens Comptes.
- */
-export function NetWorthRow({
-  netWorth,
-  year,
-  title = 'Patrimoine',
-}: {
-  netWorth: Pick<
-    NetWorthDto,
-    'totalCents' | 'previousMonthEnd' | 'previousMonthEndCents'
-  >
-  year: string
-  title?: string
-}) {
-  const change =
-    netWorth.previousMonthEndCents === null
-      ? null
-      : netWorth.totalCents - netWorth.previousMonthEndCents
-  return (
-    <GlanceRow
-      icon={<LandmarkIcon />}
-      tone="primary"
-      title={title}
-      value={formatWholeEuros(netWorth.totalCents)}
-      detail={
-        change === null
-          ? undefined
-          : `${formatSignedWholeEuros(change)} depuis le ${formatShortDay(netWorth.previousMonthEnd, year)}`
-      }
-    >
-      {/* The accounts and the two parts of the net worth are on
-          Comptes (#405). */}
-      <Link to={ROUTES.accounts} />
-    </GlanceRow>
   )
 }
 
@@ -244,7 +228,10 @@ function PaceBar({
   )
 }
 
-/** « À jour au 19 nov. », or in the warning tone « Chiffres au 11 nov. ». */
+/**
+ * How far the figures go, beside the title: « au 19 nov. », or as a
+ * warning chip once the data is stale.
+ */
 function DataNote({
   dataUntil,
   stale,
@@ -257,19 +244,15 @@ function DataNote({
   if (dataUntil === null) return null
   return (
     <span
+      data-testid="data-until"
       className={cn(
-        'flex items-center gap-1.5 text-xs',
-        stale
-          ? 'text-warning-foreground dark:text-warning font-medium'
-          : 'text-muted-foreground',
+        'flex items-center gap-1 whitespace-nowrap',
+        stale &&
+          'bg-warning/15 text-warning-foreground dark:text-warning rounded-full px-2 py-0.5 font-medium',
       )}
     >
-      {stale ? (
-        <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-      ) : (
-        <CalendarCheckIcon aria-hidden className="size-3.5 shrink-0" />
-      )}
-      {stale ? 'Chiffres au ' : 'À jour au '}
+      {stale && <TriangleAlertIcon aria-hidden className="size-3 shrink-0" />}
+      <span className="sr-only">{stale ? 'Chiffres' : 'À jour'}</span> au{' '}
       {formatShortDay(dataUntil, year)}
     </span>
   )

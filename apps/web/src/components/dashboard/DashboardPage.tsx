@@ -313,7 +313,6 @@ function DashboardElements({
         return (
           <GlanceCard
             review={review}
-            netWorth={overview.netWorth}
             today={today}
             dataUntil={dataUntil}
             stale={stale}
@@ -355,12 +354,7 @@ function DashboardElements({
         return <ForecastElement widget={widget} onEdit={edit} />
       case 'net_worth':
         return (
-          <NetWorthElement
-            overview={overview}
-            widget={widget}
-            year={year}
-            onEdit={edit}
-          />
+          <NetWorthElement overview={overview} widget={widget} onEdit={edit} />
         )
       case 'balances':
         return (
