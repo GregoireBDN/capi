@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import {
   ArrowDownLeftIcon,
+  ArrowLeftIcon,
   ArrowLeftRightIcon,
   ArrowRightIcon,
   ArrowUpRightIcon,
@@ -256,7 +257,7 @@ function Arrows({ owed, owe }: { owed: number; owe: number }) {
         )}
       >
         {dir === 'in' && (
-          <ArrowDownLeftIcon className="size-4 -scale-x-100 rotate-45" />
+          <ArrowLeftIcon className="size-4" />
         )}
         {cents / 100} €{dir === 'out' && <ArrowRightIcon className="size-4" />}
         <span className="text-muted-foreground text-xs font-normal">
