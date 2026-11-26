@@ -62,6 +62,7 @@ import { TransactionFilters } from './TransactionFilters'
 import type { SearchChangeOptions } from './TransactionFilters'
 import { TransactionList } from './TransactionList'
 import { FilterSum, ReviewAnswer } from './TransactionSummary'
+import { MovementsTabs } from '#/components/spending/MovementsTabs'
 import { useTransactionActions } from './use-transaction-actions'
 
 interface TransactionsPageProps {
@@ -337,18 +338,10 @@ export function TransactionsPage({
   return (
     <div className="@container space-y-6">
       <PageHeader
-        title="Opérations"
+        // Mouvements' second tab (#498): the page's title is theirs, the
+        // tabs under it say which one is shown.
+        title="Mouvements"
         description="Trouver, corriger."
-        // A sub-page of Mouvements (#393), reached from its « ⋮ »: back to it
-        // on the month shown (none for every date).
-        back={{
-          label: 'Mouvements',
-          to: ROUTES.spending,
-          search:
-            search.month && search.month !== ALL_MONTHS
-              ? { month: search.month }
-              : {},
-        }}
         actions={[
           {
             label: 'Ajouter une dépense',
@@ -368,6 +361,7 @@ export function TransactionsPage({
           },
         ]}
       />
+      <MovementsTabs current="operations" month={search.month} />
       <ManualTransactionSheet
         open={addKind !== null}
         onOpenChange={(open) => {

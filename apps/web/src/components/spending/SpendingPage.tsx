@@ -16,10 +16,9 @@ import {
   Skeleton,
 } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import {
   ArrowDownUpIcon,
-  ArrowLeftRightIcon,
   BanknoteIcon,
   ChartPieIcon,
   ChevronRightIcon,
@@ -35,8 +34,6 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { accountsQuery, isTransactional } from '#/lib/queries'
-import { plural } from '#/lib/plural'
-import { useKnownReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { CategoryRanking } from './CategoryRanking'
 import { monthName, seriesLabel } from './labels'
@@ -64,6 +61,7 @@ import {
   viewOf,
 } from './kinds'
 import { MonthFlow, PANEL_ID, tabId } from './MonthFlow'
+import { MovementsTabs } from './MovementsTabs'
 import type { MonthParts } from './MonthFlow'
 import { SpendingTrend } from './SpendingTrend'
 import type { TrendChip } from './SpendingTrend'
@@ -117,19 +115,15 @@ const ADD_ACTIONS: Record<TransactionKind, { label: string; icon: ReactNode }> =
 
 /**
  * The page's « ⋮ » (#386): add an operation here, where they are read, the
- * part shown's first (a transfer for Épargne, #410), and Opérations, its
- * sub-page (#393), on the month shown.
+ * part shown's first (a transfer for Épargne, #410). Opérations is the
+ * page's second tab (#498), no longer an item here.
  */
 function pageActions({
   kind,
   add,
-  reviewCount,
-  openOperations,
 }: {
   kind: SpendingKind
   add: (kind: TransactionKind) => void
-  reviewCount: number | null | undefined
-  openOperations: () => void
 }) {
   const primary: TransactionKind = kind === 'savings' ? 'transfer' : kind
   const order: TransactionKind[] = [
@@ -144,21 +138,6 @@ function pageActions({
       primary: k === primary,
       onSelect: () => add(k),
     })),
-    {
-      label: 'Voir les opérations',
-      icon: <ArrowLeftRightIcon />,
-      count: reviewCount
-        ? {
-            value: reviewCount,
-            label: plural(
-              reviewCount,
-              'opération à revoir',
-              'opérations à revoir',
-            ),
-          }
-        : null,
-      onSelect: openOperations,
-    },
   ]
 }
 
@@ -275,10 +254,6 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
 
   // The kind is chosen before adding (#398).
   const [adding, setAdding] = useState<TransactionKind | null>(null)
-  const navigate = useNavigate()
-  // The transactions to review, on « Voir les opérations » and its « ⋮ »
-  // (#393): the menu is the way to Opérations from here.
-  const reviewCount = useKnownReviewCount()
 
   const set = (patch: Partial<SpendingSearch>) => {
     onSearchChange(compactSearch({ ...search, ...patch }))
@@ -297,17 +272,9 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
       <PageHeader
         title="Mouvements"
         description="Où est passé l’argent ?"
-        actions={pageActions({
-          kind,
-          add: setAdding,
-          reviewCount,
-          openOperations: () =>
-            void navigate({
-              to: ROUTES.transactions,
-              search: search.month ? { month: search.month } : {},
-            }),
-        })}
+        actions={pageActions({ kind, add: setAdding })}
       />
+      <MovementsTabs current="summary" month={search.month} />
       <ManualTransactionSheet
         open={adding !== null}
         onOpenChange={(open) => {

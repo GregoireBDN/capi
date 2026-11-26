@@ -73,13 +73,18 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     search,
     children,
+    ...props
   }: {
     to: string
     search?: Record<string, string>
     children: ReactNode
   }) => {
     const query = new URLSearchParams(search).toString()
-    return <a href={query ? `${to}?${query}` : to}>{children}</a>
+    return (
+      <a href={query ? `${to}?${query}` : to} {...props}>
+        {children}
+      </a>
+    )
   }, // The editor's « Je dois à … » leaves for the contact's page (#435).
   useNavigate: () => vi.fn(),
 }))
@@ -667,22 +672,28 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('goes back to Mouvements, its parent page, on the month shown (#393)', async () => {
+  it('goes back to Mouvements, its first tab, on the month shown (#498)', async () => {
     setup({ month: '2026-10', review: true })
     await waitForRows()
-    expect(screen.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
+    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
+    expect(tabs.getByRole('link', { name: 'Résumé' })).toHaveAttribute(
       'href',
       '/spending?month=2026-10',
+    )
+    expect(tabs.getByRole('link', { name: /^Opérations/ })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
     expect(
       screen.getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
   })
 
-  it('goes back to Mouvements on its default month from every date (#393)', async () => {
+  it('goes back to Mouvements on its default month from every date (#498)', async () => {
     setup({ month: 'all' })
     await waitForRows()
-    expect(screen.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
+    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
+    expect(tabs.getByRole('link', { name: 'Résumé' })).toHaveAttribute(
       'href',
       '/spending',
     )

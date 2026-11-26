@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -39,7 +40,11 @@ vi.mock('@tanstack/react-router', () => ({
     children: ReactNode
   }) => (
     <a
-      href={search ? `${to}?${new URLSearchParams(search).toString()}` : to}
+      href={
+        search && Object.keys(search).length > 0
+          ? `${to}?${new URLSearchParams(search).toString()}`
+          : to
+      }
       {...props}
     >
       {children}
@@ -364,6 +369,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetReviewCount()
   vi.useRealTimers()
   vi.clearAllMocks()
 })
@@ -423,12 +429,13 @@ describe('SpendingPage', () => {
     })
   })
 
-  it('opens Opérations, its sub-page, on the month shown (#393)', async () => {
+  it('opens Opérations, its second tab, on the month shown (#498)', async () => {
+    setReviewCount(7)
     renderPage()
     await screen.findByRole('region', { name: 'Comparaisons du mois' })
 
     // Outside the shell the page actions are buttons beside the title.
-    // The kind is chosen before adding (#398).
+    // The kind is chosen before adding (#398); Opérations is no longer one.
     for (const name of [
       'Ajouter une dépense',
       'Ajouter un revenu',
@@ -436,22 +443,29 @@ describe('SpendingPage', () => {
     ]) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Voir les opérations' }),
+    expect(
+      screen.queryByRole('button', { name: 'Voir les opérations' }),
+    ).not.toBeInTheDocument()
+    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
+    expect(tabs.getByRole('link', { name: 'Résumé' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/transactions',
-      search: { month: '2026-10' },
-    })
+    expect(
+      tabs.getByRole('link', {
+        name: /^Opérations\s*, 7 opérations à revoir$/,
+      }),
+    ).toHaveAttribute('href', '/transactions?month=2026-10')
   })
 
-  it('opens Opérations on its default month without one in the URL (#393)', async () => {
+  it('opens Opérations on its default month without one in the URL (#498)', async () => {
     renderPage({})
     await screen.findByRole('region', { name: 'Comparaisons du mois' })
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Voir les opérations' }),
+    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
+    expect(tabs.getByRole('link', { name: /^Opérations/ })).toHaveAttribute(
+      'href',
+      '/transactions',
     )
-    expect(navigate).toHaveBeenCalledWith({ to: '/transactions', search: {} })
   })
 
   it('ranks the categories with drill-down links to the transactions', async () => {

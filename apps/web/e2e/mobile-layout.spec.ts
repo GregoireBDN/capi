@@ -137,7 +137,7 @@ const SCENARIOS: Array<Scenario> = [
   // Revenus and Épargne, the other two parts of Mouvements (#410).
   { name: 'spending-income', path: '/spending?vue=revenus' },
   { name: 'spending-savings', path: '/spending?vue=epargne' },
-  // Mouvements' « ⋮ »: « Ajouter une dépense » and « Voir les opérations » (#393).
+  // Mouvements' « ⋮ »: « Ajouter une dépense » and the other adds (#386).
   { name: 'spending-actions', path: '/spending', step: openPageActions },
   { name: 'transactions', path: '/transactions?month=all' },
   // Filters set: the count down on phones, the tinted controls (#406).
