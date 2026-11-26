@@ -218,7 +218,7 @@ export function BalancesElement({
               <Link
                 to={ROUTES.account}
                 params={{ accountId: account.id }}
-                className="hover:bg-muted/60 focus-visible:ring-ring @lg:bg-muted/40 @lg:hover:bg-muted/70 flex min-h-11 flex-wrap items-center gap-x-3 rounded-lg px-2 py-1 text-sm outline-none focus-visible:ring-2 @lg:h-full @lg:content-start @lg:gap-y-2 @lg:rounded-xl @lg:p-3"
+                className="hover:bg-muted/60 focus-visible:ring-ring @lg:bg-muted/40 @lg:hover:bg-muted/70 flex min-h-11 flex-wrap items-center gap-x-3 rounded-lg px-2 py-1 text-sm outline-none focus-visible:ring-2 @lg:h-full @lg:content-start @lg:items-start @lg:gap-y-2 @lg:rounded-xl @lg:p-3"
               >
                 <AccountTypeBadge type={account.type} />
                 <span className="min-w-0 flex-1">
