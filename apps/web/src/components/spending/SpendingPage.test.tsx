@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { resetReviewCount } from '#/lib/review-count'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -39,7 +40,11 @@ vi.mock('@tanstack/react-router', () => ({
     children: ReactNode
   }) => (
     <a
-      href={search ? `${to}?${new URLSearchParams(search).toString()}` : to}
+      href={
+        search && Object.keys(search).length > 0
+          ? `${to}?${new URLSearchParams(search).toString()}`
+          : to
+      }
       {...props}
     >
       {children}
@@ -364,6 +369,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetReviewCount()
   vi.useRealTimers()
   vi.clearAllMocks()
 })
@@ -423,7 +429,7 @@ describe('SpendingPage', () => {
     })
   })
 
-  it('opens Opérations, its sub-page, on the month shown (#393)', async () => {
+  it('offers only the adds in its « ⋮ »: Opérations is a tab (#498)', async () => {
     renderPage()
     await screen.findByRole('region', { name: 'Comparaisons du mois' })
 
@@ -436,22 +442,9 @@ describe('SpendingPage', () => {
     ]) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Voir les opérations' }),
-    )
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/transactions',
-      search: { month: '2026-10' },
-    })
-  })
-
-  it('opens Opérations on its default month without one in the URL (#393)', async () => {
-    renderPage({})
-    await screen.findByRole('region', { name: 'Comparaisons du mois' })
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Voir les opérations' }),
-    )
-    expect(navigate).toHaveBeenCalledWith({ to: '/transactions', search: {} })
+    expect(
+      screen.queryByRole('button', { name: 'Voir les opérations' }),
+    ).not.toBeInTheDocument()
   })
 
   it('ranks the categories with drill-down links to the transactions', async () => {
@@ -1262,9 +1255,8 @@ describe('SpendingPage', () => {
         within(tabs).getByRole('tab', { name: /^Dépenses/ }),
       ).toHaveAttribute('aria-selected', 'true')
       // One-offs included: 2 700 − 1 250 − 400 = 1 050 €.
-      expect(
-        screen.getByText('Resté sur le compte courant'),
-      ).toBeInTheDocument()
+      // The page's answer (#434), above the tiles.
+      expect(screen.getByText('Gardé ce mois')).toBeInTheDocument()
       expect(
         document.querySelector('[data-slot="month-flow-kept"]'),
       ).toHaveTextContent(/\+1\s050\s€/)

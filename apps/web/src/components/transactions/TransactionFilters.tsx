@@ -65,6 +65,11 @@ interface TransactionFiltersProps {
    * date; with none, it is offered nowhere unless already on (#393).
    */
   reviewCount?: number | null
+  /**
+   * The page shows the count as its big figure (#434): no « À revoir » at
+   * the end of the title then, the figure's button opens the queue.
+   */
+  reviewInAnswer?: boolean
 }
 
 /** The filters of the toolbar and the sheet, « À revoir » apart. */
@@ -249,6 +254,7 @@ export function TransactionFilters({
   categories,
   defaultMonth = currentMonth(),
   reviewCount = null,
+  reviewInAnswer = false,
 }: TransactionFiltersProps) {
   const [text, setText] = useState(search.q ?? '')
   const latest = useRef({ search, onSearchChange })
@@ -286,7 +292,8 @@ export function TransactionFilters({
   const clear = () => onSearchChange(withoutChipFilters(search))
   const reviewing = search.review === true
   // None at all: no « À revoir » to offer, unless it is on (#393).
-  const offerReview = reviewing || reviewCount === null || reviewCount > 0
+  const offerReview =
+    reviewing || (!reviewInAnswer && (reviewCount === null || reviewCount > 0))
   // The count is over every date, so is the queue it opens.
   const setReview = (on: boolean) =>
     onSearchChange(

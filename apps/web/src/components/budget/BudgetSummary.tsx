@@ -1,99 +1,81 @@
-import { Card, CardContent, ProgressMeter } from '@capi/ui'
+import { AnswerFigure, cn, ProgressMeter } from '@capi/ui'
+import { TargetIcon } from 'lucide-react'
 import type { BudgetMonthDto } from '#/api/types.gen'
-import { formatCents, formatWholeEuros } from '#/lib/money'
+import { formatWholeEuros } from '#/lib/money'
 import { formatBudgetAmount } from './amount'
-import { plural } from '#/lib/plural'
 
 /** Share of a target from which a budget is flagged (same rule as the API). */
 export const WARNING_THRESHOLD = 0.8
 
-function Stat({
+function Count({
+  count,
   label,
-  value,
-  detail,
-  bad = false,
+  tone,
 }: {
+  count: number
   label: string
-  value: string
-  detail?: string
-  bad?: boolean
+  tone: 'bad' | 'warning'
 }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd
-        className={
-          bad
-            ? 'text-chart-delta-bad truncate font-semibold tabular-nums'
-            : 'truncate font-semibold tabular-nums'
-        }
-      >
-        {value}
-      </dd>
-      {detail && (
-        <dd className="text-muted-foreground truncate text-xs">{detail}</dd>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-medium',
+        tone === 'bad'
+          ? 'text-chart-delta-bad bg-[color-mix(in_srgb,var(--chart-delta-bad)_14%,transparent)]'
+          : 'text-warning-foreground dark:text-warning bg-[color-mix(in_srgb,var(--warning)_22%,transparent)]',
       )}
-    </div>
+    >
+      <b className="tabular-nums">{count}</b> {label}
+    </span>
   )
 }
 
-/** Month at a glance: total spent vs budgeted, remaining, overruns. */
+/**
+ * Budget's big figure (#434, the owner's « A. Le chiffre réponse »): what
+ * is left to spend this month (or the overrun), the budget's own share
+ * against its targets (what envelopes paid is theirs, #430), and how many
+ * lines are over or near their target. What lies outside the budget is
+ * the « Hors budget » card's; what was spent per category, Mouvements'.
+ */
 export function BudgetSummary({ data }: { data: BudgetMonthDto }) {
-  const { totals, unbudgeted } = data
+  const { totals } = data
   const over = totals.remainingCents < 0
+  const near = !over && totals.percentUsed >= WARNING_THRESHOLD * 100
   return (
-    <Card size="sm">
-      <CardContent className="space-y-4">
-        {totals.envelopePaidCents > 0 && (
-          <p className="text-sm">
-            <span className="text-muted-foreground">Dépensé </span>
-            <span className="font-semibold tabular-nums">
-              {formatWholeEuros(totals.spentCents)}
-            </span>
-            <span className="text-muted-foreground block text-xs">
-              {formatWholeEuros(totals.spentCents - totals.envelopePaidCents)}{' '}
-              sur un budget de {formatWholeEuros(totals.targetCents)} ·{' '}
-              {formatWholeEuros(totals.envelopePaidCents)} par une enveloppe
-            </span>
-          </p>
-        )}
-        <ProgressMeter
-          label="Total"
-          // The envelopes' part is theirs (#430): the budget's own share.
-          value={totals.spentCents - totals.envelopePaidCents}
-          target={totals.targetCents}
-          valueFormatter={formatBudgetAmount}
-          warningThreshold={WARNING_THRESHOLD}
-          hideStatus
-        />
-        <dl className="grid grid-cols-2 gap-3 @lg:grid-cols-3">
-          <Stat
-            label={over ? 'Dépassement' : 'Reste'}
-            value={formatCents(Math.abs(totals.remainingCents))}
-            bad={over}
-            detail={`${Math.round(totals.percentUsed)} % utilisé`}
-          />
-          <Stat
-            label="En dépassement"
-            value={`${totals.overCount} / ${totals.budgetCount}`}
-            bad={totals.overCount > 0}
-            detail={
-              totals.warningCount > 0
-                ? `${totals.warningCount} à surveiller`
-                : undefined
-            }
-          />
-          <Stat
-            label="Hors budget"
-            value={formatCents(unbudgeted.totalCents)}
-            detail={
-              unbudgeted.categoryCount > 0
-                ? plural(unbudgeted.categoryCount, 'catégorie')
-                : undefined
-            }
-          />
-        </dl>
-      </CardContent>
-    </Card>
+    <AnswerFigure
+      data-slot="budget-answer"
+      icon={<TargetIcon />}
+      label={over ? 'Dépassement' : 'Reste à dépenser'}
+      value={formatWholeEuros(Math.abs(totals.remainingCents))}
+      tone={over ? 'bad' : near ? 'warning' : 'good'}
+    >
+      <ProgressMeter
+        label="Total"
+        // The envelopes' part is theirs (#430): the budget's own share.
+        value={totals.spentCents - totals.envelopePaidCents}
+        target={totals.targetCents}
+        valueFormatter={formatBudgetAmount}
+        warningThreshold={WARNING_THRESHOLD}
+        hideStatus
+      />
+      {(totals.overCount > 0 || totals.warningCount > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {totals.overCount > 0 && (
+            <Count
+              count={totals.overCount}
+              label={totals.overCount > 1 ? 'dépassés' : 'dépassé'}
+              tone="bad"
+            />
+          )}
+          {totals.warningCount > 0 && (
+            <Count
+              count={totals.warningCount}
+              label="à surveiller"
+              tone="warning"
+            />
+          )}
+        </div>
+      )}
+    </AnswerFigure>
   )
 }
