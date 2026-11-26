@@ -15,7 +15,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { CategoryAvatar } from '#/components/categories/category-icons'
 import { formatShortMonth } from '#/lib/calendar'
 import { formatCents, formatWholeEuros } from '#/lib/money'
-import { categoriesQuery } from '#/lib/queries'
+import { accountsQuery, categoriesQuery, isBankAccount } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { EnvelopeAvatar, Gauge, SplitBar } from './EnvelopeAvatar'
 import { EnvelopeEditor } from './EnvelopeEditor'
@@ -43,6 +43,7 @@ const ACCOUNT_COLORS = [
  */
 export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
   const detail = useQuery(envelopeQuery(envelopeId))
+  const allAccounts = useQuery(accountsQuery)
   const [moving, setMoving] = useState(false)
   const [editing, setEditing] = useState(false)
 
@@ -73,6 +74,19 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
     ]),
   )
   const plan = planText(envelope)
+  // Where it holds money first, then every other bank account: an empty
+  // envelope is filled from « libre » (#430, the owner).
+  const moveAccounts = [
+    ...envelope.accounts,
+    ...(allAccounts.data ?? [])
+      .filter(
+        (a) =>
+          isBankAccount(a) &&
+          a.archivedAt === null &&
+          !envelope.accounts.some((held) => held.accountId === a.id),
+      )
+      .map((a) => ({ accountId: a.id, accountName: a.name, amountCents: 0 })),
+  ]
 
   return (
     <div className="@container space-y-6">
@@ -179,7 +193,9 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
                       </span>
                       {envelope.totalCents > 0 && (
                         <span className="text-muted-foreground w-10 text-right text-xs tabular-nums">
-                          {Math.round((a.amountCents / envelope.totalCents) * 100)}{' '}
+                          {Math.round(
+                            (a.amountCents / envelope.totalCents) * 100,
+                          )}{' '}
                           %
                         </span>
                       )}
@@ -198,8 +214,8 @@ export function EnvelopePage({ envelopeId }: { envelopeId: string }) {
       <MoveSheet
         open={moving}
         onOpenChange={setMoving}
-        accounts={envelope.accounts}
-        from={envelope.id}
+        accounts={moveAccounts}
+        envelopeId={envelope.id}
       />
       <EnvelopeEditor
         open={editing}
@@ -243,7 +259,9 @@ function EvolutionCard({
             >
               <div
                 className="flex flex-col-reverse overflow-hidden rounded-t-sm"
-                style={{ height: `${(Math.max(0, m.totalCents) / max) * 100}%` }}
+                style={{
+                  height: `${(Math.max(0, m.totalCents) / max) * 100}%`,
+                }}
               >
                 {m.accounts
                   .filter((a) => a.amountCents > 0)
@@ -264,7 +282,9 @@ function EvolutionCard({
         </div>
         <div className="text-muted-foreground mt-1 flex justify-between text-xs">
           <span>{months[0] ? formatShortMonth(months[0].month) : ''}</span>
-          <span>{months.at(-1) ? formatShortMonth(months.at(-1)!.month) : ''}</span>
+          <span>
+            {months.at(-1) ? formatShortMonth(months.at(-1)!.month) : ''}
+          </span>
         </div>
       </CardContent>
     </Card>

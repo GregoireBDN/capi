@@ -82,7 +82,9 @@ export function envelopeMonthQuery(month: string) {
   return queryOptions({
     queryKey: envelopeKeys.month(month),
     queryFn: () =>
-      unwrap(envelopesControllerMonth({ query: { month }, throwOnError: false })),
+      unwrap(
+        envelopesControllerMonth({ query: { month }, throwOnError: false }),
+      ),
   })
 }
 
@@ -97,7 +99,9 @@ export function updateEnvelope(id: string, body: UpdateEnvelopeDto) {
 }
 
 export function removeEnvelope(id: string) {
-  return unwrap(envelopesControllerRemove({ path: { id }, throwOnError: false }))
+  return unwrap(
+    envelopesControllerRemove({ path: { id }, throwOnError: false }),
+  )
 }
 
 export function moveEnvelopeMoney(body: MoveEnvelopeMoneyDto) {
@@ -178,6 +182,7 @@ export function envelopeErrorMessage(error: unknown): string {
     }
     return 'Données invalides. Vérifiez le formulaire.'
   }
-  if (error.status === 429) return 'Trop de requêtes. Réessayez dans un instant.'
+  if (error.status === 429)
+    return 'Trop de requêtes. Réessayez dans un instant.'
   return 'Une erreur est survenue. Réessayez.'
 }

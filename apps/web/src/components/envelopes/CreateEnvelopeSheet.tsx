@@ -23,11 +23,14 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import {
   CalendarIcon,
+  CalendarOffIcon,
   ChevronRightIcon,
   CoinsIcon,
+  InfinityIcon,
   ListChecksIcon,
   PencilIcon,
   ShapesIcon,
+  TargetIcon,
   WalletIcon,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -42,12 +45,9 @@ import { currentDay } from '#/lib/calendar'
 import { formatCalendarDate, formatCents, formatWholeEuros } from '#/lib/money'
 import { accountsQuery, categoriesQuery, isBankAccount } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { ChoiceList } from './ChoiceList'
 import { EnvelopeAvatar } from './EnvelopeAvatar'
-import {
-  addMonthsTo,
-  ENVELOPE_TEMPLATES,
-  monthsUntil,
-} from './format'
+import { addMonthsTo, ENVELOPE_TEMPLATES, monthsUntil } from './format'
 import type { EnvelopeTemplate } from './format'
 import {
   accountEnvelopesQuery,
@@ -68,10 +68,10 @@ const STEPS: readonly Step[] = [
   'review',
 ]
 type When = '3' | '6' | '12' | 'date' | 'none'
-const WHEN_CHOICES: { key: When; label: string }[] = [
-  { key: '3', label: 'Dans 3 mois' },
-  { key: '6', label: 'Dans 6 mois' },
-  { key: '12', label: 'Dans un an' },
+const WHEN_CHOICES: { key: When; label: string; months?: number }[] = [
+  { key: '3', label: 'Dans 3 mois', months: 3 },
+  { key: '6', label: 'Dans 6 mois', months: 6 },
+  { key: '12', label: 'Dans un an', months: 12 },
   { key: 'date', label: 'Une date…' },
   { key: 'none', label: 'Pas de date' },
 ]
@@ -79,7 +79,7 @@ const WHEN_CHOICES: { key: When; label: string }[] = [
 const TITLES: Record<Step, string> = {
   what: 'Pour quoi ?',
   name: 'Son nom',
-  amount: 'Combien ?',
+  amount: 'Un objectif ?',
   when: 'Pour quand ?',
   start: 'Pour commencer',
   review: 'C’est bon ?',
@@ -176,7 +176,7 @@ export function CreateEnvelopeSheet({
     name: name.trim() === '' ? 'Indiquez un nom.' : undefined,
     amount:
       !noTarget && (targetCents === null || targetCents <= 0)
-        ? 'Indiquez un montant, ou « Pas de montant ».'
+        ? 'Indiquez un montant.'
         : undefined,
     when:
       when === null
@@ -184,7 +184,9 @@ export function CreateEnvelopeSheet({
         : when === 'date' && (!date || date <= today)
           ? 'Choisissez une date à venir.'
           : undefined,
-    start: startCents.some((s) => s.amountCents > (freeOf.get(s.accountId) ?? 0))
+    start: startCents.some(
+      (s) => s.amountCents > (freeOf.get(s.accountId) ?? 0),
+    )
       ? 'Plus que ce qui est libre sur un compte.'
       : undefined,
   }
@@ -213,12 +215,14 @@ export function CreateEnvelopeSheet({
     onError: (e) => toast.error(envelopeErrorMessage(e)),
   })
 
-  const index = STEPS.indexOf(step)
+  // Without a target, no due date: « Pour quand ? » is skipped (#430).
+  const steps = noTarget ? STEPS.filter((s) => s !== 'when') : STEPS
+  const index = steps.indexOf(step)
   const next = () => {
     setTried(true)
     if (error) return
     if (step === 'review') create.mutate()
-    else setStep(STEPS[index + 1])
+    else setStep(steps[index + 1])
   }
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -231,6 +235,12 @@ export function CreateEnvelopeSheet({
     setStep('name')
   }
 
+  const monthlyFor = (due: string) =>
+    targetCents
+      ? Math.ceil(
+          Math.max(0, targetCents - startTotal) / monthsUntil(today, due),
+        )
+      : null
   const perMonth =
     targetCents && dueDate
       ? Math.ceil(
@@ -293,47 +303,105 @@ export function CreateEnvelopeSheet({
       break
     case 'amount':
       body = (
-        <div className="space-y-3">
-          <Field data-invalid={tried && !!error}>
-            <FieldLabel htmlFor={`${id}-target`} className="sr-only">
-              Montant
-            </FieldLabel>
-            <AmountField
-              id={`${id}-target`}
-              maxCents={LARGE_AMOUNT_CENTS}
-              placeholder="1 500"
-              value={noTarget ? '' : target}
-              disabled={noTarget}
-              onValueChange={(typed) => setTarget(typed)}
-            />
-            {tried && error && <FieldError>{error}</FieldError>}
-          </Field>
-          <Pill
-            pressed={noTarget}
-            onClick={() => {
-              setNoTarget(!noTarget)
-              if (!noTarget) setStep('when')
-            }}
+        <div className="space-y-4">
+          <div
+            role="radiogroup"
+            aria-label="Objectif"
+            className="grid grid-cols-2 gap-2"
           >
-            Pas de montant
-          </Pill>
+            {[
+              {
+                none: false,
+                icon: <TargetIcon aria-hidden />,
+                label: 'Un objectif',
+                hint: 'Un voyage, un achat',
+              },
+              {
+                none: true,
+                icon: <InfinityIcon aria-hidden />,
+                label: 'Sans objectif',
+                hint: 'Imprévus, cadeaux',
+              },
+            ].map((choice) => (
+              <button
+                key={choice.label}
+                type="button"
+                role="radio"
+                aria-checked={noTarget === choice.none}
+                onClick={() => {
+                  setNoTarget(choice.none)
+                  if (choice.none) setWhen(null)
+                }}
+                className={cn(
+                  'bg-card hover:bg-muted/60 focus-visible:ring-ring flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center outline-none focus-visible:ring-2 [&_svg]:size-6',
+                  noTarget === choice.none &&
+                    'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] [&_svg]:text-primary',
+                )}
+              >
+                {choice.icon}
+                <span className="text-sm font-medium">{choice.label}</span>
+                <span className="text-muted-foreground text-xs">
+                  {choice.hint}
+                </span>
+              </button>
+            ))}
+          </div>
+          {!noTarget && (
+            <Field data-invalid={tried && !!error}>
+              <FieldLabel htmlFor={`${id}-target`}>Montant visé</FieldLabel>
+              <AmountField
+                id={`${id}-target`}
+                maxCents={LARGE_AMOUNT_CENTS}
+                placeholder="1 500"
+                value={target}
+                onValueChange={(typed) => setTarget(typed)}
+              />
+              {tried && error && <FieldError>{error}</FieldError>}
+            </Field>
+          )}
         </div>
       )
       break
     case 'when':
       body = (
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {WHEN_CHOICES.map((choice) => (
-              <Pill
-                key={choice.key}
-                pressed={when === choice.key}
-                onClick={() => setWhen(choice.key)}
-              >
-                {choice.label}
-              </Pill>
-            ))}
-          </div>
+          <ChoiceList
+            label="Pour quand"
+            value={when}
+            onChange={(choice) => setWhen(choice as When)}
+            choices={WHEN_CHOICES.map((choice) => {
+              const monthly =
+                choice.months !== undefined
+                  ? monthlyFor(addMonthsTo(today, choice.months))
+                  : choice.key === 'date' && when === 'date' && dueDate
+                    ? monthlyFor(dueDate)
+                    : null
+              return {
+                id: choice.key,
+                icon: (
+                  <span className="bg-muted text-muted-foreground grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold [&_svg]:size-[0.8rem]">
+                    {choice.months ??
+                      (choice.key === 'date' ? (
+                        <CalendarIcon aria-hidden />
+                      ) : (
+                        <CalendarOffIcon aria-hidden />
+                      ))}
+                  </span>
+                ),
+                label: choice.label,
+                value:
+                  monthly === null ? undefined : (
+                    <span className="whitespace-nowrap">
+                      {formatWholeEuros(monthly)}
+                      <span className="text-muted-foreground text-xs font-normal">
+                        {' '}
+                        /mois
+                      </span>
+                    </span>
+                  ),
+              }
+            })}
+          />
           {when === 'date' && (
             <Field data-invalid={tried && !!error}>
               <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
@@ -348,14 +416,6 @@ export function CreateEnvelopeSheet({
           )}
           {tried && error && (
             <p className="text-destructive text-sm">{error}</p>
-          )}
-          {perMonth !== null && (
-            <p className="text-lg font-semibold">
-              Soit {formatWholeEuros(perMonth)}{' '}
-              <span className="text-muted-foreground text-sm font-normal">
-                par mois
-              </span>
-            </p>
           )}
         </div>
       )
@@ -418,16 +478,18 @@ export function CreateEnvelopeSheet({
             </span>
           </RecapRow>
           <RecapRow label="Montant" onEdit={() => setStep('amount')}>
-            {targetCents === null ? 'Pas de montant' : formatCents(targetCents)}
+            {targetCents === null ? 'Sans objectif' : formatCents(targetCents)}
           </RecapRow>
-          <RecapRow label="Pour quand" onEdit={() => setStep('when')}>
-            {dueDate ? formatCalendarDate(dueDate) : 'Pas de date'}
-            {perMonth !== null && (
-              <span className="text-muted-foreground block text-xs">
-                {formatWholeEuros(perMonth)} par mois
-              </span>
-            )}
-          </RecapRow>
+          {!noTarget && (
+            <RecapRow label="Pour quand" onEdit={() => setStep('when')}>
+              {dueDate ? formatCalendarDate(dueDate) : 'Pas de date'}
+              {perMonth !== null && (
+                <span className="text-muted-foreground block text-xs">
+                  {formatWholeEuros(perMonth)} par mois
+                </span>
+              )}
+            </RecapRow>
+          )}
           <RecapRow label="Pour commencer" onEdit={() => setStep('start')}>
             {startCents.length === 0
               ? 'Rien'
@@ -474,12 +536,12 @@ export function CreateEnvelopeSheet({
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
       <SheetBar
         title="Nouvelle enveloppe"
-        description={`Étape ${index + 1} sur ${STEPS.length} : ${TITLES[step]}`}
+        description={`Étape ${index + 1} sur ${steps.length} : ${TITLES[step]}`}
         steps={
           <SheetSteps
             current={step}
             onSelect={(key) => setStep(key as Step)}
-            steps={STEPS.map((s, i) => ({
+            steps={steps.map((s, i) => ({
               key: s,
               label: stepLabels[s],
               icon: stepIcons[s],
@@ -487,7 +549,7 @@ export function CreateEnvelopeSheet({
             }))}
           />
         }
-        onBack={index > 0 ? () => setStep(STEPS[index - 1]) : undefined}
+        onBack={index > 0 ? () => setStep(steps[index - 1]) : undefined}
         action={
           step === 'what' ? undefined : (
             <SheetBarAction
@@ -538,33 +600,6 @@ export function CreateEnvelopeSheet({
   )
 }
 
-/** A choice as a rounded pill (« Dans 3 mois », « Pas de montant »). */
-function Pill({
-  pressed,
-  onClick,
-  children,
-}: {
-  pressed: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        'focus-visible:ring-ring min-h-11 rounded-full border px-4 text-sm font-medium outline-none focus-visible:ring-2',
-        pressed
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'bg-card hover:bg-muted/60',
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 /** A line of « C'est bon ? »: tapping it goes back to its step. */
 function RecapRow({
   label,
@@ -595,4 +630,3 @@ function RecapRow({
     </li>
   )
 }
-

@@ -133,7 +133,10 @@ function EnvelopeMonthSheet({
             (categories.data ?? []).find((c) => c.id === paid.categoryId) ??
             null
           return (
-            <li key={paid.categoryId ?? 'none'} className="flex items-center gap-2.5">
+            <li
+              key={paid.categoryId ?? 'none'}
+              className="flex items-center gap-2.5"
+            >
               <CategoryAvatar category={category} />
               <span className="min-w-0 flex-1 truncate">
                 {category?.name ?? 'Sans catégorie'}

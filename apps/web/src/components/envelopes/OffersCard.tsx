@@ -1,11 +1,6 @@
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  ArrowRightIcon,
-  PiggyBankIcon,
-  ReceiptIcon,
-  XIcon,
-} from 'lucide-react'
+import { ArrowRightIcon, PiggyBankIcon, ReceiptIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { EnvelopeOfferDto } from '#/api/types.gen'
@@ -173,7 +168,13 @@ function OfferRow({
               outline
               disabled={busy}
               loading={attach.isPending && attach.variables === e.envelopeId}
-              iconStart={<EnvelopeAvatar envelope={look(e.envelopeId)} size="sm" className="-ml-1 size-5" />}
+              iconStart={
+                <EnvelopeAvatar
+                  envelope={look(e.envelopeId)}
+                  size="sm"
+                  className="-ml-1 size-5"
+                />
+              }
               onClick={() => attach.mutate(e.envelopeId)}
             >
               {e.name} {formatCents(Math.min(e.amountCents, amount))}

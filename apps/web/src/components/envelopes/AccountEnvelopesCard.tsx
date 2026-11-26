@@ -236,7 +236,11 @@ export function AccountEnvelopesCard({
 
       {writable && (
         <>
-          <MoveSheet open={moving} onOpenChange={setMoving} accountId={accountId} />
+          <MoveSheet
+            open={moving}
+            onOpenChange={setMoving}
+            accountId={accountId}
+          />
           <CreateEnvelopeSheet
             open={creating}
             onOpenChange={setCreating}
@@ -247,7 +251,11 @@ export function AccountEnvelopesCard({
             onOpenChange={setEditingKey}
             split={data}
           />
-          <ReduceSheet open={reducing} onOpenChange={setReducing} split={data} />
+          <ReduceSheet
+            open={reducing}
+            onOpenChange={setReducing}
+            split={data}
+          />
         </>
       )}
     </>

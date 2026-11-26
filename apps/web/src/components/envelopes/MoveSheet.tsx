@@ -30,16 +30,27 @@ export function MoveSheet({
   accounts,
   from: initialFrom,
   to: initialTo,
+  envelopeId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** The account the money is on; else chosen among `accounts`. */
   accountId?: string
-  accounts?: readonly { accountId: string; accountName: string }[]
+  accounts?: readonly {
+    accountId: string
+    accountName: string
+    /** What `envelopeId` holds there. */
+    amountCents?: number
+  }[]
   /** The envelope it leaves (null: « libre »). */
   from?: string | null
   /** The envelope it goes to (null: « libre »). */
   to?: string | null
+  /**
+   * From an envelope's page: on an account where it holds money, from it;
+   * elsewhere, from « libre » into it (an empty envelope can be filled).
+   */
+  envelopeId?: string
 }) {
   const id = useId()
   const queryClient = useQueryClient()
@@ -51,11 +62,21 @@ export function MoveSheet({
   const [amount, setAmount] = useState('')
   const [tried, setTried] = useState(false)
 
+  const direct = (account: string | null) => {
+    if (envelopeId === undefined) return
+    const held =
+      accounts?.find((a) => a.accountId === account)?.amountCents ?? 0
+    setFrom(held > 0 ? envelopeId : FREE)
+    setTo(held > 0 ? null : envelopeId)
+  }
+
   useEffect(() => {
     if (!open) return
-    setAccountId(fixedAccountId ?? accounts?.[0]?.accountId ?? null)
+    const first = fixedAccountId ?? accounts?.[0]?.accountId ?? null
+    setAccountId(first)
     setFrom(initialFrom === undefined ? null : (initialFrom ?? FREE))
     setTo(initialTo === undefined ? null : (initialTo ?? FREE))
+    direct(first)
     setAmount('')
     setTried(false)
     // Fresh on every opening.
@@ -149,6 +170,7 @@ export function MoveSheet({
             value={accountId}
             onChange={(next) => {
               setAccountId(next)
+              direct(next)
               setAmount('')
             }}
             choices={accounts.map((a) => ({
@@ -173,7 +195,12 @@ export function MoveSheet({
       </section>
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Vers</h3>
-        <ChoiceList label="Vers" value={to} onChange={setTo} choices={targets} />
+        <ChoiceList
+          label="Vers"
+          value={to}
+          onChange={setTo}
+          choices={targets}
+        />
       </section>
       <Field data-invalid={tried && error !== null}>
         <FieldLabel htmlFor={`${id}-amount`}>Montant</FieldLabel>

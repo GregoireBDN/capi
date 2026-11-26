@@ -38,7 +38,10 @@ export function EnvelopeScreen({
       (envelopes.data ?? [])
         .find((e) => e.id === envelopeId)
         ?.accounts.find((a) => a.accountId === item.accountId)?.amountCents ?? 0
-    return held + (item.envelopeId === envelopeId ? (item.envelopeAmountCents ?? 0) : 0)
+    return (
+      held +
+      (item.envelopeId === envelopeId ? (item.envelopeAmountCents ?? 0) : 0)
+    )
   }
   const transfer = item.kind === 'transfer'
 

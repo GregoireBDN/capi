@@ -135,7 +135,10 @@ export function Gauge({
   return (
     <div
       aria-hidden="true"
-      className={cn('bg-muted h-2.5 w-full overflow-hidden rounded-full', className)}
+      className={cn(
+        'bg-muted h-2.5 w-full overflow-hidden rounded-full',
+        className,
+      )}
     >
       <span
         className="block h-full rounded-full"

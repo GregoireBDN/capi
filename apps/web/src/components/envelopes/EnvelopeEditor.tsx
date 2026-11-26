@@ -17,9 +17,7 @@ import type { CategoryIcon, EnvelopeSummaryDto } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'
 import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
-import {
-  CategoryAvatar,
-} from '#/components/categories/category-icons'
+import { CategoryAvatar } from '#/components/categories/category-icons'
 import { ColorPalette } from '#/components/categories/ColorPalette'
 import { IconPicker } from '#/components/categories/IconPicker'
 import { FormSheetMoreActions } from '#/components/sheets/form-sheet'
@@ -106,7 +104,9 @@ export function EnvelopeEditor({
       updateEnvelope(envelope.id, { archived: !envelope.archived }),
     onSuccess: async () => {
       await afterEnvelopesChanged(queryClient)
-      toast.success(envelope.archived ? 'Enveloppe restaurée' : 'Enveloppe archivée')
+      toast.success(
+        envelope.archived ? 'Enveloppe restaurée' : 'Enveloppe archivée',
+      )
       onOpenChange(false)
     },
     onError: (e) => toast.error(envelopeErrorMessage(e)),
@@ -125,7 +125,8 @@ export function EnvelopeEditor({
   const busy = save.isPending || archive.isPending || remove.isPending
   const expenseCategories = (categories.data ?? []).filter(
     (c) =>
-      c.kind === 'expense' && (c.archivedAt === null || categoryIds.includes(c.id)),
+      c.kind === 'expense' &&
+      (c.archivedAt === null || categoryIds.includes(c.id)),
   )
 
   return (
@@ -156,14 +157,19 @@ export function EnvelopeEditor({
             {tried && nameError && <FieldError>{nameError}</FieldError>}
           </Field>
         </div>
-        <IconPicker label="Icône" value={icon} color={color} onChange={setIcon} />
+        <IconPicker
+          label="Icône"
+          value={icon}
+          color={color}
+          onChange={setIcon}
+        />
         <ColorPalette label="Couleur" value={color} onChange={setColor} />
         <Field data-invalid={tried && !!targetError}>
           <FieldLabel htmlFor={`${id}-target`}>Montant visé</FieldLabel>
           <AmountField
             id={`${id}-target`}
             maxCents={LARGE_AMOUNT_CENTS}
-            placeholder="Pas de montant"
+            placeholder="Sans objectif"
             value={target}
             onValueChange={(typed) => setTarget(typed)}
           />
