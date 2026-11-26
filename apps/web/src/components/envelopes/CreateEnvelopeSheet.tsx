@@ -1,4 +1,5 @@
 import {
+  Button,
   cn,
   Dialog,
   DialogContent,
@@ -39,7 +40,7 @@ import { toast } from 'sonner'
 import type { CategoryIcon } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'
 import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
-import { parseEurosToCents } from '#/components/budget/amount'
+import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { IconPicker } from '#/components/categories/IconPicker'
 import { currentDay } from '#/lib/calendar'
 import { formatCalendarDate, formatCents, formatWholeEuros } from '#/lib/money'
@@ -81,7 +82,7 @@ const TITLES: Record<Step, string> = {
   name: 'Son nom',
   amount: 'Un objectif ?',
   when: 'Pour quand ?',
-  start: 'Pour commencer',
+  start: 'Déjà de côté ?',
   review: 'C’est bon ?',
 }
 
@@ -118,7 +119,9 @@ export function CreateEnvelopeSheet({
   const [noTarget, setNoTarget] = useState(false)
   const [when, setWhen] = useState<When | null>(null)
   const [date, setDate] = useState('')
-  const [start, setStart] = useState<Record<string, string>>({})
+  const [start, setStart] = useState('')
+  const [startAccount, setStartAccount] = useState<string | null>(null)
+  const [choosingAccount, setChoosingAccount] = useState(false)
   const [tried, setTried] = useState(false)
 
   useEffect(() => {
@@ -131,7 +134,9 @@ export function CreateEnvelopeSheet({
     setNoTarget(false)
     setWhen(null)
     setDate('')
-    setStart({})
+    setStart('')
+    setStartAccount(null)
+    setChoosingAccount(false)
     setTried(false)
   }, [open])
   useEffect(() => {
@@ -162,10 +167,25 @@ export function CreateEnvelopeSheet({
       : when === 'date'
         ? date || null
         : addMonthsTo(today, Number(when))
-  const startCents = banks.flatMap((a) => {
-    const cents = parseEurosToCents(start[a.id] ?? '')
-    return cents && cents > 0 ? [{ accountId: a.id, amountCents: cents }] : []
-  })
+  // « Déjà de côté ? » (#430, the owner: one amount like « Ajouter »): on
+  // the account it was started from, else the one with the most « libre »;
+  // « Autre compte » changes it. More accounts later with « Ajouter ».
+  const bestStart = [...banks]
+    .sort(
+      (a, b) =>
+        Number(b.id === accountId) - Number(a.id === accountId) ||
+        (freeOf.get(b.id) ?? 0) - (freeOf.get(a.id) ?? 0),
+    )
+    .at(0)
+  const loaded = splits.every((q) => q.data !== undefined)
+  const startOn =
+    banks.find((a) => a.id === startAccount) ?? (loaded ? bestStart : undefined)
+  const startFree = startOn ? (freeOf.get(startOn.id) ?? 0) : 0
+  const typedStart = parseEurosToCents(start)
+  const startCents =
+    startOn && typedStart && typedStart > 0
+      ? [{ accountId: startOn.id, amountCents: typedStart }]
+      : []
   const startTotal = startCents.reduce((sum, s) => sum + s.amountCents, 0)
   const categoryIds = (template?.categorySlugs ?? []).flatMap((slug) => {
     const found = (categories.data ?? []).find((c) => c.slug === slug)
@@ -184,11 +204,10 @@ export function CreateEnvelopeSheet({
         : when === 'date' && (!date || date <= today)
           ? 'Choisissez une date à venir.'
           : undefined,
-    start: startCents.some(
-      (s) => s.amountCents > (freeOf.get(s.accountId) ?? 0),
-    )
-      ? 'Plus que ce qui est libre sur un compte.'
-      : undefined,
+    start:
+      startTotal > startFree
+        ? `Au plus ${formatCents(startFree)} sur ce compte.`
+        : undefined,
   }
   const error = errors[step]
 
@@ -423,47 +442,76 @@ export function CreateEnvelopeSheet({
     case 'start':
       body = (
         <div className="space-y-3">
-          <p className="text-muted-foreground text-sm">
-            Pris sur le « libre » de chaque compte. L’argent ne bouge pas.
-          </p>
-          <ul className="divide-y rounded-xl border">
-            {banks.map((account) => {
-              const free = freeOf.get(account.id) ?? 0
-              return (
-                <li
-                  key={account.id}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3"
+          <Field data-invalid={tried && !!error}>
+            <FieldLabel htmlFor={`${id}-start`} className="sr-only">
+              Déjà de côté
+            </FieldLabel>
+            <div className="flex items-center gap-2">
+              <AmountField
+                id={`${id}-start`}
+                groupClassName="flex-1"
+                placeholder="0"
+                value={start}
+                disabled={startFree <= 0}
+                onValueChange={(typed) => setStart(typed)}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                outline
+                disabled={startFree <= 0}
+                onClick={() => setStart(centsToInput(startFree))}
+              >
+                Tout
+              </Button>
+            </div>
+            {tried && error && <FieldError>{error}</FieldError>}
+          </Field>
+          {startOn && !choosingAccount && (
+            <p className="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-sm">
+              <span>
+                Pris sur{' '}
+                <span className="text-foreground font-medium">
+                  {startOn.name}
+                </span>{' '}
+                · libre{' '}
+                <span className="whitespace-nowrap tabular-nums">
+                  {formatCents(startFree)}
+                </span>
+              </span>
+              {banks.length > 1 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  ghost
+                  size="sm"
+                  onClick={() => setChoosingAccount(true)}
                 >
-                  <span className="min-w-[7rem] flex-1">
-                    <span className="block text-sm font-medium break-normal">
-                      {account.name}
-                    </span>
-                    <span className="text-muted-foreground block text-xs whitespace-nowrap">
-                      Libre {formatCents(free)}
-                    </span>
-                  </span>
-                  <AmountField
-                    aria-label={`Pour commencer, sur ${account.name}`}
-                    groupClassName="ml-auto w-32"
-                    placeholder="0"
-                    value={start[account.id] ?? ''}
-                    disabled={free <= 0}
-                    onValueChange={(typed) =>
-                      setStart({ ...start, [account.id]: typed })
-                    }
-                  />
-                </li>
-              )
-            })}
-          </ul>
-          {tried && error && (
-            <p className="text-destructive text-sm">{error}</p>
+                  Autre compte
+                </Button>
+              )}
+            </p>
           )}
-          <p className="text-sm">
-            Total{' '}
-            <span className="font-semibold tabular-nums">
-              {formatCents(startTotal)}
-            </span>
+          {choosingAccount && (
+            <ChoiceList
+              label="Compte"
+              value={startOn?.id ?? null}
+              onChange={(chosen) => {
+                setStartAccount(chosen)
+                setChoosingAccount(false)
+                setStart('')
+              }}
+              choices={banks.map((a) => ({
+                id: a.id,
+                icon: null,
+                label: a.name,
+                value: formatCents(freeOf.get(a.id) ?? 0),
+                disabled: (freeOf.get(a.id) ?? 0) <= 0,
+              }))}
+            />
+          )}
+          <p className="text-muted-foreground text-xs">
+            Vide : rien pour l’instant.
           </p>
         </div>
       )
@@ -490,7 +538,7 @@ export function CreateEnvelopeSheet({
               )}
             </RecapRow>
           )}
-          <RecapRow label="Pour commencer" onEdit={() => setStep('start')}>
+          <RecapRow label="Déjà de côté" onEdit={() => setStep('start')}>
             {startCents.length === 0
               ? 'Rien'
               : startCents
@@ -528,7 +576,7 @@ export function CreateEnvelopeSheet({
     name: 'Nom',
     amount: 'Montant',
     when: 'Quand',
-    start: 'Départ',
+    start: 'Déjà',
     review: 'Vérifier',
   }
 
