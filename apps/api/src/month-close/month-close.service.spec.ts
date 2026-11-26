@@ -22,6 +22,7 @@ import {
 import { normalizeLabel } from '#/imports/normalize/label'
 import { InvestmentsService } from '#/investments/investments.service'
 import { RecurringService } from '#/recurring/recurring.service'
+import { EnvelopesService } from '#/envelopes/envelopes.service'
 import { SavingsService } from '#/savings/savings.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { MonthParamDto, UpdateMonthCloseDto } from './dto/month-close.dto'
@@ -90,6 +91,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             budgets,
             new RecurringService(database),
             savings,
+            new EnvelopesService(database, accounts),
           )
           await fn({ tx, accounts, budgets, savings, service })
           throw ROLLBACK

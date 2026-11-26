@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
+import { AccountsService } from '#/accounts/accounts.service'
 import { DatabaseService } from '#/database/database.service'
+import { EnvelopesService } from '#/envelopes/envelopes.service'
 import type { ShareInputDto } from '#/owed/dto/owed.dto'
 import { OwedService } from '#/owed/owed.service'
 import { todayInParis } from '#/recurring/dates'
@@ -15,6 +17,7 @@ interface Scoped {
   manual: ManualTransactionsService
   owed: OwedService
   recurring: RecurringService
+  envelopes: EnvelopesService
 }
 
 const hasKeys = (value: object | undefined): value is object =>
@@ -50,6 +53,7 @@ export class TransactionEditService {
         recurring,
         manual: new ManualTransactionsService(database, transactions),
         owed: new OwedService(database, transactions, recurring),
+        envelopes: new EnvelopesService(database, new AccountsService(database)),
       }
       const applied = await this.apply(scoped, id, dto, now)
       if (!applied) throw new BadRequestException('Nothing to update')
@@ -59,7 +63,7 @@ export class TransactionEditService {
 
   /** Applies `dto` in order; false when there was nothing to apply. */
   private async apply(
-    { transactions, manual, owed, recurring }: Scoped,
+    { transactions, manual, owed, recurring, envelopes }: Scoped,
     id: string,
     dto: SaveTransactionEditDto,
     now: Date,
@@ -100,6 +104,18 @@ export class TransactionEditService {
       await recurring.update(current.prepaidItemId, { termMonths: null }, today)
       applied = true
     }
+    const envelope = dto.envelope
+    const envelopeChanges =
+      envelope !== undefined &&
+      (envelope === null
+        ? current.envelopeId !== null
+        : envelope.envelopeId !== current.envelopeId ||
+          (envelope.amountCents !== undefined &&
+            envelope.amountCents !== current.envelopeAmountCents))
+    if (envelopeChanges && current.envelopeId !== null) {
+      await envelopes.detach(current.envelopeId, id)
+      applied = true
+    }
     if (dto.split === null && current.splits.length > 0) {
       await transactions.unsplit(id)
       applied = true
@@ -138,6 +154,13 @@ export class TransactionEditService {
     }
     if (shares && !this.sameShares(current, shares, lowered ?? null)) {
       await owed.replaceShares(id, shares)
+      applied = true
+    }
+    if (envelopeChanges && envelope) {
+      await envelopes.attach(envelope.envelopeId, {
+        transactionId: id,
+        amountCents: envelope.amountCents,
+      })
       applied = true
     }
     if (dto.repayments?.link) {

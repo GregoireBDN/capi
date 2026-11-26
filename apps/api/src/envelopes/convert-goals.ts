@@ -1,6 +1,7 @@
 import { asc, inArray, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import type { AccountsService } from '#/accounts/accounts.service'
+import { AccountsService } from '#/accounts/accounts.service'
+import { DatabaseService } from '#/database/database.service'
 import type * as schema from '#/database/schema'
 import {
   BANK_ACCOUNT_TYPES,
@@ -42,7 +43,7 @@ export interface GoalConversion {
  *   returned as `unplacedCents`.
  *
  * Goals already converted (an envelope with their id) are skipped, so it
- * can run again. The goals themselves are left for #430 to drop.
+ * can run again. `convertAndRemoveSavingsGoals` runs it for good.
  */
 export async function convertSavingsGoals(
   tx: Tx,
@@ -159,4 +160,33 @@ export async function convertSavingsGoals(
     })
   }
   return out
+}
+
+export interface GoalConversionSummary {
+  /** Goals turned into envelopes by this run. */
+  converted: number
+  /** What manual goals said they held and no bank account could take. */
+  unplacedCents: number
+}
+
+/**
+ * Runs the conversion once for good (#430), from `pnpm db:seed`, so every
+ * deploy does it: the goals are converted, then deleted in the same database
+ * transaction, so an envelope the owner deletes later never comes back from
+ * its old goal. Prints nothing; returns counts only.
+ */
+export async function convertAndRemoveSavingsGoals(
+  db: Db | Tx,
+  today: string,
+): Promise<GoalConversionSummary> {
+  return db.transaction(async (tx) => {
+    const accounts = new AccountsService(DatabaseService.within(tx))
+    const converted = await convertSavingsGoals(tx, accounts, today)
+    // Links go with their goal (`ON DELETE CASCADE`).
+    await tx.delete(savingsGoalsTable)
+    return {
+      converted: converted.length,
+      unplacedCents: converted.reduce((sum, c) => sum + c.unplacedCents, 0),
+    }
+  })
 }

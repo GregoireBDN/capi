@@ -27,6 +27,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { RepaymentSuggestions } from '#/components/owed/RepaymentSuggestions'
 import { StaleValuesReminder } from '#/components/review/StaleValuesReminder'
+import { OffersCard } from '#/components/envelopes/OffersCard'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
 import { useKnownReviewCount } from '#/lib/review-count'
@@ -588,6 +589,8 @@ export function TransactionsPage({
 
       {/* The investment values to update, as the review queue had them. */}
       {reviewing && <StaleValuesReminder />}
+      {/* What the imports brought for the envelopes (#430). */}
+      {reviewing && <OffersCard />}
 
       {actions.offer && (
         <RuleFromCorrectionDialog

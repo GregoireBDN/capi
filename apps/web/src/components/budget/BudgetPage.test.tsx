@@ -22,6 +22,9 @@ const api = vi.hoisted(() => ({
   budgetsControllerIncomeSuggestions: vi.fn(),
   budgetsControllerUpsert: vi.fn(),
   budgetsControllerRemove: vi.fn(),
+  envelopesControllerMonth: vi.fn(),
+  envelopesControllerDetail: vi.fn(),
+  envelopesControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -361,6 +364,9 @@ describe('BudgetPage', () => {
       ok([groceries, leisure, transport, salary, family]),
     )
     api.budgetsControllerMonth.mockImplementation(() => ok(monthData))
+    api.envelopesControllerMonth.mockImplementation(() =>
+      ok({ month: '2026-10', paidCents: 0, envelopes: [] }),
+    )
     api.budgetsControllerHistory.mockImplementation(() => ok(history))
     api.budgetsControllerSuggest.mockImplementation(() => ok(suggestions))
     api.budgetsControllerIncomeSuggestions.mockImplementation(() =>
@@ -428,6 +434,54 @@ describe('BudgetPage', () => {
       }),
     ).toBeInTheDocument()
     expect(within(outsideRows[1]).queryByRole('button')).toBeNull()
+  })
+
+  it('shows what an envelope paid as its own line and under its categories (#430)', async () => {
+    const paid = {
+      envelopeId: 'env-1',
+      name: 'Lisbonne',
+      icon: 'plane',
+      color: '#e87ba4',
+      paidCents: 9_500,
+    }
+    api.budgetsControllerMonth.mockImplementation(() =>
+      ok({
+        ...monthData,
+        items: [
+          {
+            ...line(leisure, 10_000, 15_000, 'ok'),
+            envelopePaidCents: 9_500,
+            envelopes: [paid],
+          },
+        ],
+        totals: { ...monthData.totals, envelopePaidCents: 9_500 },
+      }),
+    )
+    api.envelopesControllerMonth.mockImplementation(() =>
+      ok({
+        month: '2026-10',
+        paidCents: 9_500,
+        envelopes: [
+          {
+            envelopeId: 'env-1',
+            name: 'Lisbonne',
+            icon: 'plane',
+            color: '#e87ba4',
+            paidCents: 9_500,
+            putAsideCents: 20_000,
+            leftCents: 10_500,
+            categories: [{ categoryId: leisure.id, paidCents: 9_500 }],
+          },
+        ],
+      }),
+    )
+    renderPage()
+    const envelopeLine = await screen.findByRole('button', {
+      name: 'Enveloppe Lisbonne',
+    })
+    expect(envelopeLine).toHaveTextContent(/95\s€\s\/\s200\s€/)
+    expect(await screen.findByText(/\+ 95\s€ par Lisbonne/)).toBeInTheDocument()
+    expect(screen.getByText(/par une enveloppe/)).toBeInTheDocument()
   })
 
   it('shows the planned income, what came in and what the plan leaves to save (#315)', async () => {

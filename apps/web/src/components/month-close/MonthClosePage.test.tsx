@@ -157,7 +157,7 @@ function review(overrides: Partial<MonthCloseDto> = {}): MonthCloseDto {
       netCents: 210_000,
       targetCents: 60_000,
       gapCents: 150_000,
-      goals: [],
+      envelopes: [],
     },
     investments: {
       accounts: [

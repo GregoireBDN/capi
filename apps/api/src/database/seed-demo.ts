@@ -93,7 +93,7 @@ async function main() {
       `  ${c.accounts} accounts, ${c.transactions} transactions (${c.manualTransactions} manual, ${c.reviewQueue} to review, ${c.splits} split, ${c.linkedTransferPairs} transfers linked), ${c.imports} imports`,
     )
     console.log(
-      `  ${c.snapshots} value snapshots, ${c.cryptoHoldings} crypto holdings, ${c.positionStatements} position statements, ${c.dividends} dividends, ${c.rules} rules, ${c.budgets} budget lines, ${c.savingsGoals} savings goals, ${c.recurringItems} recurring items`,
+      `  ${c.snapshots} value snapshots, ${c.cryptoHoldings} crypto holdings, ${c.positionStatements} position statements, ${c.dividends} dividends, ${c.rules} rules, ${c.budgets} budget lines, ${c.envelopes} envelopes, ${c.recurringItems} recurring items`,
     )
     console.log(
       `\nSign in with:\n  email:    ${DEMO_EMAIL}\n  password: ${DEMO_PASSWORD}`,

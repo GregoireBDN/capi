@@ -21,7 +21,10 @@ import {
 } from '#/database/schema'
 import { restoreAbsorbedManual } from '#/imports/undo/import-undo'
 import { bankRows } from '#/transactions/testing/bank-rows'
-import { convertSavingsGoals } from './convert-goals'
+import {
+  convertAndRemoveSavingsGoals,
+  convertSavingsGoals,
+} from './convert-goals'
 import { EnvelopesService, envelopePlan, splitByKey } from './envelopes.service'
 import { attributeSpend } from './paid'
 
@@ -522,7 +525,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('a transfer out carries the envelope to the other account', async () => {
+    it('a transfer out to a checking account carries the envelope to it', async () => {
       await inRollback(
         async ({ tx, envelopes, accounts, checking, livret, move }) => {
           const lisbon = await envelopes.create(
@@ -558,7 +561,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
               counterpartAccountId: livret,
             }),
           )
+          // Towards savings or an investment: not offered (#430).
+          const [pea] = await tx
+            .insert(accountsTable)
+            .values({ name: 'PEA test', type: 'brokerage' })
+            .returning({ id: accountsTable.id })
+          const [invested] = await insert(
+            tx,
+            row(livret, '2026-11-05', -2_000, 'transfer', {
+              categoryId: move,
+              counterpartAccountId: pea.id,
+            }),
+          )
           const offers = await envelopes.offers()
+          expect(
+            offers.transfers.some(
+              (o) => o.transaction.transactionId === invested.id,
+            ),
+          ).toBe(false)
           expect(
             offers.transfers.find((o) => o.transaction.transactionId === out.id)
               ?.envelopes,
@@ -669,6 +689,36 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(await convertSavingsGoals(tx, accounts, '2026-11-26')).toEqual(
           [],
         )
+      })
+    })
+
+    it('converts the goals once for good: a deleted envelope never comes back', async () => {
+      await inRollback(async ({ tx, envelopes }) => {
+        const [goal] = await tx
+          .insert(savingsGoalsTable)
+          .values({
+            name: 'Une fois',
+            targetCents: 100_000,
+            source: 'manual',
+            manualAmountCents: 0,
+          })
+          .returning({ id: savingsGoalsTable.id })
+        expect(await convertAndRemoveSavingsGoals(tx, '2026-11-26')).toEqual({
+          converted: 1,
+          unplacedCents: 0,
+        })
+        expect(await tx.select().from(savingsGoalsTable)).toEqual([])
+        await envelopes.remove(goal.id)
+        expect(await convertAndRemoveSavingsGoals(tx, '2026-11-26')).toEqual({
+          converted: 0,
+          unplacedCents: 0,
+        })
+        expect(
+          await tx
+            .select()
+            .from(envelopesTable)
+            .where(eq(envelopesTable.id, goal.id)),
+        ).toEqual([])
       })
     })
 

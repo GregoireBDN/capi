@@ -45,7 +45,8 @@ import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { plural } from '#/lib/plural'
-import { categoriesQuery } from '#/lib/queries'
+import { categoriesQuery, isBankAccount } from '#/lib/queries'
+import { AccountEnvelopesCard } from '#/components/envelopes/AccountEnvelopesCard'
 import { ROUTES } from '#/lib/routes'
 import { AccountDetails } from './AccountDetails'
 import type { AccountDetail } from './AccountDetails'
@@ -122,6 +123,10 @@ export function CashAccount({
         onImport={onImport}
         onAddTransaction={onAddTransaction}
       />
+      {/* Envelopes (#430): what the balance holds for each goal. */}
+      {isBankAccount(account) && (
+        <AccountEnvelopesCard accountId={account.id} writable={writable} />
+      )}
       {history.data && <BalanceChart history={history.data} today={today} />}
       <LatestTransactions
         account={account}

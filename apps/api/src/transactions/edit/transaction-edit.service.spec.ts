@@ -18,6 +18,8 @@ import {
   accountsTable,
   categoriesTable,
   contactsTable,
+  envelopeMovementsTable,
+  envelopesTable,
   receivablesTable,
   transactionsTable,
 } from '#/database/schema'
@@ -423,6 +425,69 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await expect(edits.save(id, { changes: {} }, NOW)).rejects.toThrow(
           /Nothing to update/,
         )
+      })
+    })
+
+    it('attaches, changes and detaches an envelope with the other fields (#430)', async () => {
+      await withFixture(async ({ tx, edits, expense, bankRow, accountId }) => {
+        await bankRow(100_000, 'VIR SALAIRE TEST', 'income')
+        const [envelope] = await tx
+          .insert(envelopesTable)
+          .values({ name: 'Voyage test' })
+          .returning()
+        await tx.insert(envelopeMovementsTable).values({
+          envelopeId: envelope.id,
+          accountId,
+          amountCents: 30_000,
+          onDate: '2026-10-01',
+          reason: 'start',
+        })
+        const id = await expense(12_000)
+
+        const attached = await edits.save(
+          id,
+          {
+            envelope: { envelopeId: envelope.id },
+            changes: { note: 'Billets' },
+          },
+          NOW,
+        )
+        expect(attached).toMatchObject({
+          envelopeId: envelope.id,
+          envelopeAmountCents: 12_000,
+          note: 'Billets',
+        })
+
+        // Part of it only: detached then attached again, in one save.
+        expect(
+          await edits.save(
+            id,
+            { envelope: { envelopeId: envelope.id, amountCents: 5_000 } },
+            NOW,
+          ),
+        ).toMatchObject({ envelopeId: envelope.id, envelopeAmountCents: 5_000 })
+
+        // More than it holds: refused, and the note stays as it was.
+        await expect(
+          edits.save(
+            id,
+            {
+              envelope: { envelopeId: envelope.id, amountCents: 40_000 },
+              changes: { note: 'Changée' },
+            },
+            NOW,
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        const [row] = await tx
+          .select({ note: transactionsTable.note })
+          .from(transactionsTable)
+          .where(eq(transactionsTable.id, id))
+        expect(row.note).toBe('Billets')
+
+        expect(await edits.save(id, { envelope: null }, NOW)).toMatchObject({
+          envelopeId: null,
+          envelopeAmountCents: null,
+        })
       })
     })
   },
