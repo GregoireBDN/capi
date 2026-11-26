@@ -199,7 +199,8 @@ export function useSortable({
         ref,
         dragging: true,
         style: {
-          transform: `translateY(${offset}px) scale(${dropping ? 1 : 1.03})`,
+          // Lifted by its shadow, never wider: it stays inside the list.
+          transform: `translateY(${offset}px)`,
           transition: dropping
             ? `transform ${DROP_MS}ms cubic-bezier(.2,.9,.3,1.2)`
             : 'transform 80ms ease-out',
@@ -208,7 +209,9 @@ export function useSortable({
         },
       }
     }
-    const step = rows[from].height
+    // The dragged row's height and the space between two rows.
+    const gap = rows.length > 1 ? rows[1].top - rows[0].top - rows[0].height : 0
+    const step = rows[from].height + gap
     const shift =
       from < to && index > from && index <= to
         ? -step

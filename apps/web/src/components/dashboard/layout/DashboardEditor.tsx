@@ -214,23 +214,21 @@ function Editor({
           Glissez pour changer l’ordre
           <span className="sr-only">, ou flèches haut et bas</span>
         </p>
-        <Card className="gap-0 px-1 py-1">
-          <ul
-            className={cn('divide-y', sortable.dragging && 'select-none')}
-            aria-label="Éléments affichés"
-          >
-            {draft.map((widget, index) => (
-              <ElementRow
-                key={widget.type}
-                widget={widget}
-                sortable={sortable.item(index)}
-                handle={sortable.handle(index)}
-                onShow={(shown) => update(widget.type, { hidden: !shown })}
-                onOpen={() => setEditing(widget.type)}
-              />
-            ))}
-          </ul>
-        </Card>
+        <ul
+          className={cn('space-y-2', sortable.dragging && 'select-none')}
+          aria-label="Éléments affichés"
+        >
+          {draft.map((widget, index) => (
+            <ElementRow
+              key={widget.type}
+              widget={widget}
+              sortable={sortable.item(index)}
+              handle={sortable.handle(index)}
+              onShow={(shown) => update(widget.type, { hidden: !shown })}
+              onOpen={() => setEditing(widget.type)}
+            />
+          ))}
+        </ul>
         <p className="sr-only" aria-live="polite">
           {moved}
         </p>
@@ -329,9 +327,10 @@ function ElementRow({
       ref={sortable.ref}
       style={sortable.style}
       className={cn(
-        'bg-card flex min-h-[3.2rem] items-center gap-1.5 rounded-lg px-1',
+        // One tile per element, so each line stands apart (#495).
+        'bg-card flex min-h-[3.2rem] items-center gap-1.5 rounded-xl border px-1 shadow-xs transition-shadow',
         sortable.dragging &&
-          'ring-primary/30 shadow-lg ring-2 [&+li]:border-transparent',
+          'border-primary/50 shadow-[0_12px_18px_-8px_rgb(0_0_0/0.3)]',
       )}
     >
       <button
