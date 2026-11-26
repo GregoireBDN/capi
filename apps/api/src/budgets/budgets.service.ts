@@ -333,6 +333,7 @@ export class BudgetsService {
     requested?: string,
     executor: Executor = this.db,
     now: Date = new Date(),
+    { all = false }: { all?: boolean } = {},
   ): Promise<EnvelopesDto> {
     const today = parisToday(now)
     const current = today.slice(0, 7)
@@ -372,7 +373,7 @@ export class BudgetsService {
     const items: EnvelopeDto[] = []
     for (const [categoryId, target] of targetsInEffect(rows, month)) {
       const category = categories.get(categoryId)
-      if (!target.tracked || category?.kind !== 'expense') continue
+      if ((!all && !target.tracked) || category?.kind !== 'expense') continue
       const spentCents = spentBy.get(categoryId)?.spentCents ?? 0
       const envelopePaidCents = sum(
         (paidBy.get(categoryId) ?? []).map((p) => p.paidCents),
@@ -386,6 +387,7 @@ export class BudgetsService {
         color: category.color,
         icon: category.icon,
         targetCents: target.monthlyTargetCents,
+        tracked: target.tracked ?? false,
         spentCents,
         manualCents: spentBy.get(categoryId)?.manualCents ?? 0,
         envelopePaidCents,

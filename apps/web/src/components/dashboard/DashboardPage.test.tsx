@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   CoverageDto,
+  DashboardWidgetDto,
   DashboardAccountDto,
   DashboardOverviewDto,
   MonthReviewDto,
@@ -22,6 +23,14 @@ const api = vi.hoisted(() => ({
   coverageControllerCoverage: vi.fn(),
   receivablesControllerSuggestions: vi.fn(),
   recurringControllerList: vi.fn(),
+  dashboardLayoutControllerGet: vi.fn(),
+  dashboardLayoutControllerReplace: vi.fn(),
+  dashboardLayoutControllerReset: vi.fn(),
+  dashboardControllerHistory: vi.fn(),
+  owedControllerSummary: vi.fn(),
+  envelopesControllerList: vi.fn(),
+  investmentsControllerSummary: vi.fn(),
+  accountsControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -198,6 +207,41 @@ function recurring(overrides: Partial<RecurringItemDto>): RecurringItemDto {
   } as RecurringItemDto
 }
 
+function widget(
+  type: DashboardWidgetDto['type'],
+  values: Partial<DashboardWidgetDto> = {},
+): DashboardWidgetDto {
+  return {
+    type,
+    hidden: false,
+    accountIds: null,
+    envelopeIds: null,
+    categoryIds: null,
+    settings: {},
+    ...values,
+  }
+}
+
+const DEFAULT_LAYOUT = [
+  widget('todo'),
+  widget('left_to_spend'),
+  widget('forecast'),
+  widget('net_worth'),
+  widget('tracked_budgets'),
+]
+
+function owedRow(name: string, owedCents: number) {
+  return {
+    contactId: '40000000-0000-4000-8000-000000000001',
+    name,
+    owedCents,
+    openCount: 1,
+    oldestOpenDate: '2026-11-01',
+    oldestOpenDays: 20,
+    netCents: 2_500,
+  }
+}
+
 function ok<T>(data: T) {
   return Promise.resolve({ data, response: { ok: true, status: 200 } })
 }
@@ -239,6 +283,72 @@ beforeEach(() => {
   api.receivablesControllerSuggestions.mockImplementation(() => ok([]))
   api.recurringControllerList.mockImplementation(() => ok([]))
   api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
+  api.dashboardLayoutControllerGet.mockImplementation(() =>
+    ok({ custom: false, widgets: DEFAULT_LAYOUT }),
+  )
+  api.envelopesControllerList.mockImplementation(() => ok([]))
+  api.accountsControllerList.mockImplementation(() =>
+    ok(
+      [checking, pea].map((account) => ({
+        ...account,
+        position: 0,
+        archivedAt: null,
+        cryptoSource: null,
+      })),
+    ),
+  )
+  api.dashboardControllerHistory.mockImplementation(() =>
+    ok({
+      months: [
+        {
+          month: '2026-09',
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 1_400_000,
+          accounts: [
+            { accountId: pea.id, type: 'brokerage', balanceCents: 800_000 },
+          ],
+        },
+        {
+          month: '2026-10',
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 1_500_000,
+          accounts: [
+            { accountId: pea.id, type: 'brokerage', balanceCents: 900_000 },
+          ],
+        },
+        {
+          month: '2026-11',
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 0,
+          accounts: [],
+        },
+      ],
+    }),
+  )
+  api.owedControllerSummary.mockImplementation(() =>
+    ok({
+      today: '2026-11-21',
+      month: '2026-11',
+      owedToMe: {
+        totalCents: 4_000,
+        settled: [],
+        contacts: [owedRow('Alex test', 4_000)],
+      },
+      iOwe: {
+        totalCents: 1_500,
+        settled: [],
+        contacts: [owedRow('Alex test', 1_500)],
+      },
+      expected: [],
+      offers: [],
+    }),
+  )
   api.budgetsControllerEnvelopes.mockImplementation(() =>
     ok({
       month: '2026-11',
@@ -272,20 +382,26 @@ describe('DashboardPage', () => {
     const card = await screen.findByRole('region', {
       name: 'Reste à dépenser',
     })
-    const link = within(card).getByRole('link', { name: /Reste à dépenser/ })
+    const link = within(card).getByRole('link', { name: /Reste · novembre/ })
     expect(link).toHaveAttribute('href', '/budget')
     expect(screen.getByTestId('left-to-spend')).toHaveTextContent(
       euros(100_000),
     )
-    // Read to the 19th, the day the data goes to: 2 000 € × 19 / 30.
-    expect(card).toHaveTextContent(`${euros(26_667)} sous le rythme`)
-    expect(card).toHaveTextContent(
-      `${euros(100_000)} sur ${euros(200_000)} · ${euros(8_800)} hors budget`,
+    // Read to the 19th, the day the data goes to: 11 days left, 1 000 € / 11.
+    expect(screen.getByTestId('per-day')).toHaveTextContent(
+      `${euros(9_000)}par jour · 11 j`,
     )
-    expect(card).toHaveTextContent('À jour au 19 nov.')
-    expect(
-      within(card).getByRole('meter', { name: 'Budget du mois' }),
-    ).toHaveAttribute('aria-valuenow', '100000')
+    // The month read to the 19th against the budget spent: two bars.
+    expect(within(card).getByRole('meter', { name: 'Mois' })).toHaveAttribute(
+      'aria-valuenow',
+      '63',
+    )
+    expect(within(card).getByRole('meter', { name: 'Budget' })).toHaveAttribute(
+      'aria-valuenow',
+      '50',
+    )
+    expect(card).not.toHaveTextContent('hors budget')
+    expect(screen.getByTestId('data-until')).toHaveTextContent('au 19 nov.')
   })
 
   it('says when the budget is spent past its target', async () => {
@@ -300,8 +416,12 @@ describe('DashboardPage', () => {
     renderPage()
     const amount = await screen.findByTestId('left-to-spend')
     expect(amount).toHaveTextContent(euros(12_000))
-    expect(screen.getByText(/Budget dépassé en novembre/)).toBeInTheDocument()
-    expect(screen.getByText('Jour 19 sur 30')).toBeInTheDocument()
+    expect(screen.getByText('Dépassé · novembre')).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'Budget' })).toHaveAttribute(
+      'aria-valuenow',
+      '106',
+    )
+    expect(screen.queryByTestId('per-day')).not.toBeInTheDocument()
   })
 
   it('offers to set a budget when the month has none', async () => {
@@ -327,7 +447,13 @@ describe('DashboardPage', () => {
     )
     expect(row).toHaveAttribute('href', '/forecast')
     expect(row).toHaveTextContent(euros(267_000))
-    expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le 29 nov.`)
+    // « B. Trajet »: the start, the low point and the end as three stops.
+    expect(within(row).getByTestId('forecast-low')).toHaveTextContent(
+      `${euros(18_000)}Point bas · 29 nov.`,
+    )
+    expect(within(row).getByTestId('forecast-end')).toHaveTextContent(
+      `${euros(267_000)}Fin · 30 nov.`,
+    )
   })
 
   it('warns when the balance goes under the threshold', async () => {
@@ -345,14 +471,54 @@ describe('DashboardPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows today’s net worth with its change, opening the accounts', async () => {
+  it('shows today’s net worth, its change this month and its curve, opening the accounts', async () => {
     renderPage()
-    const row = await screen.findByRole('link', { name: /Patrimoine/ })
-    expect(row).toHaveAttribute('href', '/accounts')
-    expect(row).toHaveTextContent(euros(1_623_456))
-    expect(row).toHaveTextContent(`+${euros(123_456)} depuis le 31 oct.`)
+    const link = await screen.findByRole('link', { name: /Patrimoine/ })
+    expect(link).toHaveAttribute('href', '/accounts')
+    expect(screen.getByTestId('net-worth')).toHaveTextContent(euros(1_623_456))
+    // Less than a year known: the gain since the first month end, and no
+    // longer period to pick.
+    expect(await screen.findByTestId('net-worth-gain')).toHaveTextContent(
+      `+${euros(223_456)}`,
+    )
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Période' }),
+    ).not.toBeInTheDocument()
     // The accounts themselves are on Comptes.
     expect(screen.queryByText('PEA test')).not.toBeInTheDocument()
+  })
+
+  it('switches the net worth curve between the periods the data reaches', async () => {
+    // 30 month ends, 10 000 € more each month, the current month last.
+    api.dashboardControllerHistory.mockImplementation(() =>
+      ok({
+        months: Array.from({ length: 30 }, (_, i) => ({
+          month: `20${String(24 + Math.floor((i + 5) / 12))}-${String(((i + 5) % 12) + 1).padStart(2, '0')}`,
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 1_000_000 + i * 1_000_000,
+          accounts: [],
+        })),
+      }),
+    )
+    renderPage()
+    const periods = await screen.findByRole('radiogroup', { name: 'Période' })
+    expect(
+      within(periods)
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent),
+    ).toEqual(['1 an', '3 ans'])
+    // A year: from the month end 12 months back (180 000 €) to today, a loss.
+    expect(screen.getByTestId('net-worth-gain')).toHaveTextContent(
+      euros(18_000_000 - 1_623_456),
+    )
+    await userEvent.click(within(periods).getByRole('radio', { name: '3 ans' }))
+    expect(screen.getByTestId('net-worth-gain')).toHaveTextContent(
+      euros(Math.abs(1_623_456 - 1_000_000)),
+    )
+    expect(localStorage.getItem('capi.dashboard.netWorthYears')).toBe('3')
+    localStorage.clear()
   })
 
   it('has nothing to do when everything is up to date', async () => {
@@ -426,7 +592,6 @@ describe('DashboardPage', () => {
     expect(links()[0]).toHaveTextContent('Dernier relevé au 11 nov.')
     expect(links()[1]).toHaveAttribute('href', '/month-review?month=2026-10')
     expect(links()[1]).toHaveTextContent('Clôturer octobre')
-    expect(links()[1]).toHaveTextContent('1 compte à mettre à jour avant')
     expect(links()[2]).toHaveTextContent('7 opérations à revoir')
     expect(links()[2]).toHaveAttribute(
       'href',
@@ -450,7 +615,7 @@ describe('DashboardPage', () => {
     expect(links()[5]).toHaveAttribute('href', '/subscriptions')
     expect(links()[6]).toHaveAttribute('href', '/accounts')
     // The figures say how old they are.
-    expect(screen.getByText(/Chiffres au/)).toHaveTextContent(
+    expect(screen.getByTestId('data-until')).toHaveTextContent(
       'Chiffres au 11 nov.',
     )
   })
@@ -513,5 +678,196 @@ describe('DashboardPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByTestId('left-to-spend')).toBeInTheDocument()
+  })
+
+  it('draws the saved layout: its elements, in order, on their accounts', async () => {
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [
+          widget('balances', { accountIds: [checking.id] }),
+          widget('owed'),
+          widget('net_worth', { accountIds: [pea.id] }),
+          widget('left_to_spend', { hidden: true }),
+        ],
+      }),
+    )
+    renderPage()
+    const balances = (
+      await screen.findByRole('link', { name: 'Soldes' })
+    ).closest('[data-element]') as HTMLElement
+    expect(within(balances).getByText('Compte test')).toBeInTheDocument()
+    expect(within(balances).queryByText('PEA test')).not.toBeInTheDocument()
+    // One row per person, both sides on it.
+    expect(await screen.findByText('Alex test')).toBeInTheDocument()
+    expect(screen.getByText(`+${euros(4_000)}`)).toBeInTheDocument()
+    expect(screen.getByText(`−${euros(1_500)}`)).toBeInTheDocument()
+    // On chosen accounts, never passed off as the whole net worth.
+    expect(await screen.findByText('Patrimoine · 1 compte')).toBeInTheDocument()
+    expect(screen.getByText(euros(1_000_000))).toBeInTheDocument()
+    expect(await screen.findByTestId('net-worth-gain')).toHaveTextContent(
+      `+${euros(200_000)}`,
+    )
+    expect(screen.queryByTestId('left-to-spend')).not.toBeInTheDocument()
+    expect(
+      [...document.querySelectorAll('[data-element]')].map((element) =>
+        element.getAttribute('data-element'),
+      ),
+    ).toEqual(['balances', 'owed', 'net_worth'])
+  })
+
+  it('adds up the week’s debits, each with its day and no minus sign', async () => {
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({ custom: true, widgets: [widget('upcoming_debits')] }),
+    )
+    api.recurringControllerList.mockImplementation(() =>
+      ok([
+        recurring({
+          id: '30000000-0000-4000-8000-000000000011',
+          name: 'Loyer test',
+          nextExpectedDate: '2026-11-24',
+          typicalAmountCents: 95_000,
+        }),
+        recurring({
+          id: '30000000-0000-4000-8000-000000000012',
+          name: 'Eau test',
+          nextExpectedDate: '2026-11-22',
+          typicalAmountCents: 8_400,
+        }),
+        // After the 7 days: left out of the total.
+        recurring({
+          id: '30000000-0000-4000-8000-000000000013',
+          name: 'Plus tard test',
+          nextExpectedDate: '2026-12-05',
+          typicalAmountCents: 1_000,
+        }),
+      ]),
+    )
+    renderPage()
+    expect(await screen.findByTestId('upcoming-total')).toHaveTextContent(
+      euros(103_400),
+    )
+    const rows = screen
+      .getAllByRole('link')
+      .filter((link) => /Eau test|Loyer test/.test(link.textContent))
+    expect(rows.map((row) => row.textContent.replace(/\s/g, ' '))).toEqual([
+      expect.stringContaining('Demain'),
+      expect.stringContaining('Mar. 24'),
+    ])
+    expect(rows[0]).toHaveTextContent(euros(8_400))
+    expect(screen.queryByText(/−/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Plus tard test')).not.toBeInTheDocument()
+  })
+
+  it('orders « Soldes » by balance when asked, the largest first', async () => {
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [
+          widget('balances', {
+            accountIds: [checking.id, pea.id],
+            settings: { balancesSort: 'desc' },
+          }),
+        ],
+      }),
+    )
+    renderPage()
+    const balances = (
+      await screen.findByRole('link', { name: 'Soldes' })
+    ).closest('[data-element]') as HTMLElement
+    const names = within(balances)
+      .getAllByRole('link')
+      .map((link) => link.textContent)
+      .filter((text) => text.includes('test'))
+    expect(names[0]).toContain('PEA test')
+    expect(names[1]).toContain('Compte test')
+  })
+
+  it('says when every chosen account is gone and opens its settings, saved at once', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [widget('owed'), widget('balances', { accountIds: [] })],
+      }),
+    )
+    api.dashboardLayoutControllerReplace.mockImplementation(
+      (options: { body: { widgets: DashboardWidgetDto[] } }) =>
+        ok({ custom: true, widgets: options.body.widgets }),
+    )
+    renderPage()
+    expect(await screen.findByText('Aucun compte')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Choisir' }))
+
+    const editor = await screen.findByRole('dialog')
+    // The chosen list is empty: tick one.
+    await user.click(
+      within(editor).getByRole('switch', { name: 'Afficher PEA test' }),
+    )
+    await user.click(
+      within(editor).getByRole('button', { name: 'Personnaliser' }),
+    )
+    // ↑ on the focused handle moves the element, like a drag.
+    within(editor).getByRole('button', { name: 'Déplacer Soldes' }).focus()
+    await user.keyboard('{ArrowUp}')
+    await user.click(
+      within(editor).getByRole('switch', { name: 'Afficher Argent dû' }),
+    )
+    await user.click(
+      within(editor).getByRole('button', { name: 'Ajouter Le mois' }),
+    )
+    expect(api.dashboardLayoutControllerReplace).not.toHaveBeenCalled()
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
+
+    expect(api.dashboardLayoutControllerReplace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          widgets: [
+            widget('balances', { accountIds: [pea.id] }),
+            widget('owed', { hidden: true }),
+            widget('month_flows'),
+          ],
+        },
+      }),
+    )
+  })
+
+  it('drags the accounts of « Soldes » in « Mon ordre »', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [widget('balances', { accountIds: [] })],
+      }),
+    )
+    api.dashboardLayoutControllerReplace.mockImplementation(
+      (options: { body: { widgets: DashboardWidgetDto[] } }) =>
+        ok({ custom: true, widgets: options.body.widgets }),
+    )
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Choisir' }))
+    const editor = await screen.findByRole('dialog')
+    for (const name of ['Compte test', 'PEA test']) {
+      await user.click(
+        within(editor).getByRole('switch', { name: `Afficher ${name}` }),
+      )
+    }
+    // « Mon ordre »: PEA moved up, every account still shown, now in order.
+    within(editor).getByRole('button', { name: 'Déplacer PEA test' }).focus()
+    await user.keyboard('{ArrowUp}')
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
+    expect(api.dashboardLayoutControllerReplace).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: {
+          widgets: [widget('balances', { accountIds: [pea.id, checking.id] })],
+        },
+      }),
+    )
   })
 })
