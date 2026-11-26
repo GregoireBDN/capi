@@ -274,7 +274,8 @@ export class EnvelopesService {
 
   /**
    * What waits for the owner (ADR 0008 §7): savings to split by a key,
-   * transfers out of an account where envelopes hold money, expenses in an
+   * transfers out of an account where envelopes hold money towards a
+   * checking account (#430), expenses in an
    * envelope's categories. Nothing is attached without him.
    */
   async offers(executor: Executor = this.db): Promise<EnvelopeOffersDto> {
@@ -347,7 +348,10 @@ export class EnvelopesService {
         .select(columns)
         .from(t)
         .where(
+          // Only towards a checking account (« je rapatrie pour payer »,
+          // #430): a move to savings or an investment is not an envelope's.
           sql`${t.kind} = 'transfer' and ${t.amountCents} < 0 and ${t.counterpartAccountId} is not null and ${open}
+              and exists (select 1 from ${accountsTable} c where c.id = ${t.counterpartAccountId} and c.type = 'checking')
               and not ${attached("'transfer'")}
               and ${t.bookingDate} >= (select min((y.created_at at time zone 'Europe/Paris')::date) from ${e} y where y.archived_at is null)`,
         )

@@ -855,7 +855,7 @@ describe('month-end review', () => {
         netCents: 50000,
         targetCents: 60000,
         gapCents: -10000,
-        goals: [],
+        envelopes: [],
       },
       investments: {
         accounts: [

@@ -14,9 +14,11 @@ import * as schema from './schema'
 
 const USAGE = `Seeds a throwaway database with a test account and synthetic data.
 
-  pnpm db:demo [--reset]
+  pnpm db:demo [--reset | --if-empty]
 
-  --reset   empty every table of the database first (all its data is lost)
+  --reset      empty every table of the database first (all its data is lost)
+  --if-empty   seed only an empty database; one that already has data is
+               kept as it is and the command succeeds (staging deploys)
 
 Refuses the "finances" database, and NODE_ENV=production except on the
 staging database named by DEMO_STAGING_DATABASE (#421). Run the migrations
@@ -38,13 +40,21 @@ async function main() {
     console.log(USAGE)
     return
   }
-  const unknown = args.filter((arg) => arg !== '--reset')
+  const unknown = args.filter(
+    (arg) => arg !== '--reset' && arg !== '--if-empty',
+  )
   if (unknown.length > 0) {
     console.error(`Unknown option: ${unknown.join(' ')}\n\n${USAGE}`)
     process.exitCode = 2
     return
   }
   const reset = args.includes('--reset')
+  const ifEmpty = args.includes('--if-empty')
+  if (reset && ifEmpty) {
+    console.error(`--reset and --if-empty exclude each other.\n\n${USAGE}`)
+    process.exitCode = 2
+    return
+  }
   const databaseName = assertDemoTarget(
     env.DATABASE_URL,
     process.env.NODE_ENV,
@@ -62,6 +72,12 @@ async function main() {
       }
       return generateDemoData(tx)
     })
+    if (!result && ifEmpty) {
+      console.log(
+        `"${databaseName}" already has data: kept as it is (--reset to start over).`,
+      )
+      return
+    }
     if (!result) {
       console.error(
         `"${databaseName}" already has data. Re-run with --reset to wipe it and seed the demo data.`,
@@ -77,7 +93,7 @@ async function main() {
       `  ${c.accounts} accounts, ${c.transactions} transactions (${c.manualTransactions} manual, ${c.reviewQueue} to review, ${c.splits} split, ${c.linkedTransferPairs} transfers linked), ${c.imports} imports`,
     )
     console.log(
-      `  ${c.snapshots} value snapshots, ${c.cryptoHoldings} crypto holdings, ${c.positionStatements} position statements, ${c.dividends} dividends, ${c.rules} rules, ${c.budgets} budget lines, ${c.savingsGoals} savings goals, ${c.recurringItems} recurring items`,
+      `  ${c.snapshots} value snapshots, ${c.cryptoHoldings} crypto holdings, ${c.positionStatements} position statements, ${c.dividends} dividends, ${c.rules} rules, ${c.budgets} budget lines, ${c.envelopes} envelopes, ${c.recurringItems} recurring items`,
     )
     console.log(
       `\nSign in with:\n  email:    ${DEMO_EMAIL}\n  password: ${DEMO_PASSWORD}`,

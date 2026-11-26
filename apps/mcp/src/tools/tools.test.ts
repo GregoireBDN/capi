@@ -7,7 +7,6 @@ import type {
   MonthReviewDto,
   RecurringItemDto,
   RecurringSummaryDto,
-  SavingsGoalDto,
   SavingsOverviewDto,
   SpendingByCategoryDto,
   SpendingTrendDto,
@@ -945,7 +944,7 @@ function crypto(
 }
 
 describe('savings_and_goals', () => {
-  it('shows each distinct average window once and goals with their projection', async () => {
+  it('shows each distinct average window once and the envelopes', async () => {
     const window = {
       months: 3,
       monthCount: 3,
@@ -993,37 +992,8 @@ describe('savings_and_goals', () => {
         },
       },
     }
-    const goal: SavingsGoalDto = {
-      id: 'g1',
-      name: 'Voyage',
-      targetCents: 300000,
-      targetDate: '2027-06-30',
-      source: 'manual',
-      manualAmountCents: 120000,
-      accountIds: [],
-      color: null,
-      archived: false,
-      currentCents: 120000,
-      progressRatio: 0.4,
-      remainingCents: 180000,
-      reached: false,
-      monthsLeft: 7,
-      targetDatePassed: false,
-      requiredMonthlyCents: 25715,
-      projection: {
-        averageMonthlyCents: 70000,
-        reachable: true,
-        monthsNeeded: 3,
-        projectedDate: '2027-02-28',
-        onTrack: true,
-      },
-    }
     const { call } = await connect({
       '/api/savings/overview': overview,
-      '/api/savings/goals': [
-        goal,
-        { ...goal, id: 'g2', name: 'Archivé', archived: true },
-      ],
       '/api/envelopes': [
         {
           id: 'e1',
@@ -1101,9 +1071,6 @@ describe('savings_and_goals', () => {
     expect(text).toContain('Cible : 600,00 € par mois')
     expect(text).toContain('Livrets et placements : 5 000,00 €.')
     expect(text).toContain(
-      'Objectifs : ensemble, 257,15 € par mois ; épargné en moyenne 700,00 € (6 mois complets, hors exceptionnel) : marge +442,85 €.',
-    )
-    expect(text).toContain(
       '- Plateforme → Ledger : 2 mouvement(s), coût 800,00 €',
     )
     expect(text).toContain('- 1 retrait(s) ou dépôt(s) sans compte lié')
@@ -1115,10 +1082,8 @@ describe('savings_and_goals', () => {
     )
     expect(text.match(/- 3 mois \(août 2026 à oct\. 2026\)/g)).toHaveLength(1)
     expect(text).toContain('- Livret A : solde inconnu')
-    expect(text).toContain(
-      '- Voyage : 1 200,00 € sur 3 000,00 € (40 %) · reste 1 800,00 € · échéance 30/06/2027 · 257,15 € / mois nécessaires · atteint vers février 2027 au rythme moyen de 700,00 € / mois (dans les temps)',
-    )
-    expect(text).not.toContain('Archivé')
+    // Savings goals became envelopes (#430).
+    expect(text).not.toContain('Objectifs')
   })
 })
 

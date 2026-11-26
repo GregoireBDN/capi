@@ -22,7 +22,7 @@ import { currentMonth } from '#/lib/calendar'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { ROUTES } from '#/lib/routes'
-import { GoalsSection } from './GoalsSection'
+import { EnvelopesSection } from '#/components/envelopes/EnvelopesSection'
 import { CashFlowSection } from './CashFlowChart'
 import { MonthCard } from './MonthCard'
 import { MonthMovedCard, YearMovedCard } from './MovedCard'
@@ -61,7 +61,7 @@ function isEmptyOverview(overview: SavingsOverviewDto) {
  * first, « Épargné » (income − expenses, transfers between the owner's
  * accounts excluded) against its target and « Mis de côté » (what left the
  * checking accounts for savings and investments), then « Ce que vous
- * avez »: « Livrets et placements », the goals and the 12 months of « Mis
+ * avez »: « Livrets et placements », the envelopes (#430) and the 12 months of « Mis
  * de côté ». The month bar moves between months: no chart of the months.
  */
 interface SavingsPageProps {
@@ -162,10 +162,7 @@ export function SavingsPage({
             </h2>
             <div className={COLUMN}>
               <StockCard stock={data.stock} wide={wide} />
-              <GoalsSection
-                projectionAverageCents={data.projectionAverageCents}
-                wide={wide}
-              />
+              <EnvelopesSection />
               <YearMovedCard overview={data} wide={wide} />
             </div>
           </section>
@@ -174,10 +171,8 @@ export function SavingsPage({
         </>
       )}
 
-      {/* Goals can be set before any data. */}
-      {isEmpty && (
-        <GoalsSection projectionAverageCents={data.projectionAverageCents} />
-      )}
+      {/* Envelopes can be set before any data. */}
+      {isEmpty && <EnvelopesSection />}
     </div>
   )
 }

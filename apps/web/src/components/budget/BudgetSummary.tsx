@@ -1,6 +1,6 @@
 import { Card, CardContent, ProgressMeter } from '@capi/ui'
 import type { BudgetMonthDto } from '#/api/types.gen'
-import { formatCents } from '#/lib/money'
+import { formatCents, formatWholeEuros } from '#/lib/money'
 import { formatBudgetAmount } from './amount'
 import { plural } from '#/lib/plural'
 
@@ -44,9 +44,23 @@ export function BudgetSummary({ data }: { data: BudgetMonthDto }) {
   return (
     <Card size="sm">
       <CardContent className="space-y-4">
+        {totals.envelopePaidCents > 0 && (
+          <p className="text-sm">
+            <span className="text-muted-foreground">Dépensé </span>
+            <span className="font-semibold tabular-nums">
+              {formatWholeEuros(totals.spentCents)}
+            </span>
+            <span className="text-muted-foreground block text-xs">
+              {formatWholeEuros(totals.spentCents - totals.envelopePaidCents)}{' '}
+              sur un budget de {formatWholeEuros(totals.targetCents)} ·{' '}
+              {formatWholeEuros(totals.envelopePaidCents)} par une enveloppe
+            </span>
+          </p>
+        )}
         <ProgressMeter
           label="Total"
-          value={totals.spentCents}
+          // The envelopes' part is theirs (#430): the budget's own share.
+          value={totals.spentCents - totals.envelopePaidCents}
           target={totals.targetCents}
           valueFormatter={formatBudgetAmount}
           warningThreshold={WARNING_THRESHOLD}

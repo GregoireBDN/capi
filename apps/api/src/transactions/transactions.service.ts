@@ -34,6 +34,7 @@ import {
   categoriesTable,
   categorizationRulesTable,
   contactsTable,
+  envelopeMovementsTable,
   receivablePaymentsTable,
   receivablesTable,
   recurringItemsTable,
@@ -115,6 +116,16 @@ const transactionColumns = {
   prepaidTermMonths: sql<
     number | null
   >`(select ${recurringItemsTable.termMonths} from ${recurringItemsTable} where ${recurringItemsTable.id} = ${transactionsTable.prepaidItemId})`,
+  // The envelope that paid it or carried its money (#430, ADR 0008), and
+  // how much: the larger leg of a transfer, the expense's `spend` row.
+  envelopeId: sql<
+    string | null
+  >`(select ${envelopeMovementsTable.envelopeId} from ${envelopeMovementsTable} where ${envelopeMovementsTable.transactionId} = ${transactionsTable.id} and ${envelopeMovementsTable.reason} in ('spend', 'transfer') limit 1)`,
+  envelopeAmountCents: sql<
+    number | null
+  >`(select max(abs(${envelopeMovementsTable.amountCents})) from ${envelopeMovementsTable} where ${envelopeMovementsTable.transactionId} = ${transactionsTable.id} and ${envelopeMovementsTable.reason} in ('spend', 'transfer'))`.mapWith(
+    (value: string | number | null) => (value === null ? null : Number(value)),
+  ),
   originalAmountCents: transactionsTable.originalAmountCents,
   originalBookingDate: transactionsTable.originalBookingDate,
   createdAt: transactionsTable.createdAt,
