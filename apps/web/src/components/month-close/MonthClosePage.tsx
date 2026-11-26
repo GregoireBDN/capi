@@ -68,8 +68,10 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
   // Follow the saved notes (another month, a close or a reopen).
   useEffect(() => setNotesDraft(savedNotes ?? ''), [month, savedNotes])
 
-  const store = (data: MonthCloseDto) =>
+  const store = (data: MonthCloseDto) => {
     queryClient.setQueryData(monthCloseKeys.month(data.month), data)
+    void queryClient.invalidateQueries({ queryKey: monthCloseKeys.closed })
+  }
 
   const update = useMutation({
     mutationFn: (body: UpdateMonthCloseDto) => updateMonthClose(month, body),

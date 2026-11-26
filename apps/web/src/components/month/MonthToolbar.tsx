@@ -13,6 +13,7 @@ import type { ReactNode } from 'react'
 import type { MonthPeriodDto } from '#/api/types.gen'
 import { PeriodNote } from '#/components/PeriodNote'
 import { PageTitleEnd } from '#/components/app-shell/PageTitleEnd'
+import { useInShell } from '#/components/app-shell/page-actions'
 import { FORM_SHEET_SCREEN, SheetScroll } from '#/components/sheets/form-sheet'
 
 export type MonthToolbarFiltersLayout = 'inline' | 'sheet'
@@ -156,6 +157,8 @@ export function MonthToolbar({
   children,
   className,
 }: MonthToolbarProps) {
+  // On a computer the month's toolbar says how far its data goes (#505).
+  const inShell = useInShell()
   return (
     <div
       data-slot="month-toolbar"
@@ -172,7 +175,10 @@ export function MonthToolbar({
           {period && (
             <PeriodNote
               period={period}
-              className="min-w-[min(100%,14rem)] flex-1 px-1"
+              className={cn(
+                'min-w-[min(100%,14rem)] flex-1 px-1',
+                inShell && 'md:hidden',
+              )}
             />
           )}
           {filters && filtersInline && (

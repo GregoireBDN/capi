@@ -88,6 +88,38 @@
   box-shadow: var(--glass-edge), var(--glass-shadow-sm);
 }
 
+/* The month toolbar (#505, the owner's « piste 4 »): a white bar, slightly
+   hollow, holding keys in the primary colour with white text, a sheen on
+   their top edge and a shadow of their colour (like the primary button). */
+@utility glass-bar {
+  background-color: var(--card);
+  box-shadow:
+    inset 0 1px 3px rgb(15 23 42 / 13%),
+    inset 0 0 0 1px rgb(15 23 42 / 5%);
+  @variant dark {
+    background-color: oklch(from var(--card) calc(l + 0.04) c h);
+    box-shadow:
+      inset 0 1px 3px rgb(0 0 0 / 45%),
+      inset 0 0 0 1px rgb(255 255 255 / 5%);
+  }
+}
+@utility glass-key {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 3px 8px -2px oklch(from var(--primary) l c h / 45%);
+  &:hover:not(:disabled) {
+    background-color: oklch(from var(--primary) calc(l - 0.04) c h);
+  }
+  &:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 20%);
+  }
+  &:disabled {
+    box-shadow: none;
+  }
+}
+
 /* A field (#507, the owner's « B · Creusé »): a faint hollow, no border. On
    focus it turns the card's colour with a 1.5px primary edge (≥ 3:1) and a
    soft glow; invalid, a red tint, a 2px destructive edge and glow (beside an

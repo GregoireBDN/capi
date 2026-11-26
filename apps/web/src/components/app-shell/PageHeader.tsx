@@ -170,12 +170,12 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
           variant="secondary"
           // A light filled disc, neither outlined nor tinted like a chosen
           // item, so its dot shows (#393, the owner); round like the
-          // avatar and the month's arrows (#434).
+          // avatar and the month's arrows (#434), on the glass fill (#505).
           iconOnly
           aria-label="Actions de la page"
           aria-describedby={waiting ? countId : undefined}
           title="Actions de la page"
-          className="bg-foreground/10 hover:bg-foreground/15 text-foreground relative rounded-full bg-clip-border [&_svg]:size-[24px]"
+          className="bg-glass-fill hover:bg-foreground/10 text-foreground relative rounded-full bg-clip-border [&_svg]:size-[24px]"
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
           {waiting && (

@@ -64,9 +64,6 @@ function AppLayout() {
         <div className="flex min-h-0 min-w-0 flex-1">
           <AppSidebar />
           <SidebarInset className="min-h-0 min-w-0">
-            {/* A month page's month, under the header, out of the scrolling
-                area too (#401). */}
-            <MonthBarSlot />
             {/* The one area that scrolls (#418): sticky elements inside it
                 stick to its top (`top-0`), sticky bottom bars to the
                 window's bottom. `relative`: what a page positions absolutely
@@ -78,6 +75,9 @@ function AppLayout() {
               data-scroll-restoration-id={APP_SCROLL_ID}
               className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
             >
+              {/* A month page's toolbar, the first thing of the page, above
+                  its title, scrolling with it (the owner, #505). */}
+              <MonthBarSlot />
               {/* The skip link's target (`AppHeader`): focused, the keys
                   scroll this area. The same space above the page's title on
                   every page and width (#418); the end clears the home

@@ -56,11 +56,6 @@ body:has([data-app-shell]) {
 [data-page-month]:not(:empty) ~ [data-month-placeholder] {
   display: none;
 }
-/* With the month bar, the header and the bar are one glass block (#434):
-   no line between them, the bar's shadow ends it. */
-body:has([data-month-bar]) [data-app-header] {
-  box-shadow: none;
-}
 
 /* =============================================================================
  * BASE LAYER STYLES

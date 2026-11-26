@@ -135,7 +135,7 @@ export function useSetPageBackSlot(): ((slot: Slot) => void) | undefined {
 
 /**
  * The month bar's slot (#401, `MonthBarSlot`): the top of the page's
- * column, fixed under the header. Null outside the shell or before it
+ * column, above its title (#505). Null outside the shell or before it
  * mounts.
  */
 export function usePageMonthSlot(): Slot {

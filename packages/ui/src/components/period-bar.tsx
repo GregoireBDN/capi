@@ -1,5 +1,6 @@
 import {
   CalendarDaysIcon,
+  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from 'lucide-react'
@@ -31,18 +32,37 @@ type PeriodBarProps = Omit<React.ComponentProps<'div'>, 'children'> & {
 type PeriodBarLabelProps = Omit<React.ComponentProps<'button'>, 'children'> & {
   /** The period shown ("Novembre 2026"). */
   text: string
-  /** Shown instead of `text` in containers under 300px ("nov. 2026"). */
+  /** Shown instead of `text` in containers under 420px ("nov. 2026"): a phone. */
   shortText?: string
+}
+
+/** How far the period's data goes, drawn by its gauge. */
+type PeriodBarStatusTone = 'partial' | 'complete' | 'closed' | 'empty'
+
+type PeriodBarStatusProps = Omit<React.ComponentProps<'div'>, 'children'> & {
+  tone: PeriodBarStatusTone
+  /** "Données jusqu’au 16 nov. · comparées au 1–16 oct.", "le 3 oct." */
+  text: string
+  /** Shown instead of `text` when the state is under 400px wide ("Jusqu’au 16 nov."). */
+  shortText?: string
+  /** Part of the period known, 0 to 1 (`partial` only: the others are full or empty). */
+  progress?: number
 }
 
 /* ============================================================================
  * STYLES
  * ========================================================================= */
 
-/** A round 44px arrow on a grey disc, darker on hover. */
+/** A key of the toolbar: the primary colour, white text, a shadow of its
+ * colour (`glass-key`, the owner's « piste 4 », #505). */
+const PIECE = 'glass-key text-primary-foreground hover:text-primary-foreground'
+
+/** A round arrow, a key like the period, 44px to the touch; off, the same
+ * key faded, so it keeps its shape (the owner). */
 const ARROW = cn(
-  'shrink-0 rounded-full bg-foreground/10 text-foreground hover:bg-foreground/15 [&_svg]:size-[1.1rem]',
-  'disabled:bg-foreground/5',
+  PIECE,
+  'size-[calc(2rem+4px)] md:size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.2rem]',
+  'disabled:opacity-40',
 )
 
 /* ============================================================================
@@ -51,14 +71,15 @@ const ARROW = cn(
 
 /**
  * The period of a page, part of the app's frame (#401, the owner's « B.
- * Barre du mois »): ‹ · 📅 period · ›, flat, no box. The arrows are round
- * buttons on a grey disc, so they read as buttons (the owner, 20 Nov). In a
- * narrow container (a phone) the bar fills it, the period centred between
- * the arrows; from 640px of container (a computer) the arrows stay beside
- * the period, one group in the middle, the period as wide whatever its
- * name so the arrows never move. The app puts it in a bar at the top of the
- * page, fixed under its header. `PeriodBarLabel` switches to its short
- * text when its container (put the bar in a `@container`) is under 300px.
+ * Barre du mois », then « barre d'outils + état », #505): ‹ · 📅 period ·
+ * ›. The arrows and the period are keys in the primary colour on the
+ * toolbar's white bar (the owner's « piste 4 », #505); the period opens a
+ * picker. Between the period and › a `PeriodBarStatus` can say how far its
+ * data goes (the app shows it on a computer only). The app lays it on a
+ * white toolbar at the top of the page, fixed under its header.
+ * `PeriodBarLabel` switches to its short text when its container (put the
+ * bar in a `@container`) is under 420px: on a phone, where its keys are
+ * 48px to be easy to tap (the owner, #505).
  */
 function PeriodBar({
   previous,
@@ -72,7 +93,9 @@ function PeriodBar({
       data-slot="period-bar"
       role="group"
       className={cn(
-        'mx-auto flex w-full min-w-0 items-center gap-1 @[640px]:w-auto @[640px]:gap-2',
+        // As wide as its container (#505): ‹ · the period (and its state) · ›,
+        // keys laid on the app's white toolbar.
+        'flex w-full min-w-0 items-center gap-1.5',
         className,
       )}
       {...props}
@@ -108,9 +131,9 @@ function PeriodBar({
 
 /**
  * The middle of a `PeriodBar`: a calendar, then the period's name, filling
- * the space between the arrows (the calendar says what a tap opens: the
- * owner's « A. Icône calendrier », #401, rather than a ⌄). It is a button,
- * so it can open a picker (`PopoverTrigger asChild`).
+ * the space between the arrows (the calendar says what a tap opens, #401;
+ * no ⌄ beside the two arrows, the owner, #505). It is a button, so it can open a
+ * picker (`PopoverTrigger asChild`).
  */
 function PeriodBarLabel({
   text,
@@ -124,22 +147,96 @@ function PeriodBarLabel({
       variant="secondary"
       ghost
       className={cn(
-        'text-foreground min-w-0 flex-1 gap-1.5 px-1 text-base font-semibold @[640px]:w-[12rem] @[640px]:flex-none',
+        PIECE,
+        'h-[calc(2rem+4px)] md:h-[calc(2rem-8px)] min-h-0 min-w-0 flex-1 gap-1.5 rounded-full px-3 text-base leading-none font-semibold',
         className,
       )}
       {...props}
     >
       <CalendarDaysIcon
         aria-hidden
-        className="text-muted-foreground size-[1.1rem]! shrink-0"
+        // In the text's colour, as high as its capitals (the owner, #505);
+        // left out on the narrowest phones, so the month stays whole.
+        className="hidden size-[1.05em]! shrink-0 @[300px]:block"
       />
       <span aria-live="polite" className="min-w-0 truncate">
-        <span className={shortText ? 'hidden @[300px]:inline' : undefined}>
+        <span className={shortText ? 'hidden @[420px]:inline' : undefined}>
           {text}
         </span>
-        {shortText && <span className="@[300px]:hidden">{shortText}</span>}
+        {shortText && <span className="@[420px]:hidden">{shortText}</span>}
       </span>
     </Button>
+  )
+}
+
+const GAUGE: Record<PeriodBarStatusTone, string> = {
+  partial: 'bg-primary',
+  complete: 'bg-emerald-600 dark:bg-emerald-500',
+  closed: 'bg-emerald-600 dark:bg-emerald-500',
+  empty: 'bg-transparent',
+}
+
+/**
+ * How far a period's data goes, between its name and › (#505, the owner's
+ * « barre d'outils + état »): one line of text above a thin gauge, blue and
+ * as long as the days known while the period is partial, full and green
+ * once it is complete, « ✓ Clôturé » before the text once it is closed,
+ * empty without data.
+ */
+function PeriodBarStatus({
+  tone,
+  text,
+  shortText,
+  progress,
+  className,
+  ...props
+}: PeriodBarStatusProps) {
+  const filled =
+    tone === 'partial'
+      ? Math.min(1, Math.max(0, progress ?? 0))
+      : tone === 'empty'
+        ? 0
+        : 1
+  return (
+    <div
+      data-slot="period-bar-status"
+      data-tone={tone}
+      // The whole text on hover when it is cut or shortened.
+      title={text}
+      className={cn(
+        '@container/status flex min-w-0 flex-1 flex-col justify-center gap-1 px-2',
+        className,
+      )}
+      {...props}
+    >
+      <p className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
+        {tone === 'closed' && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckIcon aria-hidden className="size-3.5" />
+            Clôturé
+          </span>
+        )}
+        <span className="min-w-0 truncate">
+          <span
+            className={shortText ? 'hidden @[400px]/status:inline' : undefined}
+          >
+            {text}
+          </span>
+          {shortText && (
+            <span className="@[400px]/status:hidden">{shortText}</span>
+          )}
+        </span>
+      </p>
+      <div
+        aria-hidden
+        className="bg-glass-fill h-1.5 overflow-hidden rounded-full"
+      >
+        <div
+          className={cn('h-full rounded-full', GAUGE[tone])}
+          style={{ width: `${filled * 100}%` }}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -150,7 +247,10 @@ function PeriodBarLabel({
 export {
   PeriodBar,
   PeriodBarLabel,
+  PeriodBarStatus,
   type PeriodBarLabelProps,
   type PeriodBarProps,
+  type PeriodBarStatusProps,
+  type PeriodBarStatusTone,
   type PeriodBarStep,
 }

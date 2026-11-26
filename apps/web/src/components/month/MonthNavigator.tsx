@@ -3,6 +3,7 @@ import {
   cn,
   PeriodBar,
   PeriodBarLabel,
+  PeriodBarStatus,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -26,6 +27,8 @@ import {
   useInShell,
   usePageMonthSlot,
 } from '#/components/app-shell/page-actions'
+import { closedMonthsQuery } from '#/components/month-close/queries'
+import { monthState } from '#/lib/month-state'
 import { coverageQuery } from './coverage'
 import { isMonthKey } from './month-keys'
 
@@ -37,6 +40,11 @@ const shortMonth = new Intl.DateTimeFormat('fr-FR', {
 /** `1` → "janv." */
 function monthAbbreviation(monthNumber: number): string {
   return shortMonth.format(new Date(Date.UTC(2000, monthNumber - 1, 1)))
+}
+
+/** "nov. 2026" → "Nov. 2026" (the short month on a phone, #505). */
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 /** Oldest year the picker offers when there is no data before it. */
@@ -208,7 +216,7 @@ export interface MonthNavigatorProps {
  * (months with transactions marked, months after `max` off, shortcuts to the
  * current month and to the month the data stops in) and ← / → on a
  * keyboard. It is part of the app's frame:
- * the bar at the top of the page's column, fixed under the header, on every
+ * the bar at the top of the page's column, at the top of the page, scrolling with it (#505), on every
  * width (`MonthBarSlot`, beside the sidebar on a computer); rendered where
  * it stands outside the shell. Place it with `MonthToolbar` (or alone, like the
  * dashboard's review).
@@ -225,6 +233,7 @@ export function MonthNavigator({
   const current = currentMonth()
   const max = maxProp ?? current
   const coverage = useQuery(coverageQuery)
+  const closedMonths = useQuery(closedMonthsQuery)
   const [open, setOpen] = useState(false)
   const free = label === undefined
   const canGoBack = free
@@ -266,6 +275,18 @@ export function MonthNavigator({
   const inShell = useInShell()
   const slot = usePageMonthSlot()
   const name = label ?? formatMonth(month)
+  // How far the month's data goes, on a computer only: on a phone it would
+  // take too much room (the owner, #505).
+  const state =
+    free && coverage.data
+      ? monthState({
+          month,
+          dataUntil: coverage.data.dataUntil,
+          monthsWithData: coverage.data.months,
+          closedAt: closedMonths.data?.closed.find((c) => c.month === month)
+            ?.closedAt,
+        })
+      : null
 
   const bar = (
     <PeriodBar
@@ -290,7 +311,9 @@ export function MonthNavigator({
           <PeriodBarLabel
             aria-label={`${name}, choisir un mois`}
             text={name}
-            shortText={label ?? formatShortMonth(month)}
+            shortText={label ?? capitalise(formatShortMonth(month))}
+            // As wide as its name beside the state on a computer.
+            className="md:flex-none"
           />
         </PopoverTrigger>
         <PopoverContent
@@ -343,6 +366,17 @@ export function MonthNavigator({
           )}
         </PopoverContent>
       </Popover>
+      {state ? (
+        <PeriodBarStatus
+          tone={state.tone}
+          text={state.text}
+          shortText={'shortText' in state ? state.shortText : undefined}
+          progress={state.tone === 'partial' ? state.progress : undefined}
+          className="hidden md:flex"
+        />
+      ) : (
+        <div aria-hidden className="hidden flex-1 md:block" />
+      )}
     </PeriodBar>
   )
 
