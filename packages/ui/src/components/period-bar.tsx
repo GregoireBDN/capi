@@ -155,7 +155,7 @@ function PeriodBarLabel({
       <CalendarDaysIcon
         aria-hidden
         // In the text's colour, as high as its capitals (the owner, #505).
-        className="size-[1.05em]! shrink-0 opacity-70"
+        className="size-[1.05em]! shrink-0"
       />
       <span aria-live="polite" className="min-w-0 truncate">
         <span className={shortText ? 'hidden @[300px]:inline' : undefined}>
