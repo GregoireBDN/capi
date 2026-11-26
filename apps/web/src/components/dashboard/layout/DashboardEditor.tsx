@@ -332,7 +332,7 @@ function ElementRow({
       style={sortable.style}
       className={cn(
         // One tile per element, so each line stands apart (#495).
-        'bg-card flex min-h-[3.2rem] items-center gap-1.5 rounded-xl border px-1 shadow-xs transition-shadow',
+        'bg-card flex min-h-[3.2rem] items-center gap-0.5 rounded-xl border px-1 shadow-xs transition-shadow',
         sortable.dragging &&
           'border-primary/50 shadow-[0_12px_18px_-8px_rgb(0_0_0/0.3)]',
       )}
@@ -343,7 +343,7 @@ function ElementRow({
         aria-describedby="dashboard-drag-help"
         {...handle}
         className={cn(
-          'text-muted-foreground hover:text-foreground focus-visible:ring-ring grid h-11 w-8 shrink-0 cursor-grab touch-none place-items-center rounded-md outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
+          'text-muted-foreground hover:text-foreground focus-visible:ring-ring grid h-[44px] w-[28px] shrink-0 cursor-grab touch-none place-items-center rounded-md outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
           sortable.dragging && 'text-primary cursor-grabbing',
         )}
       >
@@ -353,7 +353,7 @@ function ElementRow({
       <div
         onClick={onOpen}
         className={cn(
-          'flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 py-1.5 pl-1',
+          'flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 py-1.5',
           widget.hidden && 'opacity-45',
         )}
       >
@@ -374,7 +374,7 @@ function ElementRow({
         type="button"
         onClick={onOpen}
         aria-label={`Réglages de ${name}`}
-        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring grid size-11 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]"
+        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring grid size-[44px] shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]"
       >
         <SettingsIcon aria-hidden />
       </button>
@@ -402,7 +402,7 @@ function IconToggle({
       aria-label={label}
       onClick={onClick}
       className={cn(
-        'focus-visible:ring-ring grid size-11 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
+        'focus-visible:ring-ring grid size-[44px] shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
         checked
           ? 'text-primary hover:bg-primary/10'
           : 'text-muted-foreground/60 hover:bg-muted/60',
