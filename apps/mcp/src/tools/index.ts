@@ -27,6 +27,7 @@ import { monthReviewTool } from './review.js'
 import { owedToMeTool } from './owed.js'
 import { linkRepaymentTool, shareExpenseTool } from './owed-writes.js'
 import { createRuleTool } from './rule-writes.js'
+import { addToEnvelopeTool, createEnvelopeTool } from './envelope-writes.js'
 import { savingsTool } from './savings.js'
 import { spendingByCategoryTool, spendingHistoryTool } from './spending.js'
 import { subscriptionsTool } from './subscriptions.js'
@@ -90,6 +91,9 @@ export const writeTools = [
   // #359: share an expense, link a repayment (letting go stays in the app).
   shareExpenseTool,
   linkRepaymentTool,
+  // #518: create an envelope, add to one from « libre » (the rest in the app).
+  createEnvelopeTool,
+  addToEnvelopeTool,
 ]
 
 export const tools = [...readTools, ...writeTools]

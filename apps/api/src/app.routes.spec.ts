@@ -122,6 +122,10 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/categorization-rules/matches': 'read',
   'POST /api/categorization-rules/preview': 'read',
   'POST /api/categorization-rules/suggest': 'read',
+  // #518: create_envelope and add_to_envelope (MCP); changing, deleting,
+  // taking money out, attaching, splits and keys stay session-only.
+  'POST /api/envelopes': 'write',
+  'POST /api/envelopes/:id/top-up': 'write',
   // MCP bank import tools (#103): the preview → commit flow, nothing else.
   'POST /api/imports/:id/commit': 'write',
   'POST /api/imports/preview': 'write',

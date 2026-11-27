@@ -38,6 +38,13 @@ Read tools added with the write tools: `month_close_status` (`GET /api/month-clo
 | `close_months`            | `GET /api/month-close`, `POST /api/month-close/:month/close`        | Closes past months of the « Bilan du mois » (freezes their report): one `month`, or `allBefore: true` for every month left open since the first one ever closed (« clôture tous les anciens mois »; `from` when none was ever closed). Reopening stays in the app.                                  |
 | `split_transaction`       | `PUT /api/transactions/:id/splits`                                  | Splits one transaction between 2 to 20 categories (amounts in euros, without sign). Each part counts with its category's kind: an incoming part in an expense category is a refund of it (« remboursement de Restaurants »), one in an income category is income. Undoing a split stays in the app. |
 
+### Envelopes (write token, #518)
+
+| Tool              | API                                                                        | What it changes                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_envelope` | `GET /api/envelopes`, `/api/accounts/:id/envelopes`, `POST /api/envelopes` | An envelope with an optional target, due date and starting amounts taken from accounts' « libre » (no balance changes). Refused when an active envelope has the name. The preview shows « libre » before → after. |
+| `add_to_envelope` | `GET /api/accounts/:id/envelopes`, `POST /api/envelopes/:id/top-up`        | Adds money to an envelope from one account's « libre »; each confirmed call adds again. Changing, deleting or taking money out of an envelope stays in the app.                                                   |
+
 ### Investment tools (#104)
 
 For values Claude reads in the owner's statements (see [Importing investment values from Google Drive](../../docs/runbooks/investments-from-drive.md)): the app never sees the documents, only the extracted dates, cents and quantities.
