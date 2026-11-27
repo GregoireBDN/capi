@@ -66,7 +66,7 @@ test('sign-in form stays hidden until hydration, a POST form', async ({
 test('sign-up form keeps its fields out of the URL', async ({ page }) => {
   await page.goto('/auth?mode=register')
   test.skip(
-    !(await page.getByLabel('Confirmer le mot de passe').isVisible()),
+    !(await page.getByLabel('Nom').isVisible()),
     'sign-up closed on this stack',
   )
   await expectPostFormsWithDisabledSubmit(page)

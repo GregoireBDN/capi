@@ -26,7 +26,6 @@ function fill(
     name: 'New User',
     email: 'new@test.com',
     password: 'password-1234',
-    confirm: 'password-1234',
     ...overrides,
   }
   return Promise.resolve()
@@ -34,12 +33,6 @@ function fill(
     .then(() => user.type(screen.getByLabelText('Email'), values.email))
     .then(() =>
       user.type(screen.getByLabelText('Mot de passe'), values.password),
-    )
-    .then(() =>
-      user.type(
-        screen.getByLabelText('Confirmer le mot de passe'),
-        values.confirm,
-      ),
     )
 }
 
@@ -50,24 +43,11 @@ describe('RegisterForm', () => {
     navigate.mockResolvedValue(undefined)
   })
 
-  it('requires matching passwords', async () => {
-    const user = userEvent.setup()
-    render(<RegisterForm />)
-
-    await fill(user, { confirm: 'different1' })
-    await user.click(screen.getByRole('button', { name: 'Créer un compte' }))
-
-    expect(
-      await screen.findByText('Les mots de passe ne correspondent pas'),
-    ).toBeInTheDocument()
-    expect(authControllerRegister).not.toHaveBeenCalled()
-  })
-
   it('requires a password of at least 12 characters', async () => {
     const user = userEvent.setup()
     render(<RegisterForm />)
 
-    await fill(user, { password: 'eleven-char', confirm: 'eleven-char' })
+    await fill(user, { password: 'eleven-char' })
     await user.click(screen.getByRole('button', { name: 'Créer un compte' }))
 
     expect(

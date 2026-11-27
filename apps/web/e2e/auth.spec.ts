@@ -32,7 +32,6 @@ test('register, verify email, then log in', async ({ page, request }) => {
   await page.getByLabel('Nom').fill(`${firstName} Tester`)
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Mot de passe', { exact: true }).fill(password)
-  await page.getByLabel('Confirmer le mot de passe').fill(password)
   await page.getByRole('button', { name: 'Créer un compte' }).click()
 
   // Registration logs the user in and lands on the verify-email page.

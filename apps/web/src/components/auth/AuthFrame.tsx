@@ -21,7 +21,7 @@ export function AuthFrame({
   return (
     <div className="relative isolate flex flex-1 flex-col">
       <AuthBackdrop />
-      <main className="mx-auto flex w-full max-w-sm flex-1 flex-col items-center justify-center gap-5 px-4 py-6 [@media(max-height:700px)]:gap-3 [@media(max-height:700px)]:py-3">
+      <main className="mx-auto flex w-full max-w-sm flex-1 flex-col items-center justify-center gap-5 px-4 py-6 [@media(max-height:700px)]:gap-2.5 [@media(max-height:700px)]:py-2">
         {brand && <AuthBrand />}
         {children}
       </main>
@@ -71,7 +71,7 @@ export function AuthPanel({
   return (
     <section
       className={cn(
-        'glass-panel rounded-sheet w-full space-y-3 p-4',
+        'glass-panel rounded-sheet w-full space-y-3 p-4 [@media(max-height:700px)]:p-3',
         className,
       )}
     >

@@ -18,11 +18,15 @@ interface AuthCardProps {
   initialMode?: AuthMode
 }
 
-/** Sign in needs no title: the name above says where you are (#543). */
+/**
+ * Sign in and sign up need no title: the name above and the button say where
+ * you are (#543).
+ */
 const TITLES = {
-  register: 'Créer le compte',
+  login: undefined,
+  register: undefined,
   forgot: 'Mot de passe oublié',
-} satisfies Record<'register' | 'forgot', string>
+} satisfies Record<'login' | 'register' | 'forgot', string | undefined>
 
 export function AuthCard({
   registrationOpen,
@@ -43,7 +47,7 @@ export function AuthCard({
 
   return (
     <AuthFrame>
-      <AuthPanel title={mode === 'login' ? undefined : TITLES[mode]}>
+      <AuthPanel title={TITLES[mode]}>
         {mode === 'login' && (
           <LoginForm
             onSwitchToForgot={() => setMode('forgot')}
