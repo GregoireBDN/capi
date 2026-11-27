@@ -830,7 +830,7 @@ export const setInvestedAmountTool = defineTool({
 export const createInvestmentAccountTool = defineTool({
   name: 'create_investment_account',
   title: 'Préparer un compte de placement',
-  description: `Check a new investment account before the owner creates it, for a vehicle found in the documents that has no account yet. Personal access tokens cannot create accounts (account changes stay in the app, signed in), so this tool writes nothing: it says whether an account with that name already exists (open or archived) and gives the exact fields to enter in the app (Comptes → Ajouter un compte). Call list_investment_accounts again once it is created. ${INVESTMENT_TYPE_DESCRIPTION}`,
+  description: `Check a new investment account (a vehicle in the documents with no account yet) before the owner creates it in the app: tokens cannot create accounts, so this writes nothing. Says whether that name exists (open or archived) and gives the fields to enter (Comptes → Ajouter un compte); then call list_investment_accounts again. ${INVESTMENT_TYPE_DESCRIPTION}`,
   inputSchema: {
     name: z
       .string()

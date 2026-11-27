@@ -19,7 +19,7 @@ export const confirmSchema = z
   .boolean()
   .optional()
   .describe(
-    'Omit for a preview (nothing written). true applies it, only once the owner agreed.',
+    'Omit: preview, nothing written. true: apply, once the owner agreed.',
   )
 
 export const transactionIdsSchema = z

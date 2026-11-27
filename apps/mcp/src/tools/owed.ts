@@ -108,7 +108,7 @@ export const owedToMeTool = defineTool({
   name: 'owed_to_me',
   title: 'Ce qu’on me doit et ce que je dois',
   description:
-    'Money owed between the owner and the people around him: « Ce qu’on me doit » (expenses he advanced and shared) and « ce que je dois » (expenses someone paid for him), as two lists per person with the age of the oldest open item and the net position when someone is owed both ways, the offsets to propose (« Compenser »: the same amount settled on each side without a transfer, done in the app), plus this month’s repayments expected from recurring items shared with someone (rent, energy). With `contact`, that person’s open items in both directions with their ids (for link_repayment), the offsets made and their history. Outside the net worth. Statistics already count only the owner’s part of a shared expense; a linked repayment or an offset is neither income nor spending.',
+    'Money owed between the owner and others: « Ce qu’on me doit » and « ce que je dois » per person (age of the oldest open item, net position when owed both ways), offsets to propose (« Compenser », done in the app) and this month’s expected repayments from shared recurring items. With `contact`: that person’s open items with their ids (for link_repayment) and offsets. Outside the net worth; statistics already count only the owner’s part, and a linked repayment or offset is neither income nor spending.',
   inputSchema: {
     contact: z
       .string()
