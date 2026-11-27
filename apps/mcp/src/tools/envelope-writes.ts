@@ -80,7 +80,7 @@ export const createEnvelopeTool = defineTool({
   name: 'create_envelope',
   title: 'Créer une enveloppe',
   description:
-    'Create an envelope (money set aside, never a transaction: no balance changes), with an optional target, due date and starting amounts from accounts’ « libre ». Refused if the name exists: use add_to_envelope.',
+    'Create an envelope (money set aside, never a transaction), with an optional target, due date and starting amounts from accounts’ « libre ». Refused if the name exists: use add_to_envelope.',
   write: { idempotent: true },
   inputSchema: {
     name: z.string().min(1).max(100),
@@ -90,7 +90,7 @@ export const createEnvelopeTool = defineTool({
       .array(z.object({ account: z.string().max(100), amount: amountSchema }))
       .max(MAX_START)
       .optional()
-      .describe('Taken now from each account’s « libre ».'),
+      .describe('From each account’s « libre ».'),
     confirm: confirmSchema,
   },
   async run({ api }, args) {
@@ -166,7 +166,7 @@ export const addToEnvelopeTool = defineTool({
   name: 'add_to_envelope',
   title: 'Ajouter à une enveloppe',
   description:
-    'Add money to an envelope from an account’s « libre »; the balance does not change. Each confirmed call adds again.',
+    'Add money to an envelope from an account’s « libre » (balance unchanged); each confirmed call adds.',
   write: { idempotent: false },
   inputSchema: {
     envelope: z.string().max(100),
