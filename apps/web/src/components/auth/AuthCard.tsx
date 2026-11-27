@@ -1,16 +1,6 @@
 import { useState } from 'react'
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@capi/ui'
-import { StagingBadge } from '#/components/app-shell/StagingBadge'
-import { CapiWordmark } from '#/components/brand/CapiWordmark'
-import { useAppEnvironment } from '#/lib/app-environment'
+import { Button } from '@capi/ui'
+import { AuthFooter, AuthFrame, AuthPanel } from './AuthFrame'
 import { ForgotForm } from './ForgotForm'
 import { LoginForm } from './LoginForm'
 import { PasskeyOffer } from './PasskeyOffer'
@@ -28,23 +18,11 @@ interface AuthCardProps {
   initialMode?: AuthMode
 }
 
-const COPY = {
-  login: {
-    title: 'Connexion',
-    description: 'Connectez-vous à votre compte Capi',
-  },
-  register: {
-    title: 'Créer un compte',
-    description: 'Créez le compte propriétaire de cette instance Capi',
-  },
-  forgot: {
-    title: 'Mot de passe oublié',
-    description: 'Recevez un lien de réinitialisation par email',
-  },
-} satisfies Record<
-  Exclude<AuthMode, 'passkey-offer'>,
-  { title: string; description: string }
->
+/** Sign in needs no title: the name above says where you are (#543). */
+const TITLES = {
+  register: 'Créer le compte',
+  forgot: 'Mot de passe oublié',
+} satisfies Record<'register' | 'forgot', string>
 
 export function AuthCard({
   registrationOpen,
@@ -53,56 +31,47 @@ export function AuthCard({
   const [mode, setMode] = useState<AuthMode>(
     initialMode === 'register' && !registrationOpen ? 'login' : initialMode,
   )
-  const staging = useAppEnvironment() === 'staging'
 
   // The passkey offer is a security step of its own: no logo, no card.
-  if (mode === 'passkey-offer') return <PasskeyOffer />
+  if (mode === 'passkey-offer') {
+    return (
+      <AuthFrame brand={false}>
+        <PasskeyOffer />
+      </AuthFrame>
+    )
+  }
 
   return (
-    <>
-      {/* Staging's flask beside the name, as in the header (#504). */}
-      <div className="flex items-center gap-3">
-        <CapiWordmark className="h-20" />
-        {staging && <StagingBadge className="size-11 [&_svg]:size-[1.2rem]" />}
-      </div>
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{COPY[mode].title}</CardTitle>
-          <CardDescription>{COPY[mode].description}</CardDescription>
-        </CardHeader>
+    <AuthFrame>
+      <AuthPanel title={mode === 'login' ? undefined : TITLES[mode]}>
+        {mode === 'login' && (
+          <LoginForm
+            onSwitchToForgot={() => setMode('forgot')}
+            onPasskeyOffer={() => setMode('passkey-offer')}
+          />
+        )}
+        {mode === 'register' && <RegisterForm />}
+        {mode === 'forgot' && <ForgotForm />}
+      </AuthPanel>
 
-        <CardContent>
-          {mode === 'login' && (
-            <LoginForm
-              onSwitchToForgot={() => setMode('forgot')}
-              onPasskeyOffer={() => setMode('passkey-offer')}
-            />
-          )}
-          {mode === 'register' && <RegisterForm />}
-          {mode === 'forgot' && <ForgotForm />}
-        </CardContent>
-
-        <CardFooter className="justify-center">
-          {mode === 'login' ? (
-            registrationOpen && (
-              <p className="text-muted-foreground text-sm">
-                Pas encore de compte ?{' '}
-                <SwitchButton onClick={() => setMode('register')}>
-                  S&apos;inscrire
-                </SwitchButton>
-              </p>
-            )
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              {mode === 'register' ? 'Déjà un compte ? ' : null}
-              <SwitchButton onClick={() => setMode('login')}>
-                {mode === 'register' ? 'Se connecter' : 'Retour à la connexion'}
-              </SwitchButton>
-            </p>
-          )}
-        </CardFooter>
-      </Card>
-    </>
+      {mode === 'login' ? (
+        registrationOpen && (
+          <AuthFooter>
+            Pas encore de compte ?{' '}
+            <SwitchButton onClick={() => setMode('register')}>
+              S&apos;inscrire
+            </SwitchButton>
+          </AuthFooter>
+        )
+      ) : (
+        <AuthFooter>
+          {mode === 'register' ? 'Déjà un compte ? ' : null}
+          <SwitchButton onClick={() => setMode('login')}>
+            {mode === 'register' ? 'Se connecter' : 'Retour à la connexion'}
+          </SwitchButton>
+        </AuthFooter>
+      )}
+    </AuthFrame>
   )
 }
 

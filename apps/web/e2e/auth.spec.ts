@@ -52,6 +52,8 @@ test('register, verify email, then log in', async ({ page, request }) => {
   await page.context().clearCookies()
   await page.goto('/auth')
   await expect(page.getByRole('button', { name: "S'inscrire" })).toHaveCount(0)
+  // Face ID comes first (#543); the password is one tap away.
+  await page.getByRole('button', { name: 'Mot de passe', exact: true }).click()
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Mot de passe').fill(password)
   await page.getByRole('button', { name: 'Se connecter' }).click()
