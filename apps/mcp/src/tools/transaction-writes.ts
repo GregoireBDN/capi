@@ -27,6 +27,16 @@ import {
   transactionRef,
   updateTransactions,
 } from './write.js'
+import {
+  assertCounterpartKind,
+  assertLinkable,
+  counterpartSchema,
+  investedEffect,
+  linkText,
+  linkUndo,
+  loadTransferLink,
+  relinks,
+} from './transfer-link.js'
 
 const LABEL_MAX = 255
 const NOTE_MAX = 2000
@@ -241,15 +251,16 @@ export const categorizeTransactionsTool = defineTool({
   name: 'categorize_transactions',
   title: 'Catégoriser des opérations',
   description:
-    'Set the category of one or several transactions (by id), filed by hand so rules never overwrite it; they leave the review queue and take the category\'s kind (to change a kind, choose a category of that kind). "uncategorized" removes the category. A category for the whole transaction ends a split.',
+    'Set the category of one or several transactions (by id), filed by hand so rules never overwrite it; they leave the review queue and take the category\'s kind (to change a kind, choose a category of that kind). "uncategorized" removes the category. A category for the whole transaction ends a split. counterpart links transfers to the other account.',
   write: { idempotent: true },
   inputSchema: {
     ids: transactionIdsSchema,
     category: z
       .string()
       .max(100)
+      .optional()
       .describe(
-        'Category name or slug (see list_categories), or "uncategorized".',
+        'Category name or slug (see list_categories), or "uncategorized". Omit to keep it (with counterpart).',
       ),
     kind: z
       .enum(KINDS)
@@ -257,27 +268,45 @@ export const categorizeTransactionsTool = defineTool({
       .describe(
         'Only with category "uncategorized": the kind left without a category, e.g. transfer for a move between the owner\'s own accounts. Default: kept. With a category, the kind is the category\'s.',
       ),
+    counterpart: counterpartSchema,
     confirm: confirmSchema,
   },
   async run({ api }, args) {
-    const [categories, transactions] = await Promise.all([
-      listCategories(api),
+    const keep = args.category === undefined
+    if (keep && (args.counterpart === undefined || args.kind)) {
+      throw new ToolInputError(
+        'Précisez une catégorie (category), ou counterpart seul pour lier des virements. Rien n’a été modifié.',
+      )
+    }
+    if (args.counterpart !== undefined) assertCounterpartKind(args.kind)
+    const [categories, transactions, link] = await Promise.all([
+      keep ? [] : listCategories(api),
       loadTransactions(api, args.ids),
+      args.counterpart === undefined
+        ? null
+        : loadTransferLink(api, args.counterpart),
     ])
-    const category = pickCategory(categories, args.category)
+    const category =
+      args.category === undefined
+        ? null
+        : pickCategory(categories, args.category)
     if (category && args.kind && args.kind !== category.kind) {
       throw new ToolInputError(kindOfCategoryError(args.kind, category))
     }
     const target = category ? category.name : 'sans catégorie'
     const nextKind = (t: TransactionDto): TransactionKind =>
-      category?.kind ?? args.kind ?? t.kind
-    const changing = transactions.filter(
-      (t) =>
-        t.categoryId !== (category?.id ?? null) ||
+      keep ? t.kind : (category?.kind ?? args.kind ?? t.kind)
+    if (link) assertLinkable(link, transactions, nextKind)
+    const recategorizes = (t: TransactionDto) =>
+      !keep &&
+      (t.categoryId !== (category?.id ?? null) ||
         nextKind(t) !== t.kind ||
         (category !== null && t.needsReview) ||
-        (category !== null && t.splits.length > 0),
+        (category !== null && t.splits.length > 0))
+    const changing = transactions.filter(
+      (t) => recategorizes(t) || relinks(link, t),
     )
+    const linking = changing.filter((t) => relinks(link, t))
     const unchanged = transactions.filter((t) => !changing.includes(t))
 
     const changeLine = (t: TransactionDto) => {
@@ -295,19 +324,27 @@ export const categorizeTransactionsTool = defineTool({
           ? 'attention : un virement interne deviendrait une opération comptée ; une catégorie de virement interne le garde en virement'
           : null,
       ].filter(Boolean)
-      return `- ${transactionRef(t)} : ${categoryName(t)} → ${target}${kind}${extras.length ? ` (${extras.join(', ')})` : ''}`
+      const parts = [
+        recategorizes(t)
+          ? `${categoryName(t)} → ${target}${kind}${extras.length ? ` (${extras.join(', ')})` : ''}`
+          : null,
+        link && relinks(link, t) ? linkText(link, t) : null,
+      ].filter(Boolean)
+      return `- ${transactionRef(t)} : ${parts.join(' · ')}`
     }
+    const state = keep
+      ? `liée(s) à ${link?.account.name}`
+      : category
+        ? `dans ${target}`
+        : 'sans catégorie'
     const unchangedLines =
       unchanged.length > 0
-        ? [
-            `Déjà ${category ? `dans ${target}` : 'sans catégorie'}, rien à faire : ${unchanged.length} opération(s).`,
-          ]
+        ? [`Déjà ${state}, rien à faire : ${unchanged.length} opération(s).`]
         : []
+    const effect = link ? investedEffect(link, linking) : []
 
     if (changing.length === 0) {
-      return [
-        `Rien à modifier : ${unchanged.length === 1 ? "l'opération est" : `les ${unchanged.length} opérations sont`} déjà ${category ? `dans ${target}` : 'sans catégorie'}.`,
-      ].join('\n')
+      return `Rien à modifier : ${unchanged.length === 1 ? "l'opération est" : `les ${unchanged.length} opérations sont`} déjà ${state}.`
     }
     if (args.confirm !== true) {
       return [
@@ -315,24 +352,27 @@ export const categorizeTransactionsTool = defineTool({
         `${changing.length} opération(s) changeraient :`,
         ...changing.map(changeLine),
         ...unchangedLines,
+        ...effect,
         '',
         PREVIEW_FOOTER,
       ].join('\n')
     }
 
+    // One request for all of them: the category (with its kind) and the link.
     await updateTransactions(
       api,
       changing.map((t) => t.id),
       {
-        categoryId: category?.id ?? null,
-        ...(!category && args.kind ? { kind: args.kind } : {}),
+        ...(keep ? {} : { categoryId: category?.id ?? null }),
+        ...(!keep && !category && args.kind ? { kind: args.kind } : {}),
+        ...(link ? { counterpartAccountId: link.account.id } : {}),
       },
     )
 
     // Undo: back to each previous category (and the kind of those without
     // one: a category brings its own), grouped.
     const groups = new Map<string, TransactionDto[]>()
-    for (const t of changing) {
+    for (const t of changing.filter(recategorizes)) {
       const key = t.category ? `${t.category.slug}|` : `uncategorized|${t.kind}`
       groups.set(key, [...(groups.get(key) ?? []), t])
     }
@@ -340,14 +380,18 @@ export const categorizeTransactionsTool = defineTool({
       const [slug, kind] = key.split('|')
       return `- categorize_transactions ids ${JSON.stringify(items.map((t) => t.id))}, category "${slug}"${kind ? `, kind "${kind}"` : ''}`
     })
-    const ruleOrSplit = changing.some((t) => t.ruleId || t.splits.length > 0)
+    const ruleOrSplit = changing
+      .filter(recategorizes)
+      .some((t) => t.ruleId || t.splits.length > 0)
     return [
       `${changing.length} opération(s) modifiée(s) :`,
       ...changing.map(changeLine),
       ...unchangedLines,
+      ...effect,
       '',
       'Pour annuler (avec confirm: true) :',
       ...undo,
+      ...(link ? linkUndo(link, linking) : []),
       ...(ruleOrSplit
         ? [
             "Les catégories posées par une règle reviennent alors classées à la main ; une ventilation supprimée se refait dans l'application.",
