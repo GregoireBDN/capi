@@ -4,7 +4,12 @@ import { CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '../lib/utils'
-import { Popover, PopoverContent, PopoverTrigger } from './popover'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from './popover'
 
 /* ============================================================================
  * TYPES
@@ -68,7 +73,7 @@ const FILTER_CONTROL_OFF = 'glass-field'
 
 /** A chosen value: a tint of its colour (the primary's by default), no edge. */
 const FILTER_CONTROL_ON =
-  'bg-[color-mix(in_oklch,var(--filter-tint,var(--primary))_13%,var(--card))]'
+  'bg-[color-mix(in_oklch,var(--filter-tint,var(--primary))_13%,var(--card))] shadow-[var(--glass-edge),var(--glass-shadow-sm)]'
 
 /* ============================================================================
  * COMPONENTS
@@ -118,7 +123,7 @@ function FilterControl({
         <PopoverContent
           align="start"
           aria-label={label}
-          className="max-h-[min(30rem,var(--radix-popover-content-available-height))] w-[20rem] max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+          className="max-h-[min(30rem,var(--radix-popover-content-available-height))] w-[20rem] max-w-[calc(100vw-2rem)] overflow-y-auto px-0 py-1.5"
         >
           {children}
         </PopoverContent>
@@ -184,28 +189,32 @@ function FilterControl({
       </span>
     </button>
   )
+  const anchorOf = (control: React.ReactElement) =>
+    onOpen ? control : <PopoverAnchor asChild>{control}</PopoverAnchor>
   return withOptions(
-    <span
-      data-slot="filter-control"
-      data-state="on"
-      className={cn(
-        FILTER_CONTROL,
-        FILTER_CONTROL_ON,
-        'gap-1.5 pr-1 pl-2',
-        className,
-      )}
-      style={tint}
-    >
-      {triggerOf(trigger)}
-      <button
-        type="button"
-        aria-label={`Retirer le filtre ${label}`}
-        onClick={onClear}
-        className="hover:bg-foreground/10 focus-visible:ring-ring/50 relative flex size-7 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
+    anchorOf(
+      <span
+        data-slot="filter-control"
+        data-state="on"
+        className={cn(
+          FILTER_CONTROL,
+          FILTER_CONTROL_ON,
+          'gap-1.5 pr-1 pl-2',
+          className,
+        )}
+        style={tint}
       >
-        <XIcon aria-hidden className="size-[15px]" />
-      </button>
-    </span>,
+        {triggerOf(trigger)}
+        <button
+          type="button"
+          aria-label={`Retirer le filtre ${label}`}
+          onClick={onClear}
+          className="hover:bg-foreground/10 focus-visible:ring-ring/50 relative flex size-7 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
+        >
+          <XIcon aria-hidden className="size-[15px]" />
+        </button>
+      </span>,
+    ),
   )
 }
 
