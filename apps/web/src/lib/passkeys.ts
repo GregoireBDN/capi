@@ -151,7 +151,10 @@ export async function signInWithPasskey({
       useBrowserAutofill: autofill,
     })
   } catch (error) {
-    return isCancellation(error)
+    // The autofill ceremony runs unasked in the background: a browser that
+    // can't hold it (no authenticator, a refused conditional request) is not
+    // an error to show; the Face ID button still reports its own (#543).
+    return autofill || isCancellation(error)
       ? { status: 'cancelled' }
       : { status: 'error', message: ERROR_MESSAGE }
   }

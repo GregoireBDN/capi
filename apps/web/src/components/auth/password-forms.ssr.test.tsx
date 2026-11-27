@@ -66,11 +66,7 @@ const forms: [string, () => ReactElement, string][] = [
   ],
   ['sign-up', () => <RegisterForm />, 'Créer un compte'],
   ['forgotten password', () => <ForgotForm />, 'Envoyer le lien'],
-  [
-    'password reset',
-    () => <ResetPasswordPage />,
-    'Réinitialiser le mot de passe',
-  ],
+  ['password reset', () => <ResetPasswordPage />, 'Enregistrer'],
   [
     'password change',
     () => <ChangePasswordCard email="owner@example.test" />,
