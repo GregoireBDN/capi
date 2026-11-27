@@ -51,10 +51,24 @@ async function expectPostFormsWithDisabledSubmit(page: Page) {
   }
 }
 
-test('sign-in / sign-up form keeps its fields out of the URL', async ({
+test('sign-in form stays hidden until hydration, a POST form', async ({
   page,
 }) => {
+  // Face ID comes first (#543): the password form is rendered, hidden, and
+  // only shown by a tap once hydrated, so nothing can be typed into it before.
   await page.goto('/auth')
+  const form = page.locator('form:has(input[type="password"])')
+  await expect(form).toHaveAttribute('method', 'post')
+  await expect(form.locator('button[type="submit"]')).toBeDisabled()
+  await expect(form).toBeHidden()
+})
+
+test('sign-up form keeps its fields out of the URL', async ({ page }) => {
+  await page.goto('/auth?mode=register')
+  test.skip(
+    !(await page.getByLabel('Nom').isVisible()),
+    'sign-up closed on this stack',
+  )
   await expectPostFormsWithDisabledSubmit(page)
   await fillAndSubmit(page)
   expectCleanUrl(page)

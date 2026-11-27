@@ -36,6 +36,11 @@ function setup() {
   return { user: userEvent.setup(), onSwitchToForgot, onPasskeyOffer, view }
 }
 
+/** Face ID comes first (#543): the password form is one tap away. */
+async function openPasswordForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Mot de passe' }))
+}
+
 describe('LoginForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -48,6 +53,7 @@ describe('LoginForm', () => {
 
   it('shows validation errors and does not call the API for invalid input', async () => {
     const { user } = setup()
+    await openPasswordForm(user)
 
     await user.type(screen.getByLabelText('Email'), 'not-an-email')
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
@@ -60,6 +66,7 @@ describe('LoginForm', () => {
   it('logs in, refreshes auth and navigates to the dashboard on success', async () => {
     authControllerLogin.mockResolvedValue({ error: null })
     const { user } = setup()
+    await openPasswordForm(user)
 
     await user.type(screen.getByLabelText('Email'), 'user@test.com')
     await user.type(screen.getByLabelText('Mot de passe'), 'password123')
@@ -81,6 +88,7 @@ describe('LoginForm', () => {
       response: new Response(null, { status: 401 }),
     })
     const { user } = setup()
+    await openPasswordForm(user)
 
     await user.type(screen.getByLabelText('Email'), 'user@test.com')
     await user.type(screen.getByLabelText('Mot de passe'), 'wrongpassword')
@@ -95,6 +103,7 @@ describe('LoginForm', () => {
 
   it('triggers the forgot-password switch', async () => {
     const { user, onSwitchToForgot } = setup()
+    await openPasswordForm(user)
 
     await user.click(
       screen.getByRole('button', { name: 'Mot de passe oublié ?' }),
@@ -104,6 +113,19 @@ describe('LoginForm', () => {
   })
 
   describe('passkeys', () => {
+    it('shows Face ID first, then the form and back', async () => {
+      const { user } = setup()
+      expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull()
+
+      await openPasswordForm(user)
+      expect(screen.getByRole('textbox', { name: 'Email' })).toBeVisible()
+
+      await user.click(screen.getByRole('button', { name: 'Face ID' }))
+      expect(
+        screen.getByRole('button', { name: 'Se connecter avec une passkey' }),
+      ).toBeInTheDocument()
+    })
+
     it('lets the browser suggest a passkey from the email field', () => {
       setup()
       expect(screen.getByLabelText('Email')).toHaveAttribute(
@@ -112,14 +134,13 @@ describe('LoginForm', () => {
       )
     })
 
-    it('signs in with the passkey button, the password form staying', async () => {
+    it('signs in with the Face ID button, shown first', async () => {
       passkeys.signInWithPasskey.mockResolvedValue({
         status: 'ok',
         data: undefined,
       })
       const { user } = setup()
 
-      expect(screen.getByLabelText('Mot de passe')).toBeInTheDocument()
       await user.click(
         screen.getByRole('button', { name: 'Se connecter avec une passkey' }),
       )
@@ -182,7 +203,9 @@ describe('LoginForm', () => {
         status: 'ok',
         data: undefined,
       })
-      setup()
+      const { user } = setup()
+      expect(passkeys.signInWithPasskey).not.toHaveBeenCalled()
+      await openPasswordForm(user)
 
       await waitFor(() =>
         expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' }),
@@ -202,6 +225,7 @@ describe('LoginForm', () => {
       authControllerLogin.mockResolvedValue({ error: null })
       passkeys.shouldOfferPasskey.mockResolvedValue(true)
       const { user, onPasskeyOffer } = setup()
+      await openPasswordForm(user)
 
       await user.type(screen.getByLabelText('Email'), 'user@test.com')
       await user.type(screen.getByLabelText('Mot de passe'), 'password123')

@@ -110,6 +110,17 @@ describe('signInWithPasskey', () => {
     },
   )
 
+  it('keeps a failed background autofill ceremony silent (#543)', async () => {
+    browser.startAuthentication.mockRejectedValue(domError('NotSupportedError'))
+    await expect(signInWithPasskey({ autofill: true })).resolves.toEqual({
+      status: 'cancelled',
+    })
+    await expect(signInWithPasskey()).resolves.toEqual({
+      status: 'error',
+      message: expect.any(String),
+    })
+  })
+
   it('explains a refused passkey', async () => {
     browser.startAuthentication.mockResolvedValue(ASSERTION)
     api.passkeysControllerAuthenticate.mockImplementation(() =>
