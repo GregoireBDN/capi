@@ -72,7 +72,7 @@ Friends reach the single instance through Tailscale node sharing (#550): they se
 
 ### 7. What the owner, as root on the VPS, can still read
 
-Everything: the database superuser and the backups see all users' rows, and RLS does not stop them. The app never shows the owner another user's data, but the friends must be told plainly (#552, the privacy notice) that the person who runs the server can technically read the database, as with any self-hosted service. Encryption of the most sensitive columns at rest is #569 (M17).
+Everything: the database superuser and the backups see all users' rows, and RLS does not stop them. The app never shows the owner another user's data, but the friends must be told plainly (#552, the privacy notice) that the person who runs the server can technically read the database, as with any self-hosted service. The owner chose (2026-11-27) encryption with a server-side key (#569): it protects backups, disks and dumps, not data from the operator. Per-user keys or end-to-end encryption are weighed again before going public (#596).
 
 ### 8. Migration path
 
