@@ -203,10 +203,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'investments',
           'close',
         ])
+        // Budget and savings are read, never ticked (#541).
         expect(doneSteps(review)).toEqual([
           'imports',
           'review_queue',
           'recurring',
+          'budget',
+          'savings',
           'investments',
         ])
         expect(review.imports.accounts).toEqual([

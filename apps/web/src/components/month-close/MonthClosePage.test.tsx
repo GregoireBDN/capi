@@ -104,8 +104,8 @@ function review(overrides: Partial<MonthCloseDto> = {}): MonthCloseDto {
       { key: 'imports', done: false },
       { key: 'review_queue', done: true },
       { key: 'recurring', done: true },
-      { key: 'budget', done: false },
-      { key: 'savings', done: false },
+      { key: 'budget', done: true },
+      { key: 'savings', done: true },
       { key: 'investments', done: false },
       { key: 'close', done: false },
     ],
@@ -197,9 +197,8 @@ function integrity(overrides: Partial<IntegrityDto> = {}): IntegrityDto {
   }
 }
 
-function step(key: string) {
-  return document.querySelector(`li[data-step="${key}"]`) as HTMLElement
-}
+/** A fix's round icon, by its accessible name. */
+const fix = (name: RegExp) => screen.getByRole('button', { name })
 
 function renderPage(month = '2026-10') {
   const queryClient = new QueryClient({
@@ -227,53 +226,94 @@ beforeEach(() => {
 })
 
 describe('MonthClosePage', () => {
-  it('lists the steps with their state, the progress and where to fix them', async () => {
+  it('answers first: saved, income, expenses against the month before, the budget', async () => {
     renderPage()
 
-    expect(await screen.findByText('3 / 8 étapes faites')).toBeInTheDocument()
+    const answer = await screen.findByRole('region', {
+      name: 'Le mois en bref',
+    })
     expect(api.monthCloseControllerGet).toHaveBeenCalledWith(
       expect.objectContaining({ path: { month: '2026-10' } }),
     )
+    expect(answer).toHaveTextContent(text('+2 100 €'))
+    expect(answer).toHaveTextContent('épargnés · 84 %')
+    expect(answer).toHaveTextContent(text('objectif 600 €'))
+    expect(answer).toHaveTextContent(text('Revenus2 500 €'))
+    expect(answer).toHaveTextContent(text('en hausse de 100 €400 €'))
+    expect(answer).toHaveTextContent(text('400 € / 350 €'))
 
-    const imports = step('imports')
-    expect(imports).toHaveAttribute('data-done', 'false')
-    expect(imports).toHaveTextContent('au 20 oct., 11 jours manquants')
-    expect(imports).toHaveTextContent('entre le 2 oct. et le 9 oct.')
-    expect(imports).toHaveTextContent(text('-50,00 €'))
+    const top = screen.getByRole('region', { name: 'Plus grosses dépenses' })
+    expect(top).toHaveTextContent(text('Courses test400 €'))
+  })
+
+  it('shows only the steps left, never budget or savings', async () => {
+    renderPage()
+
+    const fixes = await screen.findByRole('region', { name: 'À régler' })
+    const names = within(fixes)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+    expect(names).toEqual([
+      'Relevés importés : 11',
+      'Valeur des placements : 1',
+    ])
+  })
+
+  it('opens a step left in its sheet', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /^Relevés/ }))
+    let sheet = await screen.findByRole('dialog')
+    expect(sheet).toHaveTextContent('au 20 oct., 11 jours manquants')
+    expect(sheet).toHaveTextContent('entre le 2 oct. et le 9 oct.')
+    expect(sheet).toHaveTextContent(text('-50,00 €'))
     expect(
-      within(imports).getByRole('link', { name: /Importer un relevé/ }),
+      within(sheet).getByRole('link', { name: /Importer un relevé/ }),
     ).toHaveAttribute('href', '/import')
 
-    expect(step('review_queue')).toHaveAttribute('data-done', 'true')
-    expect(step('review_queue')).toHaveTextContent(
-      'Toutes les opérations du mois sont rangées.',
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     )
-
-    const investments = step('investments')
-    expect(investments).toHaveTextContent('Valeur au 30 sept.')
+    await user.click(fix(/^Valeur des placements/))
+    sheet = await screen.findByRole('dialog')
+    expect(sheet).toHaveTextContent('Valeur au 30 sept.')
     expect(
-      within(investments).getByRole('button', {
-        name: 'Mettre à jour « PEA test »',
-      }),
+      within(sheet).getByRole('button', { name: 'Mettre à jour « PEA test »' }),
     ).toBeInTheDocument()
+  })
 
-    // The live report, with its highlights.
-    const reportCard = screen.getByRole('region', {
-      name: /Rapport d’octobre 2026/,
-    })
-    expect(reportCard).toHaveTextContent(
-      'Chiffres actuels, figés à la clôture.',
+  it('goes straight to the operations and subscriptions to review', async () => {
+    api.monthCloseControllerGet.mockImplementation(() =>
+      ok(
+        review({
+          steps: review().steps.map((s) =>
+            s.key === 'review_queue' || s.key === 'recurring'
+              ? { ...s, done: false }
+              : s,
+          ),
+          reviewQueue: { count: 3 },
+          recurring: {
+            suggestedCount: 2,
+            priceChanges: [],
+            chargedAfterEnd: [],
+          },
+        }),
+      ),
     )
+    renderPage()
+
     expect(
-      within(reportCard).getByRole('list', { name: 'Plus fortes hausses' }),
-    ).toHaveTextContent(text('+100 €'))
+      await screen.findByRole('link', { name: 'Opérations à revoir : 3' }),
+    ).toHaveAttribute('href', '/transactions')
     expect(
-      within(reportCard).getByRole('list', { name: 'Au-dessus du budget' }),
-    ).toHaveTextContent(text('50 € de trop'))
-    expect(screen.getByText('Encore 4 étapes.')).toBeInTheDocument()
+      screen.getByRole('link', { name: 'Abonnements et prélèvements : 2' }),
+    ).toHaveAttribute('href', '/subscriptions')
   })
 
   it('lists the integrity findings with their account and day (#427)', async () => {
+    const user = userEvent.setup()
     api.integrityControllerCheck.mockImplementation(() =>
       ok(
         integrity({
@@ -304,25 +344,23 @@ describe('MonthClosePage', () => {
     )
     renderPage()
 
-    expect(await screen.findByText('2 / 8 étapes faites')).toBeInTheDocument()
-    const card = step('integrity')
-    expect(card).toHaveAttribute('data-done', 'false')
-    expect(card).toHaveTextContent('Cohérence des chiffres')
+    await user.click(
+      await screen.findByRole('button', { name: 'Cohérence des chiffres : 1' }),
+    )
+    const sheet = await screen.findByRole('dialog')
     expect(
-      within(card).getByRole('link', { name: 'Compte test' }),
+      within(sheet).getByRole('link', { name: 'Compte test' }),
     ).toHaveAttribute('href', `/accounts/${CHECKING_ID}`)
-    expect(card).toHaveTextContent('· 20 oct.')
-    expect(card).toHaveTextContent(
+    expect(sheet).toHaveTextContent('· 20 oct.')
+    expect(sheet).toHaveTextContent(
       'Le solde recalculé ne suit plus celui de la banque depuis le 5 oct.',
     )
-    expect(card).toHaveTextContent(text('-5,00 €'))
-    expect(card).toHaveTextContent('Non vérifié : crypto.')
-    // Before the close, and one more step left.
-    expect(step('close').previousElementSibling).toBe(card)
-    expect(screen.getByText('Encore 5 étapes.')).toBeInTheDocument()
+    expect(sheet).toHaveTextContent(text('-5,00 €'))
+    expect(sheet).toHaveTextContent('Non vérifié : crypto.')
   })
 
   it('never holds the review back when the checks fail to load', async () => {
+    const user = userEvent.setup()
     api.integrityControllerCheck.mockImplementation(() =>
       Promise.resolve({
         data: undefined,
@@ -332,48 +370,23 @@ describe('MonthClosePage', () => {
     )
     renderPage()
 
-    expect(
-      await screen.findByText('La vérification n’a pas pu se faire.'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('2 / 7 étapes faites')).toBeInTheDocument()
-    expect(screen.getByText('Encore 4 étapes.')).toBeInTheDocument()
+    await user.click(
+      await screen.findByRole('button', { name: 'Cohérence des chiffres' }),
+    )
+    expect(await screen.findByRole('dialog')).toHaveTextContent(
+      'La vérification n’a pas pu se faire.',
+    )
   })
 
-  it('names the income that did not come in and compares the plan (#315)', async () => {
-    const SALARY_ID = '30000000-0000-4000-8000-000000000004'
+  it('marks the planned income on the answer, the plan in the full report (#315)', async () => {
+    const user = userEvent.setup()
     const FAMILY_ID = '30000000-0000-4000-8000-000000000005'
     api.monthCloseControllerGet.mockImplementation(() =>
       ok(
         review({
-          income: {
-            plannedCents: 275_000,
-            receivedCents: 250_000,
-            shortfalls: [
-              {
-                categoryId: FAMILY_ID,
-                name: 'Famille test',
-                color: null,
-                icon: null,
-                plannedCents: 25_000,
-                receivedCents: 0,
-                status: 'missing',
-              },
-            ],
-          },
           report: report({
             categories: [
               ...report().categories,
-              {
-                categoryId: SALARY_ID,
-                name: 'Salaire test',
-                color: null,
-                icon: null,
-                kind: 'income',
-                amountCents: 250_000,
-                previousAmountCents: 250_000,
-                // Above plan: never « au-dessus du budget ».
-                targetCents: 240_000,
-              },
               {
                 categoryId: FAMILY_ID,
                 name: 'Famille test',
@@ -398,144 +411,123 @@ describe('MonthClosePage', () => {
     )
     renderPage()
 
-    await screen.findByText('3 / 8 étapes faites')
-    expect(
-      within(step('budget')).getByRole('list', {
-        name: 'Revenus pas reçus comme prévu',
-      }),
-    ).toHaveTextContent(text('Famille testpas reçu (250 € prévus)'))
-
-    const reportCard = screen.getByRole('region', {
+    await user.click(await screen.findByRole('button', { name: 'Tout voir' }))
+    const reportCard = await screen.findByRole('region', {
       name: /Rapport d’octobre 2026/,
     })
-    const plan = within(reportCard).getByRole('list', {
-      name: 'Prévu et réalisé',
-    })
-    expect(plan).toHaveTextContent(text('Revenus2 500 € / 2 650 € prévus'))
-    expect(plan).toHaveTextContent(text('Épargne2 100 € / 2 300 € prévus'))
+    expect(
+      within(reportCard).getByRole('list', { name: 'Prévu et réalisé' }),
+    ).toHaveTextContent(text('Revenus2 500 € / 2 650 € prévus'))
     expect(
       within(reportCard).getByRole('list', {
         name: 'Revenus en dessous du prévu',
       }),
     ).toHaveTextContent('Famille testpas reçu')
-    expect(
-      within(reportCard).getByRole('list', { name: 'Au-dessus du budget' }),
-    ).not.toHaveTextContent('Salaire test')
   })
 
-  it('lists a cancelled subscription charged after its end date', async () => {
+  it('ticks the subscriptions charged after their end date as seen', async () => {
+    const user = userEvent.setup()
+    const charged = {
+      suggestedCount: 0,
+      priceChanges: [],
+      chargedAfterEnd: [
+        {
+          id: 'r1',
+          name: 'Vidéo test',
+          endedOn: '2026-10-01',
+          chargedOn: '2026-10-15',
+          amountCents: 999,
+        },
+      ],
+    }
     api.monthCloseControllerGet.mockImplementation(() =>
       ok(
         review({
-          recurring: {
-            suggestedCount: 0,
-            priceChanges: [],
-            chargedAfterEnd: [
-              {
-                id: 'r1',
-                name: 'Vidéo test',
-                endedOn: '2026-10-01',
-                chargedOn: '2026-10-15',
-                amountCents: 999,
-              },
-            ],
-          },
+          steps: review().steps.map((s) =>
+            s.key === 'recurring' ? { ...s, done: false } : s,
+          ),
+          recurring: charged,
         }),
       ),
     )
-    renderPage()
-
-    await screen.findByText('Prélevés après la résiliation')
-    const recurring = step('recurring')
-    expect(recurring).toHaveTextContent('Prélevés après la résiliation')
-    expect(recurring).toHaveTextContent('Vidéo test')
-    expect(recurring).toHaveTextContent(text('9,99 €'))
-    expect(
-      within(recurring).getByRole('link', { name: /Voir les abonnements/ }),
-    ).toHaveAttribute('href', '/subscriptions')
-    expect(
-      within(recurring).getByRole('checkbox', { name: 'Prélèvements vus' }),
-    ).toBeInTheDocument()
-  })
-
-  it('saves a tick and the notes', async () => {
-    const user = userEvent.setup()
     api.monthCloseControllerUpdate.mockImplementation(
       ({ body }: { body: Partial<MonthCloseDto> }) =>
-        ok(
-          review({
-            ...body,
-            steps: review().steps.map((s) =>
-              s.key === 'budget' && body.acknowledged?.includes('budget')
-                ? { ...s, done: true }
-                : s,
-            ),
-          }),
-        ),
+        ok(review({ ...body, recurring: charged })),
     )
     renderPage()
 
     await user.click(
-      await screen.findByRole('checkbox', { name: 'Budget relu' }),
+      await screen.findByRole('button', {
+        name: 'Abonnements et prélèvements : 1',
+      }),
     )
+    const sheet = await screen.findByRole('dialog')
+    expect(sheet).toHaveTextContent('Prélevés après la résiliation')
+    expect(sheet).toHaveTextContent('Vidéo test')
+    expect(sheet).toHaveTextContent(text('9,99 €'))
+    await user.click(within(sheet).getByRole('button', { name: 'Vu' }))
     expect(api.monthCloseControllerUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         path: { month: '2026-10' },
-        body: { acknowledged: ['budget'] },
+        body: { acknowledged: ['recurring'] },
       }),
     )
-    await waitFor(() =>
-      expect(step('budget')).toHaveAttribute('data-done', 'true'),
-    )
-    expect(screen.getByText('4 / 8 étapes faites')).toBeInTheDocument()
+  })
 
-    await user.type(screen.getByLabelText('Notes du mois'), '  Mois calme.  ')
+  it('saves the notes from their sheet', async () => {
+    const user = userEvent.setup()
+    api.monthCloseControllerUpdate.mockImplementation(
+      ({ body }: { body: Partial<MonthCloseDto> }) => ok(review({ ...body })),
+    )
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Note du mois' }),
+    )
+    await user.type(
+      await screen.findByLabelText('Note du mois', { selector: 'textarea' }),
+      '  Mois calme.  ',
+    )
     await user.tab()
     expect(api.monthCloseControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { notes: 'Mois calme.' } }),
     )
   })
 
-  it('confirms a close with steps left, then shows the frozen report', async () => {
+  it('confirms a close with steps left, then shows the frozen month', async () => {
     const user = userEvent.setup()
     api.monthCloseControllerClose.mockImplementation(() =>
       ok(
         review({
           status: 'closed',
           closedAt: '2026-11-05T10:00:00.000Z',
-          notes: 'Bon mois',
-          closedReport: report({ notes: 'Bon mois' }),
+          closedReport: report(),
         }),
       ),
     )
     renderPage()
 
-    await user.type(await screen.findByLabelText('Notes du mois'), 'Bon mois')
-    await user.click(screen.getByRole('button', { name: 'Clôturer le mois' }))
+    await user.click(await screen.findByRole('button', { name: 'Clôturer' }))
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Il reste 4 étapes à faire.')
+    expect(dialog).toHaveTextContent('Il reste 2 choses à régler.')
     await user.click(within(dialog).getByRole('button', { name: 'Clôturer' }))
 
     expect(api.monthCloseControllerClose).toHaveBeenCalledWith(
       expect.objectContaining({
         path: { month: '2026-10' },
-        body: { notes: 'Bon mois' },
+        body: { notes: null },
       }),
     )
     expect(
-      await screen.findByRole('button', { name: 'Rouvrir le mois' }),
+      await screen.findByRole('button', { name: 'Rouvrir' }),
     ).toBeInTheDocument()
     expect(screen.getByText('Clôturé')).toBeInTheDocument()
-    expect(screen.getByLabelText('Notes du mois')).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'Budget relu' })).toBeDisabled()
-    const reportCard = screen.getByRole('region', {
-      name: /Rapport d’octobre 2026/,
-    })
-    expect(reportCard).toHaveTextContent('Figé à la clôture, le 5 nov.')
-    expect(reportCard).toHaveTextContent('Bon mois')
+    expect(
+      screen.queryByRole('region', { name: 'À régler' }),
+    ).not.toBeInTheDocument()
   })
 
-  it('closes at once when every step is done', async () => {
+  it('closes in one tap when nothing is left', async () => {
     const user = userEvent.setup()
     api.monthCloseControllerGet.mockImplementation(() =>
       ok(
@@ -552,16 +544,15 @@ describe('MonthClosePage', () => {
     )
     renderPage()
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Clôturer le mois' }),
-    )
+    expect(await screen.findByText('Tout est en ordre')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clôturer octobre' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(api.monthCloseControllerClose).toHaveBeenCalledWith(
       expect.objectContaining({ body: { notes: null } }),
     )
   })
 
-  it('flags the figures changed since the close and reopens the month', async () => {
+  it('keeps the figures of the close, flags what changed and reopens', async () => {
     const user = userEvent.setup()
     api.monthCloseControllerGet.mockImplementation(() =>
       ok(
@@ -600,25 +591,28 @@ describe('MonthClosePage', () => {
     api.monthCloseControllerReopen.mockImplementation(() => ok(review()))
     renderPage()
 
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Modifié depuis la clôture')
-    expect(alert).toHaveTextContent(text('Dépenses-400,00 € → -440,00 €'))
-    expect(alert).toHaveTextContent(
+    // The answer keeps the figures of the close.
+    expect(
+      await screen.findByRole('region', { name: 'Le mois en bref' }),
+    ).toHaveTextContent(text('+2 100 €'))
+
+    await user.click(
+      screen.getByRole('button', { name: 'Modifié depuis la clôture' }),
+    )
+    const sheet = await screen.findByRole('dialog')
+    expect(sheet).toHaveTextContent(text('Dépenses-400,00 € → -440,00 €'))
+    expect(sheet).toHaveTextContent(
       text('Courses test (dépense)400,00 € → 440,00 €'),
     )
-    // The report keeps the figures of the close.
-    expect(
-      screen.getByRole('region', { name: /Rapport d’octobre 2026/ }),
-    ).toHaveTextContent(text('400 €'))
+    await user.keyboard('{Escape}')
 
-    await user.click(screen.getByRole('button', { name: 'Rouvrir le mois' }))
+    await user.click(screen.getByRole('button', { name: 'Rouvrir' }))
     expect(api.monthCloseControllerReopen).toHaveBeenCalledWith(
       expect.objectContaining({ path: { month: '2026-10' } }),
     )
     expect(
-      await screen.findByRole('button', { name: 'Clôturer le mois' }),
+      await screen.findByRole('button', { name: 'Clôturer' }),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('does not close a month that is not over', async () => {
@@ -628,9 +622,8 @@ describe('MonthClosePage', () => {
     renderPage('2026-11')
 
     expect(
-      await screen.findByRole('button', { name: 'Clôturer le mois' }),
+      await screen.findByRole('button', { name: 'Mois pas terminé' }),
     ).toBeDisabled()
-    expect(screen.getByText('Le mois n’est pas terminé.')).toBeInTheDocument()
   })
 })
 
