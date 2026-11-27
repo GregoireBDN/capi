@@ -69,6 +69,7 @@ describe('tool list', () => {
       'list_categories',
       'list_imports',
       'list_investment_accounts',
+      'list_rules',
       'mark_one_off',
       'month_close_status',
       'month_end_forecast',
@@ -88,6 +89,7 @@ describe('tool list', () => {
       'subscriptions',
       'sync_crypto_holdings',
       'sync_security_positions',
+      'update_rule',
     ])
     const writeTools = new Set([
       'add_investment_snapshots',
@@ -97,6 +99,7 @@ describe('tool list', () => {
       'add_transaction',
       'categorize_transactions',
       'create_rule',
+      'update_rule',
       'mark_one_off',
       'set_budget_targets',
       'set_transaction_note',
