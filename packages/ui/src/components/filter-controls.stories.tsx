@@ -150,13 +150,14 @@ export const Default: Story = {
     const set = canvas.getByRole('button', {
       name: 'Compte : Livret démo, changer',
     })
-    const after = set
-      .closest('[data-slot="filter-control"]')!
-      .getBoundingClientRect()
+    // One button set or not: same place, same size (#544).
+    const after = set.getBoundingClientRect()
     await expect(after.left).toBe(before.left)
     await expect(after.width).toBe(before.width)
+    // « Tous les comptes » clears it.
+    await userEvent.click(set)
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Retirer le filtre Compte' }),
+      await body.findByRole('radio', { name: 'Tous les comptes' }),
     )
     await expect(
       canvas.getByRole('button', { name: 'Compte, tous' }),

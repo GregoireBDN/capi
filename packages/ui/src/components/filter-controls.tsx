@@ -4,12 +4,7 @@ import { CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '../lib/utils'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverTrigger,
-} from './popover'
+import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
 /* ============================================================================
  * TYPES
@@ -79,12 +74,16 @@ const FILTER_CONTROL_ON =
  * COMPONENTS
  * ========================================================================= */
 
-/** The icon of a control, in a box of one size set or not (no shift). */
+/**
+ * The icon of a control, in a box of one size set or not (no shift). Only a
+ * bare icon is sized here: a value's badge keeps its own glyph size, centred
+ * in its disc (#544).
+ */
 function ControlIcon({ children }: { children: React.ReactNode }) {
   return (
     <span
       aria-hidden
-      className="text-muted-foreground flex size-[1.15rem] shrink-0 items-center justify-center [&_svg]:size-[17px]"
+      className="text-muted-foreground flex size-[1.15rem] shrink-0 items-center justify-center [&>svg]:size-[17px]"
     >
       {children}
     </span>
@@ -94,12 +93,13 @@ function ControlIcon({ children }: { children: React.ReactNode }) {
 /**
  * Filter Control
  * A filter of a toolbar that opens its options in a popover (#406), like a
- * field with a floating label (the owner's request): « 🏛 Compte ⌄ », its
- * name as a placeholder, while nothing is chosen; then « [value icon]
- * Livret A × » tinted with the value's colour, its name small above the
- * value inside the control (#507). Its size never changes with
- * its value: give it its width (`className`, a grid cell); the value is cut
- * with « … ».
+ * field: « 🏛 Compte ⌄ », its name as a placeholder, while nothing is
+ * chosen; then « [value badge] Livret A ⌄ », raised like a filled field
+ * (#544, the owner's « A. Comme un champ rempli »), « Tous … » in the list
+ * clearing it. With `onOpen` (a phone's « Filtres » page) a set value is
+ * tinted with its colour, its name small above it, × clearing it. Its size
+ * never changes with its value: give it its width (`className`, a grid
+ * cell); the value is cut with « … ».
  */
 function FilterControl({
   label,
@@ -132,29 +132,43 @@ function FilterControl({
   const triggerOf = (button: React.ReactElement) =>
     onOpen ? button : <PopoverTrigger asChild>{button}</PopoverTrigger>
 
-  if (!value) {
+  // In a popover, one button set or not: the same box, icon, name and ⌄,
+  // so nothing moves once a value is chosen (#544, the owner's « A. Comme
+  // un champ rempli »); « Tous … » in the list clears it.
+  if (!value || !onOpen) {
     const button = (
       <button
         type="button"
         data-slot="filter-control"
-        data-state="off"
-        aria-label={`${label}, ${emptyLabel.toLowerCase()}`}
+        data-state={value ? 'on' : 'off'}
+        aria-label={
+          value
+            ? `${label} : ${value.label}, changer`
+            : `${label}, ${emptyLabel.toLowerCase()}`
+        }
+        title={value?.label}
         onClick={onOpen}
         className={cn(
           FILTER_CONTROL,
-          FILTER_CONTROL_OFF,
-          'pr-1 pl-2.5 text-left',
+          value ? 'glass-field-filled' : FILTER_CONTROL_OFF,
+          // The icon, the name and the ⌄ centred together (#544).
+          'justify-center gap-1.5 px-3',
           className,
         )}
       >
-        <ControlIcon>{icon}</ControlIcon>
+        <ControlIcon>{value?.icon ?? icon}</ControlIcon>
         {/* Its name in place of a value, like a field's placeholder. */}
-        <span className="text-muted-foreground min-w-0 flex-1 truncate">
-          {label}
+        <span
+          className={cn(
+            'min-w-0 truncate',
+            value ? 'font-semibold' : 'text-muted-foreground',
+          )}
+        >
+          {value?.label ?? label}
         </span>
         <span
           aria-hidden
-          className="text-muted-foreground flex size-7 shrink-0 items-center justify-center"
+          className="text-muted-foreground -mr-0.5 flex shrink-0 items-center justify-center"
         >
           <ChevronDownIcon className="size-[16px]" />
         </span>
@@ -189,32 +203,30 @@ function FilterControl({
       </span>
     </button>
   )
-  const anchorOf = (control: React.ReactElement) =>
-    onOpen ? control : <PopoverAnchor asChild>{control}</PopoverAnchor>
-  return withOptions(
-    anchorOf(
-      <span
-        data-slot="filter-control"
-        data-state="on"
-        className={cn(
-          FILTER_CONTROL,
-          FILTER_CONTROL_ON,
-          'gap-1.5 pr-1 pl-2',
-          className,
-        )}
-        style={tint}
+  // Opening its options elsewhere (a phone's « Filtres » page): its name
+  // small above the value, tinted with its colour, × clearing it.
+  return (
+    <span
+      data-slot="filter-control"
+      data-state="on"
+      className={cn(
+        FILTER_CONTROL,
+        FILTER_CONTROL_ON,
+        'gap-1.5 pr-1 pl-2',
+        className,
+      )}
+      style={tint}
+    >
+      {trigger}
+      <button
+        type="button"
+        aria-label={`Retirer le filtre ${label}`}
+        onClick={onClear}
+        className="hover:bg-foreground/10 focus-visible:ring-ring/50 relative flex size-7 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
       >
-        {triggerOf(trigger)}
-        <button
-          type="button"
-          aria-label={`Retirer le filtre ${label}`}
-          onClick={onClear}
-          className="hover:bg-foreground/10 focus-visible:ring-ring/50 relative flex size-7 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
-        >
-          <XIcon aria-hidden className="size-[15px]" />
-        </button>
-      </span>,
-    ),
+        <XIcon aria-hidden className="size-[15px]" />
+      </button>
+    </span>
   )
 }
 
