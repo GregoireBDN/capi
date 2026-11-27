@@ -37,7 +37,10 @@ export const MONTH_CLOSE_STEPS = [
 ] as const
 export type MonthCloseStep = (typeof MONTH_CLOSE_STEPS)[number]
 
-/** Steps the owner marks as seen by hand. */
+/**
+ * Steps the owner marks as seen by hand: only `recurring` counts since #541
+ * (budget and savings are always done); the others are kept for stored rows.
+ */
 export const ACKNOWLEDGEABLE_STEPS = ['recurring', 'budget', 'savings'] as const
 export type AcknowledgeableStep = (typeof ACKNOWLEDGEABLE_STEPS)[number]
 

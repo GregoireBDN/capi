@@ -271,8 +271,10 @@ export class MonthCloseService {
         suggested === 0 &&
         ((priceChanges.length === 0 && chargedAfterEnd.length === 0) ||
           ack.has('recurring')),
-      budget: ack.has('budget'),
-      savings: ack.has('savings'),
+      // Shown as the month's answer, nothing to tick (#541); old ticks are
+      // kept and ignored.
+      budget: true,
+      savings: true,
       investments: investments.length === 0,
       close: closed,
     }

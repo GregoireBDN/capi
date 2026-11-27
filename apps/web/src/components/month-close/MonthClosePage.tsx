@@ -2,15 +2,23 @@ import {
   Alert,
   AlertDescription,
   AlertTitle,
-  Badge,
   Button,
   ConfirmDialog,
-  Progress,
+  Label,
+  Sheet,
+  SheetContent,
   Skeleton,
+  Textarea,
+  useIsMobile,
 } from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { LockIcon, LockOpenIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import {
+  LockIcon,
+  LockOpenIcon,
+  PencilLineIcon,
+  TriangleAlertIcon,
+} from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type {
   AcknowledgeableStep,
@@ -20,9 +28,15 @@ import type {
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
-import { integrityDone } from './IntegrityStep'
-import { MonthCloseSteps } from './MonthCloseSteps'
-import { MonthReport } from './MonthReport'
+import {
+  EditorHeader,
+  editorSide,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
+import { formatMonth } from '#/lib/calendar'
+import { MonthAnswer, TopCategories } from './MonthAnswer'
+import { fixesLeft, MonthFixes } from './MonthFixes'
+import { Changes, MonthReport } from './MonthReport'
 import {
   closeMonth,
   integrityQuery,
@@ -41,10 +55,8 @@ interface MonthClosePageProps {
 function PageSkeleton() {
   return (
     <div className="space-y-3" aria-busy="true" aria-label="Chargement">
-      <Skeleton className="h-16 w-full rounded-xl" />
-      {[0, 1, 2].map((i) => (
-        <Skeleton key={i} className="h-28 w-full rounded-xl" />
-      ))}
+      <Skeleton className="h-56 w-full rounded-xl" />
+      <Skeleton className="h-28 w-full rounded-xl" />
     </div>
   )
 }
@@ -52,18 +64,31 @@ function PageSkeleton() {
 const cleanNotes = (notes: string) =>
   notes.trim() === '' ? null : notes.trim()
 
+/** « 2026-10 » → « octobre ». */
+const monthName = (month: string) =>
+  formatMonth(month)
+    .toLowerCase()
+    .replace(/\s\d{4}$/, '')
+
+type PageSheet = 'notes' | 'report' | 'changes' | null
+
 /**
- * Guided month-end review ("Bilan du mois"): the steps of the monthly
- * routine, each green when done with a link to where it is fixed, the
- * progress, the month's report and "Clôturer le mois" (or "Rouvrir").
+ * « Bilan du mois » (#541, the owner's « La réponse d'abord »): the month's
+ * answer first (saved, income and expenses, the budget), then only what is
+ * left to fix as round icons opening their sheet, the largest categories,
+ * and « Clôturer » (one tap when nothing is left) or « Rouvrir ». One column
+ * on every screen.
  */
 export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
   const queryClient = useQueryClient()
   const review = useQuery(monthCloseQuery(month))
-  // A step of its own (#427), counted once its checks have answered.
+  // A step of its own (#427), left to fix once its checks found something.
   const integrity = useQuery(integrityQuery(month))
   const [notesDraft, setNotesDraft] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [sheet, setSheet] = useState<PageSheet>(null)
+  const isMobile = useIsMobile()
+  const notesId = useId()
   const savedNotes = review.data?.notes ?? null
   // Follow the saved notes (another month, a close or a reopen).
   useEffect(() => setNotesDraft(savedNotes ?? ''), [month, savedNotes])
@@ -108,24 +133,19 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
     if (notes !== data.notes) update.mutate({ notes })
   }
 
-  const integrityChecked = integrity.data !== undefined
-  const integrityOk = integrityChecked && integrityDone(integrity.data)
-  const doneCount =
-    (data?.steps.filter((step) => step.done).length ?? 0) +
-    (integrityOk ? 1 : 0)
-  const stepCount = (data?.steps.length ?? 0) + (integrityChecked ? 1 : 0)
-  // Every step but the close itself.
-  const left = data
-    ? data.steps.filter((step) => step.key !== 'close' && !step.done).length +
-      (integrityChecked && !integrityOk ? 1 : 0)
-    : 0
+  const integrityState = {
+    data: integrity.data,
+    isPending: integrity.isPending,
+    isError: integrity.isError,
+    refetch: () => void integrity.refetch(),
+  }
+  const fixes = data ? fixesLeft(data, integrityState) : []
+  const left = fixes.length
+  const report = data ? (data.closedReport ?? data.report) : null
 
   return (
-    <div className="@container space-y-6 pb-4">
-      <PageHeader
-        title="Bilan du mois"
-        description="Les étapes pour boucler le mois, puis sa clôture."
-      />
+    <div className="@container mx-auto max-w-2xl space-y-4 pb-4">
+      <PageHeader title="Bilan du mois" />
 
       <MonthToolbar
         navigator={
@@ -147,68 +167,61 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
         </Alert>
       )}
 
-      {data && (
+      {data && report && (
         <>
-          <section aria-label="Progression" className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">
-                {doneCount} / {stepCount} étapes faites
-              </p>
-              <Badge
-                variant={data.status === 'closed' ? 'success' : 'secondary'}
-              >
-                {data.status === 'closed' ? 'Clôturé' : 'Ouvert'}
-              </Badge>
-            </div>
-            <Progress
-              value={stepCount === 0 ? 0 : (doneCount / stepCount) * 100}
-              aria-label="Progression du bilan"
-            />
-          </section>
+          <MonthAnswer report={report} closed={data.status === 'closed'} />
 
-          <div className="grid grid-cols-1 gap-6 @2xl:grid-cols-2 @2xl:items-start">
-            <MonthCloseSteps
+          {data.status === 'open' ? (
+            <MonthFixes
+              fixes={fixes}
+              integrity={integrityState}
               review={data}
-              integrity={{
-                data: integrity.data,
-                isPending: integrity.isPending,
-                isError: integrity.isError,
-                refetch: () => void integrity.refetch(),
-              }}
               saving={update.isPending}
               onAcknowledge={acknowledge}
-              notesDraft={notesDraft}
-              onNotesDraftChange={setNotesDraft}
-              onNotesBlur={saveNotes}
             />
-            <MonthReport review={data} />
-          </div>
+          ) : (
+            data.changes.length > 0 && (
+              <Button
+                variant="warning"
+                outline
+                className="w-full"
+                iconStart={<TriangleAlertIcon />}
+                onClick={() => setSheet('changes')}
+              >
+                Modifié depuis la clôture
+              </Button>
+            )
+          )}
+
+          <TopCategories report={report} onShowAll={() => setSheet('report')} />
 
           <div
             data-sticky-bottom-bar
-            className="glass-panel short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-card p-3"
+            className="glass-panel short-screen:py-2 rounded-card sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex items-center gap-2 p-2"
           >
-            <p className="text-muted-foreground min-w-18 flex-1 text-sm">
-              {data.status === 'closed'
-                ? 'Le rapport est figé. Rouvrez le mois pour le modifier.'
-                : !data.closable
-                  ? 'Le mois n’est pas terminé.'
-                  : left === 0
-                    ? 'Tout est prêt.'
-                    : `Encore ${left} étape${left > 1 ? 's' : ''}.`}
-            </p>
+            <Button
+              variant="secondary"
+              iconOnly
+              className="size-12 shrink-0 rounded-full"
+              aria-label={data.notes ? 'Note du mois, écrite' : 'Note du mois'}
+              onClick={() => setSheet('notes')}
+            >
+              <PencilLineIcon />
+            </Button>
             {data.status === 'closed' ? (
               <Button
-                outline
                 variant="secondary"
+                className="min-h-12 flex-1"
                 iconStart={<LockOpenIcon />}
                 loading={reopen.isPending}
                 onClick={() => reopen.mutate()}
               >
-                Rouvrir le mois
+                Rouvrir
               </Button>
             ) : (
               <Button
+                variant={left === 0 && data.closable ? 'primary' : 'secondary'}
+                className="min-h-12 flex-1"
                 iconStart={<LockIcon />}
                 disabled={!data.closable}
                 loading={close.isPending}
@@ -216,10 +229,58 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
                   left === 0 ? close.mutate() : setConfirmOpen(true)
                 }
               >
-                Clôturer le mois
+                {!data.closable
+                  ? 'Mois pas terminé'
+                  : left === 0
+                    ? `Clôturer ${monthName(data.month)}`
+                    : 'Clôturer'}
               </Button>
             )}
           </div>
+
+          <Sheet
+            open={sheet !== null}
+            onOpenChange={(open) => !open && setSheet(null)}
+          >
+            <SheetContent side={editorSide(isMobile)} className="gap-0">
+              {sheet === 'notes' && (
+                <>
+                  <EditorHeader title="Note du mois" />
+                  <SheetScroll className="space-y-1.5 px-4 pt-2 pb-6">
+                    <Label htmlFor={notesId} className="sr-only">
+                      Note du mois
+                    </Label>
+                    <Textarea
+                      id={notesId}
+                      value={notesDraft}
+                      maxLength={4000}
+                      rows={6}
+                      disabled={data.status === 'closed'}
+                      placeholder="Ce qui a marqué le mois…"
+                      onChange={(event) => setNotesDraft(event.target.value)}
+                      onBlur={saveNotes}
+                    />
+                  </SheetScroll>
+                </>
+              )}
+              {sheet === 'report' && (
+                <>
+                  <EditorHeader title="Rapport du mois" />
+                  <SheetScroll className="px-4 pt-2 pb-6">
+                    <MonthReport review={data} />
+                  </SheetScroll>
+                </>
+              )}
+              {sheet === 'changes' && (
+                <>
+                  <EditorHeader title="Modifié depuis la clôture" />
+                  <SheetScroll className="px-4 pt-2 pb-6">
+                    <Changes changes={data.changes} />
+                  </SheetScroll>
+                </>
+              )}
+            </SheetContent>
+          </Sheet>
 
           <ConfirmDialog
             open={confirmOpen}
@@ -228,7 +289,7 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
             loading={close.isPending}
             variant="warning"
             title="Clôturer quand même ?"
-            description={`Il reste ${left} étape${left > 1 ? 's' : ''} à faire. Le rapport sera figé tel quel ; vous pourrez rouvrir le mois.`}
+            description={`Il reste ${left} chose${left > 1 ? 's' : ''} à régler. Le rapport sera figé tel quel ; vous pourrez rouvrir le mois.`}
             confirmLabel="Clôturer"
           />
         </>
