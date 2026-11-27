@@ -15,11 +15,17 @@ Each feature's details (routes, pages, edge cases, the owner's choices) live in 
 - savings and investments (PEA, life insurance, employee savings, crypto);
 - an end-of-month forecast.
 
-It is prototyped locally first, then deployed on a VPS and used from the phone as a PWA, ideally reachable only through Tailscale. There is exactly one user: no public sign-up, no multi-tenancy, no third-party analytics.
+It is prototyped locally first, then deployed on a VPS and used from the phone as a PWA, ideally reachable only through Tailscale. Today there is exactly one user: no public sign-up, no third-party analytics. A few invited users, each seeing only their own data and what they choose to share, are being built (#538, [ADR 0009](docs/adr/0009-several-users.md)); sign-up stays invitation only.
 
 ## Domain rules
 
 These rules are non-negotiable. Code, tests and reviews must enforce them.
+
+### Several users (ADR 0009, #538, in progress)
+
+- **Every private row names its owner**: a new domain table gets `user_id` (default `app_user_id()`, `ON DELETE CASCADE`), `UNIQUE (id, user_id)` if other tables point at it, composite foreign keys `(x_id, user_id)` to its parents, unique keys that start with `user_id`, and row-level security with the standard policy. Global reference data (prices, securities) and identity tables are the only exceptions, listed in the ADR.
+- **Two locks**: services filter by the current user and answer 404 for someone else's id; Postgres row-level security refuses the rest (the API never connects as the table owner, views are `security_invoker`, no `SECURITY DEFINER` on private tables).
+- **Private rows are never read by another user**: what users share lives in shared tables, written by each member from their own data.
 
 ### Money and dates
 

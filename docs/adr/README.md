@@ -14,3 +14,4 @@ Each ADR states its **status** (Proposed, Accepted, Superseded by NNNN), the **c
 | [0006](0006-security-positions.md)               | Security positions: lines, prices and value of an account   | Accepted |
 | [0007](0007-import-profiles.md)                  | One standard CSV format and import profiles per source      | Accepted |
 | [0008](0008-envelopes.md)                        | Envelopes: money set aside, split across accounts           | Accepted |
+| [0009](0009-several-users.md)                    | Several users in one Capi: owner on every row, RLS, sharing | Proposed |
