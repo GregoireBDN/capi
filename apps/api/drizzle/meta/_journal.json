@@ -414,6 +414,13 @@
       "when": 1795847410666,
       "tag": "0058_owner_on_every_row",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795848963871,
+      "tag": "0059_links_never_cross_owners",
+      "breakpoints": true
     }
   ]
 }
