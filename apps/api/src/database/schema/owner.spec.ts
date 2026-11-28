@@ -152,14 +152,14 @@ describe.skipIf(!process.env.DATABASE_URL)('row owners (ADR 0009)', () => {
     })
   })
 
-  it('falls back to the only user until the request scope exists (#557)', async () => {
+  it('refuses a row without an owner, even with a single user (#559)', async () => {
     await inRollback(async (tx) => {
-      const only = await user(tx, 'seul@capi.test')
-      const [created] = await tx
-        .insert(accountsTable)
-        .values({ name: 'Compte fictif', type: 'checking' })
-        .returning({ userId: accountsTable.userId })
-      expect(created.userId).toBe(only)
+      await user(tx, 'seul@capi.test')
+      await refused(tx, '23502', (nested) =>
+        nested
+          .insert(accountsTable)
+          .values({ name: 'Compte fictif', type: 'checking' }),
+      )
     })
   })
 

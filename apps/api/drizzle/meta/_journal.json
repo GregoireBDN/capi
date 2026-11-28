@@ -428,6 +428,13 @@
       "when": 1795851029363,
       "tag": "0060_only_the_owner_sees_their_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795854754016,
+      "tag": "0061_app_user_id_without_fallback",
+      "breakpoints": true
     }
   ]
 }
