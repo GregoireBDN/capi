@@ -24,6 +24,7 @@ At 6:00 Europe/Paris, Wednesday to Sunday, the scheduled task wakes the project'
 1. skips an issue that depends on an open issue (« after #n », « needs #n » in its body) or that needs a database migration while another thread holds one (one migration at a time, see the multi-user rule in `CLAUDE.md`), and takes the next;
 1. for each issue taken: `prêt` → `en-cours`, then starts a thread named after the issue's goal, with the issue number and a link to this page;
 1. posts **one short morning message** in the project chat: started today, waiting for the owner (a decision card or a preview to test, with links), merged since the last run. Nothing to report: no message.
+1. writes its recap to the « Routines Capi » page (`runs` collection, routine `matin`, see [routines](routines.md#every-run-leaves-its-recap-on--routines-capi-)): started tickets as `demarre`, cards and previews waiting for the owner as `attente`, merges as `fusionne`.
 
 The task fires into the coordinator's session; the coordinator is the only one that starts threads.
 

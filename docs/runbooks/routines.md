@@ -17,6 +17,27 @@ The owner's week starts on **Friday**, when his weekly usage limit resets, and *
 
 Evening runs land after the day's work and before the next morning run, so a « Oui » given in the evening starts the next morning (Sunday evening's starts on Wednesday).
 
+## Every run leaves its recap on « Routines Capi »
+
+The owner reads his routines on a page, not in conversations. Every run, whatever the routine, ends by writing **one document** to the database of the « Routines Capi » artifact (https://claude.ai/artifact/Q11jKVYRX3E4bPekevPLzz), with the `ArtifactData` tool: `set` in the collection `runs`, `doc_id` `<routine>-<YYYY-MM-DD>` (rewriting the same day's document if it runs again, pinned with `if_version`):
+
+```json
+{
+  "routine": "matin | securite | maintenabilite | propositions | revue | bilan",
+  "at": "2026-11-29T06:00:00+01:00",
+  "summary": "one or two short French sentences",
+  "items": [
+    {
+      "label": "few words",
+      "url": "https://…",
+      "status": "attente | alerte | demarre | fusionne | info"
+    }
+  ]
+}
+```
+
+`attente` items (a decision card, a preview to test, a PR to read) and `alerte` items (a live risk) appear at the top of the page under « T'attend »; the page shows each routine's latest run. At most 5 items, links to GitHub, threads or artifacts only, French, no amounts, labels or other financial data. A message in the project chat stays short and points to the page.
+
 ## How a proposal becomes work
 
 ```text
@@ -57,6 +78,8 @@ What makes the next thread faster and safer: files and functions that grew too b
 ### Product proposals (weekly, Sunday)
 
 Claude proposes evolutions itself: from the roadmap and its milestones, what the merged work now makes possible, gaps between the app, the MCP and the Skill, the mobile audit conventions, and the owner's recurring asks in the project chat. Never from real financial data. 2–3 ideas per run, each with a one-line why and, for a visual idea, the note that it will start with 2–3 mockups. Proposals: `feat` issues.
+
+Mostly the app, and **at most one proposal a week on the owner's whole workflow**: the `infra` repository and the server (Caddy, previews, staging, deploys), how repositories and Claude projects are split (for example a separate Claude project for the gbodin.cloud portal and previews), the routines themselves, tooling and CI. An infra proposal is an issue in `infra`; a Claude project or routine proposal an issue in `capi` with `area:ci`. Every proposal says what the owner would have to do himself. A proposal may also be **a new artifact** that would help him understand or follow something (for example the infra and the app explained); « Oui » makes it.
 
 ### Weekly review and artifacts (weekly, Thursday)
 
