@@ -6,14 +6,14 @@ Scheduled tasks of the Claude project that keep Capi moving without the owner wr
 
 The owner's week starts on **Friday**, when his weekly usage limit resets, and **Monday and Tuesday are rest days**: no routine runs, so a limit nearly spent by then is not used up by automation. Audits run early in the week, while the limit is full; the review closes it on Thursday. Round hours only.
 
-| When (Europe/Paris) | Routine                           | Produces                                                                     |
-| ------------------- | --------------------------------- | ---------------------------------------------------------------------------- |
-| Wed–Sun 6:00        | Morning: start ready tickets      | up to 3 threads ([morning routine](morning-routine.md))                      |
-| Wed–Sun 21:00       | GitHub up to date                 | issues, labels, milestones, roadmap fixed; nothing to decide                 |
-| Fri 20:00           | Security audit                    | `fix` / `chore` proposals, one card each                                     |
-| Sat 20:00           | Maintainability audit (for an AI) | refactor proposals, one card each                                            |
-| Sun 20:00           | Product proposals                 | 2–3 evolution ideas, one card each                                           |
-| Thu 20:00           | Weekly review and artifacts       | the week in one message, artifacts updated, stale ones proposed for deletion |
+| When (Europe/Paris)   | Routine                                        | Produces                                                                                         |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Wed–Sun 6:00          | Morning: GitHub up to date, then ready tickets | backlog fixed, up to 3 threads ([morning routine](morning-routine.md))                           |
+| Fri 20:00             | Security audit                                 | up to 2 proposals, one card each                                                                 |
+| Sat 20:00             | Maintainability audit (for an AI)              | up to 2 refactor proposals, one card each                                                        |
+| Sun 20:00             | Product proposals                              | 2 evolution ideas (3 if the audits left room), one card each                                     |
+| Thu 20:00             | Weekly review and artifacts                    | the week in one message, artifacts updated, stale ones proposed for deletion, a release proposed |
+| 1st of the month 9:00 | Month-end reminder                             | one message: import the statements, then « Bilan du mois »                                       |
 
 Evening runs land after the day's work and before the next morning run, so a « Oui » given in the evening starts the next morning (Sunday evening's starts on Wednesday).
 
@@ -28,14 +28,14 @@ owner's card:  « Oui »        → `proposition` → `prêt`   (starts on a mor
                « Non »        → issue closed as not planned, label kept (never proposed again)
 ```
 
-- **At most 3 cards per audit run**, the most valuable first; the rest stays in the run's report. Fewer is better than noise: a run with nothing worth doing says so in one line.
+- **At most 6 cards a week for all audits**: 2 for security, 2 for maintainability, 2 for proposals (which may use what the other two left, 3 at most), the most valuable first; the rest stays in the run's report. With at most 3 tickets in progress, more would pile up. Fewer is better than noise: a run with nothing worth doing says so in one line.
 - **No duplicates**: before filing, the thread searches open and closed issues (including the ones closed « Non »).
 - **Small and clear**: each proposal is one ticket a thread can finish (Context / Scope / Acceptance criteria / Out of scope), with its cost in a word (petit, moyen, gros) and why now.
 - A finding that is a **live security risk** (a secret in the repo, a high or critical advisory with no allow-list entry, an exposed port) is reported to the owner at once, in the run's thread, not batched.
 
 ## The routines
 
-### GitHub up to date (every evening, Wednesday to Sunday)
+### GitHub up to date (first step of every morning run)
 
 Keeps GitHub the single source of truth, so threads and the owner never work from a stale backlog. Decides alone, asks nothing:
 
@@ -63,6 +63,15 @@ Claude proposes evolutions itself: from the roadmap and its milestones, what the
 - One message: merged this week, started, waiting for the owner, `proposition` cards still open, what the next week's mornings will start.
 - Every artifact of the project is read: one that drifted from the code or the roadmap is updated in place (same link); one that no longer serves (a decision taken and recorded elsewhere, a duplicate, a finished test protocol) is **proposed for deletion on one card** with its replacement. Deletion only after the owner's « Oui » on that card.
 - Project memory: wrong or stale entries fixed.
+- **Release proposal**: when `main` has commits the latest `v*` tag does not and the latest staging deploy is green, one card « Mettre en prod vX.Y.Z ? » with the changes in plain words and the link to Actions › Staging. The owner tags and approves; no routine ever creates a tag.
+
+### Month-end reminder (monthly, the 1st)
+
+One message: import the month's statements in Capi, then ask Claude for the « Bilan du mois » (Skill `capi`). With the Capi tools, it names the accounts still to import by type only, never amounts or labels; it imports, categorizes and closes nothing. After the re-import (#483) it will propose replacing the owner's separate Drive-based monthly task.
+
+### Server health (GitHub workflow, #613)
+
+The cloud cannot reach the server, so this one is not a Claude routine: a scheduled workflow joins the tailnet, runs a read-only report (disk, reclaimable images, certificate, backups, health endpoints, previews) and opens an issue only when a check fails.
 
 ## Change or stop a routine
 

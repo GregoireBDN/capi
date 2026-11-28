@@ -18,11 +18,12 @@ Every morning from Wednesday to Sunday (#601; Monday and Tuesday are rest days, 
 
 At 6:00 Europe/Paris, Wednesday to Sunday, the scheduled task wakes the project's coordinator, which:
 
+1. brings GitHub up to date first ([routines](routines.md#github-up-to-date-first-step-of-every-morning-run)): closed issues, `en-cours` left behind, labels, milestones, the roadmap page;
 1. counts the open `en-cours` issues; `3 − count` slots are free (none: nothing starts);
-2. lists the open `prêt` issues and orders them **by the « Roadmap Capi » page** (its order of chantiers and lots), then by milestone, then oldest issue first;
-3. skips an issue that depends on an open issue (« after #n », « needs #n » in its body) or that needs a database migration while another thread holds one (one migration at a time, see the multi-user rule in `CLAUDE.md`), and takes the next;
-4. for each issue taken: `prêt` → `en-cours`, then starts a thread named after the issue's goal, with the issue number and a link to this page;
-5. posts **one short morning message** in the project chat: started today, waiting for the owner (a decision card or a preview to test, with links), merged since the last run. Nothing to report: no message.
+1. lists the open `prêt` issues and orders them **by the « Roadmap Capi » page** (its order of chantiers and lots), then by milestone, then oldest issue first;
+1. skips an issue that depends on an open issue (« after #n », « needs #n » in its body) or that needs a database migration while another thread holds one (one migration at a time, see the multi-user rule in `CLAUDE.md`), and takes the next;
+1. for each issue taken: `prêt` → `en-cours`, then starts a thread named after the issue's goal, with the issue number and a link to this page;
+1. posts **one short morning message** in the project chat: started today, waiting for the owner (a decision card or a preview to test, with links), merged since the last run. Nothing to report: no message.
 
 The task fires into the coordinator's session; the coordinator is the only one that starts threads.
 
