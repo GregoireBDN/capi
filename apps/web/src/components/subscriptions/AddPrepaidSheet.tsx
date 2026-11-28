@@ -205,7 +205,7 @@ export function AddPrepaidSheet({
               Aucune dépense trouvée.
             </p>
           ) : (
-            <ul aria-label="Dépenses" className={cn('bg-card', ROW_LIST)}>
+            <ul aria-label="Dépenses" className={ROW_LIST}>
               {debits.map((transaction) => (
                 <li key={transaction.id}>
                   <button

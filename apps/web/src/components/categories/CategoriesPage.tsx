@@ -186,7 +186,7 @@ export function CategoriesPage() {
           className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex justify-end"
         >
           <Button
-            className="w-full shadow-lg sm:w-auto"
+            className="w-full sm:w-auto"
             onClick={() => setAdding(true)}
             disabled={!categories.isSuccess}
           >

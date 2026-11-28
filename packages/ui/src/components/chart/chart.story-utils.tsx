@@ -30,7 +30,7 @@ export function ChartFrame({
   return (
     <div
       className={cn(
-        'w-[min(calc(100vw-2rem),42rem)] rounded-xl bg-card p-4 text-card-foreground ring-1 ring-foreground/10',
+        'w-[min(calc(100vw-2rem),42rem)] rounded-card glass-card p-4 text-card-foreground',
         className,
       )}
     >

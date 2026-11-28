@@ -244,7 +244,7 @@ function Editor({
               Ajouter
             </h3>
             <Card className="gap-0 px-1 py-1">
-              <ul className="divide-y">
+              <ul className="space-y-0.5">
                 {missing.map((type) => (
                   <li key={type}>
                     <button
@@ -348,9 +348,8 @@ function ElementRow({
       style={sortable.style}
       className={cn(
         // One tile per element, so each line stands apart (#495).
-        'bg-card flex min-h-[3.2rem] items-center gap-0.5 rounded-xl border px-1 shadow-xs transition-shadow',
-        sortable.dragging &&
-          'border-primary/50 shadow-[0_12px_18px_-8px_rgb(0_0_0/0.3)]',
+        'glass-card rounded-control flex min-h-[3.2rem] items-center gap-0.5 px-1 transition-shadow',
+        sortable.dragging && 'shadow-glass-lg ring-primary/50 ring-2',
       )}
     >
       <button
@@ -622,11 +621,11 @@ function ChoiceCards<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              'bg-card focus-visible:ring-ring flex min-h-[4.2rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-1.5 py-2.5 text-center text-xs leading-tight font-medium break-normal outline-none focus-visible:ring-2 [&_svg]:size-[22px]',
+              'glass-card rounded-control focus-visible:ring-ring flex min-h-[4.2rem] flex-col items-center justify-center gap-1.5 px-1.5 py-2.5 text-center text-xs leading-tight font-medium break-normal outline-none focus-visible:ring-2 [&_svg]:size-[22px]',
               // A word never breaks inside (« Décroissant »): smaller on three.
               options.length === 3 && 'text-[0.68rem]',
               selected
-                ? 'border-primary bg-primary/5 text-primary ring-primary/20 ring-2'
+                ? 'bg-primary/5 text-primary ring-primary ring-2'
                 : 'text-muted-foreground hover:bg-muted/50',
             )}
           >
@@ -815,12 +814,12 @@ function Choice({
             style={sortable ? row.style : undefined}
             onClick={() => toggle(item.id)}
             className={cn(
-              'bg-card flex min-h-[3.2rem] cursor-pointer items-center gap-2 rounded-xl border py-1 pr-0.5 pl-2.5 transition-opacity',
+              'glass-card rounded-control flex min-h-[3.2rem] cursor-pointer items-center gap-2 py-1 pr-0.5 pl-2.5 transition-opacity',
               sortable && 'pl-0.5',
-              !on && 'bg-card/60 border-dashed',
+              !on && 'bg-muted/40 shadow-none',
               sortable &&
                 row.dragging &&
-                'border-primary/60 ring-primary/20 shadow-lg ring-2',
+                'shadow-glass-lg ring-primary/50 ring-2',
             )}
           >
             {sortable && (

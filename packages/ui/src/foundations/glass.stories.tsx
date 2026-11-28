@@ -10,23 +10,29 @@ import {
   TrainFrontIcon,
   UtensilsIcon,
 } from 'lucide-react'
-import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 import { cn } from '../lib/utils'
 
 /**
- * The glass foundations (#504, recipe « A · Givré » chosen in #503): each
- * surface over a busy page (black, white, mid-grey, colours and amounts
- * scrolled under it), in the theme of the toolbar.
+ * The glass foundations (#504, recipe « A · Givré » chosen in #503), as the
+ * redesign left them (#505–#510): each surface over a busy page (black,
+ * white, mid-grey, colours and amounts scrolled under it), in the theme of
+ * the toolbar.
  *
- * - `glass-chrome`: header, month bar, sidebar. Translucent (90 %), blurred,
- *   a soft shadow below, no line.
+ * - `glass-chrome`: header, sidebar. Translucent (90 %), blurred, a soft
+ *   shadow below, no line.
+ * - `glass-bar` + `glass-key`: the month toolbar at the top of a month page
+ *   (#505): white bars, slightly hollow, keys in the primary colour.
  * - `glass-panel`: sheets, dialogs, popovers, menus, toasts. Translucent
  *   (94 %), blurred, sheen on top, large shadow.
- * - `glass-card`, `glass-well`: cards and fields on the page. Opaque, sheen,
- *   soft shadow, no blur, no ring.
- * - `bg-glass-fill`: secondary and icon buttons, a segmented track.
- * - `shadow-glass-primary`: the solid primary button.
+ * - `glass-card`: cards on the page. Opaque, sheen, soft shadow, no blur, no
+ *   ring; rows separated by space only (#508).
+ * - `glass-well`: a segmented control's thumb.
+ * - `glass-field` (`-filled`, `-focus`, `-invalid`): fields, hollow while
+ *   empty, raised once filled (#507).
+ * - `glass-solid`: solid buttons; `bg-glass-fill`: secondary and icon
+ *   buttons, a segmented track (#506).
  * - `glass-overlay`: behind a sheet or a dialog.
  *
  * One blurred layer at a time: nothing inside a panel blurs again. Muted text
@@ -113,28 +119,34 @@ function Round({
   )
 }
 
-/**
- * Staging (#454): how the month bar under the yellow header could follow it.
- * a: all yellow, the tab and the month band a lighter yellow;
- * b: all yellow, the tab and the band a deeper yellow;
- * c: the tabs' row yellow, the tab and the band the app's light blue.
- */
-type Staging = 'a' | 'b' | 'c'
-
-const BAND: Record<Staging | 'none', string> = {
-  none: 'var(--month-band)',
-  a: 'var(--month-band)',
-  b: 'oklch(from var(--env-banner) calc(l - 0.07) calc(c + 0.02) calc(h - 8))',
-  c: 'oklch(0.94 0.03 262)',
+/** A key of the month toolbar (`glass-key`), 48px on a phone. */
+function Key({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        'glass-key grid h-12 shrink-0 place-items-center rounded-full text-sm font-semibold',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  )
 }
 
-/** The app chrome: header + #502's month bar with its folder tabs. */
-function Chrome({ staging }: { staging?: Staging }) {
+/** The app chrome (header) and, at the top of the page, the month toolbar:
+ * two white bars, 56px on a phone (#505). */
+function Chrome({ staging = false }: { staging?: boolean }) {
   return (
     <div className="relative z-20">
       <div
         className={cn(
-          'bg-glass-chrome relative z-20 flex h-12 items-center gap-2 px-2 backdrop-blur-(--glass-blur)',
+          'glass-chrome relative z-20 flex h-12 items-center gap-2 px-2',
           staging && 'env-banner',
         )}
       >
@@ -149,32 +161,29 @@ function Chrome({ staging }: { staging?: Staging }) {
           <EllipsisVerticalIcon className="size-[1rem]" />
         </Round>
       </div>
-      <div
-        className={cn('glass-chrome relative z-10', staging && 'env-banner')}
-        style={{ '--band': BAND[staging ?? 'none'] } as CSSProperties}
-      >
-        <div className="grid grid-cols-2 gap-[6px] px-2 pt-[12px]">
-          <span className="bg-(--band) text-foreground flex h-[60px] items-center justify-center rounded-t-2xl text-sm font-semibold">
-            Résumé
-          </span>
-          <span className="text-glass-muted-foreground flex h-[60px] items-center justify-center gap-2 text-sm font-medium">
+      <div className="relative space-y-2 p-3">
+        <div className="glass-bar grid grid-cols-2 rounded-full p-[4px]">
+          <Key>Résumé</Key>
+          <span className="relative grid h-12 place-items-center text-sm font-medium">
             Opérations
-            <span className="bg-primary text-primary-foreground grid size-[24px] place-items-center rounded-full text-[12px] font-semibold">
+            <span className="bg-primary text-primary-foreground absolute top-0.5 right-3 grid size-[20px] place-items-center rounded-full text-[11px] font-semibold">
               12
             </span>
           </span>
         </div>
-        <div className="bg-(--band) flex h-12 items-center gap-2 px-2">
-          <Round>
+        <div className="glass-bar flex items-center gap-2 rounded-full p-[4px]">
+          <Key className="size-12">
             <ChevronLeftIcon className="size-[1rem]" />
-          </Round>
-          <span className="flex flex-1 items-center justify-center gap-2 text-base font-semibold">
-            <CalendarIcon className="size-[0.9rem]" />
-            Novembre 2026
-          </span>
-          <Round>
+          </Key>
+          <Key className="flex flex-1 items-center justify-center gap-2 px-4">
+            <span className="flex items-center gap-2">
+              <CalendarIcon className="size-[0.9rem]" />
+              Nov. 2026
+            </span>
+          </Key>
+          <Key className="size-12 opacity-50 shadow-none">
             <ChevronRightIcon className="size-[1rem]" />
-          </Round>
+          </Key>
         </div>
       </div>
     </div>
@@ -184,9 +193,12 @@ function Chrome({ staging }: { staging?: Staging }) {
 function Samples() {
   return (
     <div className="space-y-4 p-3">
-      <label className="glass-well rounded-control text-glass-muted-foreground flex h-11 items-center gap-2 px-3 text-sm">
+      <label className="glass-field rounded-control text-muted-foreground flex h-11 items-center gap-2 px-3 text-sm">
         <SearchIcon className="size-[0.9rem]" />
         Rechercher une opération
+      </label>
+      <label className="glass-field-filled rounded-control flex h-11 items-center px-3 text-sm">
+        Boulangerie
       </label>
       <div className="bg-glass-fill rounded-control grid grid-cols-2 p-[3px] text-sm font-medium">
         <span className="glass-well rounded-[calc(var(--radius-control)-3px)] py-2 text-center">
@@ -222,7 +234,7 @@ function Samples() {
         <span className="bg-glass-fill rounded-control flex h-11 flex-1 items-center justify-center text-sm font-medium">
           Annuler
         </span>
-        <span className="bg-primary text-primary-foreground shadow-glass-primary rounded-control flex h-11 flex-1 items-center justify-center text-sm font-semibold">
+        <span className="glass-solid bg-primary text-primary-foreground rounded-control flex h-11 flex-1 items-center justify-center text-sm font-semibold">
           Enregistrer
         </span>
       </div>
@@ -241,10 +253,10 @@ function Sheet() {
         <p className="text-glass-muted-foreground text-sm">
           Texte secondaire sur le verre
         </p>
-        <div className="glass-well rounded-control flex h-11 items-center px-3 text-sm">
+        <div className="glass-field-filled rounded-control flex h-11 items-center px-3 text-sm">
           Compte courant
         </div>
-        <span className="bg-primary text-primary-foreground shadow-glass-primary rounded-control flex h-11 items-center justify-center text-sm font-semibold">
+        <span className="glass-solid bg-primary text-primary-foreground rounded-control flex h-11 items-center justify-center text-sm font-semibold">
           Valider
         </span>
       </div>
@@ -260,7 +272,7 @@ function Phone({
 }: {
   title: string
   sheet?: boolean
-  staging?: Staging
+  staging?: boolean
 }) {
   return (
     <figure className="space-y-1.5">
@@ -338,15 +350,13 @@ function FallbackBoard() {
 }
 
 /**
- * Staging (#454): the month bar under the yellow header, three ways to keep
- * it one block with the header.
+ * Staging (#454): the yellow header (`env-banner`, the owner's « A · jaune
+ * clair », #504); the month toolbar stays white.
  */
 export const Staging: Story = {
   render: () => (
     <Board>
-      <Phone title="A · jaune, onglet jaune clair" staging="a" />
-      <Phone title="B · jaune, onglet jaune foncé" staging="b" />
-      <Phone title="C · jaune, onglet bleu clair" staging="c" />
+      <Phone title="Staging" staging />
     </Board>
   ),
 }

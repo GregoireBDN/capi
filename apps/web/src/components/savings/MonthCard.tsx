@@ -354,7 +354,7 @@ function MonthRow({ overview }: { overview: SavingsOverviewDto }) {
   return (
     <div className="space-y-4">
       <div
-        className="grid divide-x"
+        className="grid"
         style={{
           gridTemplateColumns: `auto repeat(${partial ? 3 : 4}, minmax(0, 1fr))`,
         }}

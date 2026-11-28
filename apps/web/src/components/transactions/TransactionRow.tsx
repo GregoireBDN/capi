@@ -325,7 +325,7 @@ export function TransactionRow({
         )}
         {/* What the action beside « Valider » answers (#439). */}
         {item.needsReview && onValidate && item.prepaidSuggestion && (
-          <span className="text-foreground rounded-full border px-1.5 text-[0.7rem] font-medium whitespace-nowrap">
+          <span className="text-foreground bg-glass-fill rounded-full px-1.5 text-[0.7rem] font-medium whitespace-nowrap">
             {prepaidSuggestionText(item)}
           </span>
         )}

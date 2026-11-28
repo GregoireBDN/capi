@@ -493,10 +493,10 @@ describe('SpendingPage', () => {
     expect(
       links[1].querySelectorAll('[data-slot="spending-delta"]'),
     ).toHaveLength(1)
-    // Each row fills the space between the rules (#291): square, its focus
-    // ring inside it.
+    // Rows separated by space only (#510): a rounded tile on hover, its
+    // focus ring inside it.
     for (const link of links) {
-      expect(link.className).not.toMatch(/rounded/)
+      expect(link).toHaveClass('rounded-control')
       expect(link).toHaveClass('focus-visible:ring-inset')
     }
   })

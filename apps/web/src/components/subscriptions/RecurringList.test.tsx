@@ -10,22 +10,20 @@ const ITEMS = [
   recurringItem({ id: 'item-3', name: 'Dernier' }),
 ]
 
-/** The row buttons of a list must fill it: no rounding of their own (#291). */
-function expectRowsFillTheList(list: HTMLElement) {
-  // The list clips its rows to its corners…
-  expect(list).toHaveClass('overflow-hidden', 'rounded-xl', 'border')
+/** A glass list: rows separated by space, never by a line (#291, #510). */
+function expectGlassRows(list: HTMLElement) {
+  expect(list).toHaveClass('glass-card', 'space-y-0.5')
+  expect(list.className).not.toMatch(/\b(border|divide-y)\b/)
   const buttons = within(list).getAllByRole('button')
   expect(buttons).toHaveLength(ITEMS.length)
   for (const button of buttons) {
-    // …so no row rounds its own corners (white corners on hover)…
-    expect(button.className).not.toMatch(/rounded/)
-    // …and the focus ring is drawn inside the row, never clipped.
-    expect(button).toHaveClass('focus-visible:ring-inset')
+    // A soft rounded tile on hover, the focus ring drawn inside the row.
+    expect(button).toHaveClass('rounded-control', 'focus-visible:ring-inset')
   }
 }
 
 describe('row lists of Abonnements (#291)', () => {
-  it('lets every row of a section fill it edge to edge', () => {
+  it('separates the rows of a section by space only', () => {
     render(
       <RecurringList
         title="Abonnements"
@@ -34,7 +32,7 @@ describe('row lists of Abonnements (#291)', () => {
         onEdit={vi.fn()}
       />,
     )
-    expectRowsFillTheList(screen.getByRole('list'))
+    expectGlassRows(screen.getByRole('list'))
   })
 
   it('does the same for the cancelled items', () => {
@@ -49,6 +47,6 @@ describe('row lists of Abonnements (#291)', () => {
         onEdit={vi.fn()}
       />,
     )
-    expectRowsFillTheList(screen.getByRole('list'))
+    expectGlassRows(screen.getByRole('list'))
   })
 })

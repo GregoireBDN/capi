@@ -330,7 +330,7 @@ export function MonthNavigator({
             firstYear={firstYear}
             onSelect={select}
           />
-          <div className="grid gap-1.5 border-t pt-2.5">
+          <div className="grid gap-1.5 pt-2.5">
             {shortcuts.map((shortcut) => (
               <Button
                 key={shortcut.label}
