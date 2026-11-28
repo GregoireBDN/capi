@@ -4,16 +4,18 @@ Scheduled tasks of the Claude project that keep Capi moving without the owner wr
 
 ## The week
 
+The owner's week starts on **Friday**, when his weekly usage limit resets, and **Monday and Tuesday are rest days**: no routine runs, so a limit nearly spent by then is not used up by automation. Audits run early in the week, while the limit is full; the review closes it on Thursday. Round hours only.
+
 | When (Europe/Paris) | Routine                           | Produces                                                                     |
 | ------------------- | --------------------------------- | ---------------------------------------------------------------------------- |
-| Mon–Fri 6:52        | Morning: start ready tickets      | up to 3 threads ([morning routine](morning-routine.md))                      |
-| Mon–Fri 21:37       | GitHub up to date                 | issues, labels, milestones, roadmap fixed; nothing to decide                 |
-| Mon 20:23           | Security audit                    | `fix` / `chore` proposals, one card each                                     |
-| Wed 20:41           | Maintainability audit (for an AI) | refactor proposals, one card each                                            |
-| Fri 20:17           | Product proposals                 | 2–3 evolution ideas, one card each                                           |
-| Sun 19:33           | Weekly review and artifacts       | the week in one message, artifacts updated, stale ones proposed for deletion |
+| Wed–Sun 6:00        | Morning: start ready tickets      | up to 3 threads ([morning routine](morning-routine.md))                      |
+| Wed–Sun 21:00       | GitHub up to date                 | issues, labels, milestones, roadmap fixed; nothing to decide                 |
+| Fri 20:00           | Security audit                    | `fix` / `chore` proposals, one card each                                     |
+| Sat 20:00           | Maintainability audit (for an AI) | refactor proposals, one card each                                            |
+| Sun 20:00           | Product proposals                 | 2–3 evolution ideas, one card each                                           |
+| Thu 20:00           | Weekly review and artifacts       | the week in one message, artifacts updated, stale ones proposed for deletion |
 
-Evening runs land after the day's work and before the next morning run, so a « Oui » given in the evening starts the next weekday morning.
+Evening runs land after the day's work and before the next morning run, so a « Oui » given in the evening starts the next morning (Sunday evening's starts on Wednesday).
 
 ## How a proposal becomes work
 
@@ -33,7 +35,7 @@ owner's card:  « Oui »        → `proposition` → `prêt`   (starts on a mor
 
 ## The routines
 
-### GitHub up to date (daily, weekday evenings)
+### GitHub up to date (every evening, Wednesday to Sunday)
 
 Keeps GitHub the single source of truth, so threads and the owner never work from a stale backlog. Decides alone, asks nothing:
 
@@ -44,19 +46,19 @@ Keeps GitHub the single source of truth, so threads and the owner never work fro
 - open PRs: red CI or a conflict with no thread on it is listed for the next morning message;
 - updates the « Roadmap Capi » page (statuses, merged items) and the project memory when they drifted.
 
-### Security audit (weekly, Monday)
+### Security audit (weekly, Friday)
 
 Reads, never changes production. Inputs: the week's `security.yml` and `container-scan.yml` runs, Dependabot alerts and PRs, the audit allow-list (`.github/security/audit-allowlist.json`: every entry still has its `fix` issue and its reason still holds), the code merged this week against the [ASVS checklist](../security/asvs-l2-checklist.md) and the [threat model](../security/threat-model.md) (new routes and their guards, `@TokenAccess`, logging of private data, CSP, secrets), and `CLAUDE.md`'s privacy rules. Dependabot PRs that are green and not `à-valider` follow the auto-merge rule. Proposals: `fix` issues (area `area:security`).
 
-### Maintainability audit for an AI (weekly, Wednesday)
+### Maintainability audit for an AI (weekly, Saturday)
 
 What makes the next thread faster and safer: files and functions that grew too big, duplicated logic, dead code and unused exports, tests missing around domain rules, `CLAUDE.md` and `docs/domain/` that drifted from the code or grew past what a session reads, `TODO` without an issue, slow or flaky tests. One area per run, rotating (API, web, MCP, packages, docs), so a run stays short. Proposals: `chore` refactor issues, each behaviour-preserving with the tests that prove it.
 
-### Product proposals (weekly, Friday)
+### Product proposals (weekly, Sunday)
 
 Claude proposes evolutions itself: from the roadmap and its milestones, what the merged work now makes possible, gaps between the app, the MCP and the Skill, the mobile audit conventions, and the owner's recurring asks in the project chat. Never from real financial data. 2–3 ideas per run, each with a one-line why and, for a visual idea, the note that it will start with 2–3 mockups. Proposals: `feat` issues.
 
-### Weekly review and artifacts (weekly, Sunday)
+### Weekly review and artifacts (weekly, Thursday)
 
 - One message: merged this week, started, waiting for the owner, `proposition` cards still open, what the next week's mornings will start.
 - Every artifact of the project is read: one that drifted from the code or the roadmap is updated in place (same link); one that no longer serves (a decision taken and recorded elsewhere, a duplicate, a finished test protocol) is **proposed for deletion on one card** with its replacement. Deletion only after the owner's « Oui » on that card.
