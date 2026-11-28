@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -76,6 +77,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
   async function withFixture(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         await tx.delete(recurringItemsTable)
         await tx.delete(budgetsTable)
         await tx.delete(transactionsTable)

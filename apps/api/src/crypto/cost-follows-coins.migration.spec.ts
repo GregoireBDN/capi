@@ -55,6 +55,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
             ALTER TABLE accounts DROP CONSTRAINT accounts_invested_base_type;
             ALTER TABLE crypto_movements DROP CONSTRAINT crypto_movements_given_cost;
           `)
+          // Rows need an owner since 0058 (ADR 0009).
+          const [owner] = await sql`
+            INSERT INTO users (email, name) VALUES ('spec-owner@capi.test', 'Spec owner')
+            RETURNING id
+          `
+          await sql`select set_config('app.user_id', ${owner.id}, true)`
           const syncedAt = '2026-11-01T08:00:00Z'
           const [single] = await sql`
             INSERT INTO accounts (name, type, crypto_source, crypto_synced_at, invested_base_cents, invested_base_on)

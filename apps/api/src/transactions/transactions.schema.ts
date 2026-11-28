@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import {
   bigint,
   boolean,
@@ -30,6 +31,7 @@ export const transactionsTable = pgTable(
   'transactions',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     /**
      * The owner's account it was paid from or into; null only for an expense
      * a contact paid for the owner (`paidByContactId`, « Quelqu’un a payé pour moi »),
@@ -225,6 +227,7 @@ export const transactionSplitsTable = pgTable(
   'transaction_splits',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     transactionId: uuid('transaction_id')
       .notNull()
       .references(() => transactionsTable.id, { onDelete: 'cascade' }),

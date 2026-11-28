@@ -1,4 +1,4 @@
-import { and, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
 import {
@@ -25,9 +25,11 @@ export interface SeedDefaultCategoriesResult {
 }
 
 /**
- * Inserts the default categories that are missing, matched on `slug`.
+ * Inserts the default categories that `userId` is missing, matched on
+ * `slug` (ADR 0009: every user has their own categories). Called for each
+ * user by `pnpm db:seed`, and at sign-up for the new user.
  *
- * Idempotent: uses `INSERT … ON CONFLICT (slug) DO NOTHING`, so running it
+ * Idempotent: uses `INSERT … ON CONFLICT (user_id, slug) DO NOTHING`, so running it
  * again inserts nothing. Existing rows are deliberately *not* updated: the
  * user may have renamed, recoloured or archived a default category, and
  * re-seeding must not clobber those edits. The one exception is the icon
@@ -37,12 +39,14 @@ export interface SeedDefaultCategoriesResult {
  */
 export async function seedDefaultCategories(
   db: SeedDb,
+  userId: string,
 ): Promise<SeedDefaultCategoriesResult> {
   const deleted = new Set(
     (
       await db
         .select({ slug: deletedDefaultCategoriesTable.slug })
         .from(deletedDefaultCategoriesTable)
+        .where(eq(deletedDefaultCategoriesTable.userId, userId))
     ).map((row) => row.slug),
   )
   const wanted = DEFAULT_CATEGORIES.filter(
@@ -53,8 +57,10 @@ export async function seedDefaultCategories(
       ? []
       : await db
           .insert(categoriesTable)
-          .values(wanted.map((category) => ({ ...category })))
-          .onConflictDoNothing({ target: categoriesTable.slug })
+          .values(wanted.map((category) => ({ ...category, userId })))
+          .onConflictDoNothing({
+            target: [categoriesTable.userId, categoriesTable.slug],
+          })
           .returning({ slug: categoriesTable.slug })
 
   const iconsFilled =
@@ -72,6 +78,7 @@ export async function seedDefaultCategories(
           })
           .where(
             and(
+              eq(categoriesTable.userId, userId),
               isNull(categoriesTable.icon),
               inArray(
                 categoriesTable.slug,

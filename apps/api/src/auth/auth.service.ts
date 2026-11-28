@@ -1,3 +1,5 @@
+import { seedDefaultCategories } from '#/categories/seed-default-categories'
+import { setOwner } from '#/database/owner-scope'
 import {
   BadRequestException,
   ForbiddenException,
@@ -138,6 +140,10 @@ export class AuthService {
           emailVerifiedAt: env.smtpEnabled ? null : new Date(),
         })
         .returning()
+      // The new owner starts with the default categories (ADR 0009: they
+      // are per user, so the deploy seed has none to give before sign-up).
+      await setOwner(tx, created.id)
+      await seedDefaultCategories(tx, created.id)
       return created
     })
 

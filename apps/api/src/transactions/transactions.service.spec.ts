@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { eq, inArray } from 'drizzle-orm'
@@ -58,6 +59,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     async function withFixture(fn: (f: Fixture) => Promise<void>) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           await tx.delete(transactionsTable)
           await tx.delete(categorizationRulesTable)
           const [checking, savings] = await tx

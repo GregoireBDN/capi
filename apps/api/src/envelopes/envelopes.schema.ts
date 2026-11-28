@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -34,6 +35,7 @@ export const envelopesTable = pgTable(
   'envelopes',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     name: varchar('name', { length: 100 }).notNull(),
     /** An icon name of the web app (`plane`, `gift`…), optional. */
     icon: varchar('icon', { length: 40 }),
@@ -56,6 +58,7 @@ export const envelopeCategoriesTable = pgTable(
   'envelope_categories',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     envelopeId: uuid('envelope_id')
       .notNull()
       .references(() => envelopesTable.id, { onDelete: 'cascade' }),
@@ -78,6 +81,7 @@ export const envelopeMovementsTable = pgTable(
   'envelope_movements',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     envelopeId: uuid('envelope_id')
       .notNull()
       .references(() => envelopesTable.id, { onDelete: 'cascade' }),
@@ -137,6 +141,7 @@ export const envelopeSplitKeysTable = pgTable(
   'envelope_split_keys',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
@@ -160,6 +165,7 @@ export const envelopeOfferDismissalsTable = pgTable(
   'envelope_offer_dismissals',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     transactionId: uuid('transaction_id')
       .notNull()
       .unique('envelope_offer_dismissals_transaction_unique')

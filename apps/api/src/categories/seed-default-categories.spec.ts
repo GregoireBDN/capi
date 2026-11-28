@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { eq, inArray } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -41,6 +42,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     async function withEmptyCategories(fn: (tx: Tx) => Promise<void>) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           await tx.delete(categoriesTable)
           await tx.delete(deletedDefaultCategoriesTable)
           await fn(tx)
@@ -53,7 +55,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('inserts every default category on an empty table', async () => {
       await withEmptyCategories(async (tx) => {
-        const result = await seedDefaultCategories(tx)
+        const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
         expect(result).toEqual({
           inserted: DEFAULT_CATEGORIES.length,
@@ -77,13 +79,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('is a no-op the second time and keeps user edits', async () => {
       await withEmptyCategories(async (tx) => {
-        await seedDefaultCategories(tx)
+        await seedDefaultCategories(tx, await asSpecOwner(tx))
         await tx
           .update(categoriesTable)
           .set({ name: 'Supermarché', color: '#000000' })
           .where(eq(categoriesTable.slug, 'groceries'))
 
-        const result = await seedDefaultCategories(tx)
+        const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
         expect(result).toEqual({
           inserted: 0,
@@ -102,7 +104,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('fills a missing default icon and keeps a chosen one', async () => {
       await withEmptyCategories(async (tx) => {
-        await seedDefaultCategories(tx)
+        await seedDefaultCategories(tx, await asSpecOwner(tx))
         await tx
           .update(categoriesTable)
           .set({ icon: null })
@@ -118,7 +120,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           color: '#2a78d6',
         })
 
-        const result = await seedDefaultCategories(tx)
+        const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
         expect(result.iconsFilled).toBe(2)
         const rows = await tx.select().from(categoriesTable)
@@ -137,7 +139,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('keeps custom and archived categories as they are', async () => {
       await withEmptyCategories(async (tx) => {
-        await seedDefaultCategories(tx)
+        await seedDefaultCategories(tx, await asSpecOwner(tx))
         const archivedAt = new Date('2026-02-01T10:00:00Z')
         await tx
           .update(categoriesTable)
@@ -150,7 +152,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           color: '#2a78d6',
         })
 
-        const result = await seedDefaultCategories(tx)
+        const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
         expect(result).toEqual({
           inserted: 0,
@@ -172,11 +174,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('does not re-create a default category the user deleted', async () => {
       await withEmptyCategories(async (tx) => {
-        await seedDefaultCategories(tx)
+        await seedDefaultCategories(tx, await asSpecOwner(tx))
         await tx.delete(categoriesTable).where(eq(categoriesTable.slug, 'rent'))
         await tx.insert(deletedDefaultCategoriesTable).values({ slug: 'rent' })
 
-        const result = await seedDefaultCategories(tx)
+        const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
         expect(result).toEqual({
           inserted: 0,
@@ -191,10 +193,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('only re-creates the missing categories', async () => {
       await withEmptyCategories(async (tx) => {
-        await seedDefaultCategories(tx)
+        await seedDefaultCategories(tx, await asSpecOwner(tx))
         await tx.delete(categoriesTable).where(eq(categoriesTable.slug, 'rent'))
 
-        const result = await seedDefaultCategories(tx)
+        const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
         expect(result).toEqual({
           inserted: 1,

@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import {
   RULE_MATCH_TYPES,
   TRANSACTION_KINDS,
@@ -10,6 +11,7 @@ import {
   pgEnum,
   pgTable,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
@@ -21,22 +23,27 @@ import type { CategoryIcon } from './category-icons'
 export const transactionKindEnum = pgEnum('transaction_kind', TRANSACTION_KINDS)
 export const ruleMatchTypeEnum = pgEnum('rule_match_type', RULE_MATCH_TYPES)
 
-export const categoriesTable = pgTable('categories', {
-  ...coreColumns,
-  /** Stable identifier used by seeds, rules and the history import (e.g. `groceries`). */
-  slug: varchar('slug', { length: 64 }).notNull().unique(),
-  name: varchar('name', { length: 100 }).notNull(),
-  /** Category group: the kind given to transactions filed under this category. */
-  kind: transactionKindEnum('kind').notNull(),
-  color: varchar('color', { length: 16 }),
-  /** One of `CATEGORY_ICONS` (#266); null shows a generic tag. */
-  icon: varchar('icon', { length: 32 }).$type<CategoryIcon>(),
-  /**
-   * Set when the user archives the category: it leaves the pickers but keeps
-   * its transactions, rules, budgets and its place in statistics.
-   */
-  archivedAt: timestamp('archived_at', { withTimezone: true }),
-})
+export const categoriesTable = pgTable(
+  'categories',
+  {
+    ...coreColumns,
+    userId: ownerColumn(),
+    /** Stable identifier used by seeds, rules and the history import (e.g. `groceries`). */
+    slug: varchar('slug', { length: 64 }).notNull(),
+    name: varchar('name', { length: 100 }).notNull(),
+    /** Category group: the kind given to transactions filed under this category. */
+    kind: transactionKindEnum('kind').notNull(),
+    color: varchar('color', { length: 16 }),
+    /** One of `CATEGORY_ICONS` (#266); null shows a generic tag. */
+    icon: varchar('icon', { length: 32 }).$type<CategoryIcon>(),
+    /**
+     * Set when the user archives the category: it leaves the pickers but keeps
+     * its transactions, rules, budgets and its place in statistics.
+     */
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+  },
+  (t) => [unique('categories_slug_unique').on(t.userId, t.slug)],
+)
 
 /**
  * Slugs of default categories the user deleted, so that `pnpm db:seed` (run on
@@ -46,8 +53,12 @@ export const deletedDefaultCategoriesTable = pgTable(
   'deleted_default_categories',
   {
     ...coreColumns,
-    slug: varchar('slug', { length: 64 }).notNull().unique(),
+    userId: ownerColumn(),
+    slug: varchar('slug', { length: 64 }).notNull(),
   },
+  (t) => [
+    unique('deleted_default_categories_slug_unique').on(t.userId, t.slug),
+  ],
 )
 
 /**
@@ -58,6 +69,7 @@ export const categorizationRulesTable = pgTable(
   'categorization_rules',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     /** Creation order: breaks ties of the computed order (#299). */
     position: integer('position').notNull(),
     /**
@@ -110,8 +122,15 @@ export const selectCategorizationRuleSchema = createSelectSchema(
 )
 
 export type InsertCategory = typeof categoriesTable.$inferInsert
-export type SelectCategory = typeof categoriesTable.$inferSelect
+/**
+ * A category as the rules and pickers use it; its owner (ADR 0009) is not
+ * part of it, so fixtures and in-memory previews need none.
+ */
+export type SelectCategory = Omit<typeof categoriesTable.$inferSelect, 'userId'>
 export type InsertCategorizationRule =
   typeof categorizationRulesTable.$inferInsert
-export type SelectCategorizationRule =
-  typeof categorizationRulesTable.$inferSelect
+/** A rule as `categorize` reads it, without its owner (see `SelectCategory`). */
+export type SelectCategorizationRule = Omit<
+  typeof categorizationRulesTable.$inferSelect,
+  'userId'
+>

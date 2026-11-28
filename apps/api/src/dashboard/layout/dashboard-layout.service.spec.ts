@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { BadRequestException } from '@nestjs/common'
 import { eq } from 'drizzle-orm'
@@ -60,6 +61,7 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
   ) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         const service = new DashboardLayoutService({
           db: tx,
         } as unknown as DatabaseService)

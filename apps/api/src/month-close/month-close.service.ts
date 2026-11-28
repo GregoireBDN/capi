@@ -354,7 +354,7 @@ export class MonthCloseService {
       .insert(monthClosesTable)
       .values({ month, ...set })
       .onConflictDoUpdate({
-        target: monthClosesTable.month,
+        target: [monthClosesTable.userId, monthClosesTable.month],
         set: { ...set, updatedAt: new Date() },
         setWhere: isNull(monthClosesTable.closedAt),
       })
@@ -410,7 +410,7 @@ export class MonthCloseService {
       .insert(monthClosesTable)
       .values({ month, ...values })
       .onConflictDoUpdate({
-        target: monthClosesTable.month,
+        target: [monthClosesTable.userId, monthClosesTable.month],
         set: { ...values, updatedAt: new Date() },
         setWhere: isNull(monthClosesTable.closedAt),
       })

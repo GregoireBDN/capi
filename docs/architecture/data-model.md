@@ -401,7 +401,7 @@ Impact: **C** correctness, **S** simplicity, **F** upcoming features, **P** perf
 
 ## 7. Several users (ADR 0009, planned)
 
-Finding 15 no longer holds: the owner chose real users in one instance (#538, 2026-11-26). [ADR 0009](../adr/0009-several-users.md) is the target; nothing below is in the code yet.
+Finding 15 no longer holds: the owner chose real users in one instance (#538, 2026-11-26). [ADR 0009](../adr/0009-several-users.md) is the target. Done: the owner column and the per-user unique keys (#555, migration `0058`); the rest is planned.
 
 - **Owner on every private row**: `user_id uuid NOT NULL DEFAULT app_user_id() REFERENCES users ON DELETE CASCADE` on the 13 root and 24 child tables (list in the ADR), `UNIQUE (id, user_id)` on every parent and composite foreign keys between private tables, so a link never crosses owners (#555).
 - **Per-user unique keys**: `(user_id, slug)` for `categories` and `deleted_default_categories`, `(user_id, key)` for `app_settings`, `(user_id, lower(name))` for `contacts`, `(user_id, month)` for `month_closes`, `(user_id, type)` and `(user_id, position)` for `dashboard_widgets`, `(user_id, delimiter, headers)` for `import_profiles`, `(user_id, public_key)` for `crypto_wallet_keys` (#555).

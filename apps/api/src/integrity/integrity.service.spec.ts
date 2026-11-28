@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -84,6 +85,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     ) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           const database = { db: tx } as never
           const accounts = new AccountsService(database)
           const transactions = new TransactionsService(database)

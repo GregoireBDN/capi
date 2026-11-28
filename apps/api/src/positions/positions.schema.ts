@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -82,6 +83,7 @@ export const positionStatementsTable = pgTable(
   'position_statements',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
@@ -101,6 +103,7 @@ export const positionLinesTable = pgTable(
   'position_lines',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     statementId: uuid('statement_id')
       .notNull()
       .references(() => positionStatementsTable.id, { onDelete: 'cascade' }),
@@ -141,6 +144,7 @@ export const dividendsTable = pgTable(
   'dividends',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
