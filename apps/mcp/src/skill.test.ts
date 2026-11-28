@@ -85,6 +85,8 @@ describe('Capi skill', () => {
       'share_expense',
       'split_transaction',
       'create_rule',
+      'create_envelope',
+      'add_to_envelope',
     ])
       expect(all).toContain(`\`${name}\``)
     expect(all).toContain('date;amount;label;balance')
@@ -133,7 +135,7 @@ describe('tool definitions size', () => {
   it(`stays under ${TOOL_DEFINITIONS_BUDGET} characters`, async () => {
     const { client } = await connect({})
     const { tools: listed } = await client.listTools()
-    expect(listed).toHaveLength(37)
+    expect(listed).toHaveLength(39)
     const size = listed.reduce((sum, t) => sum + JSON.stringify(t).length, 0)
     expect(size).toBeLessThanOrEqual(TOOL_DEFINITIONS_BUDGET)
   })

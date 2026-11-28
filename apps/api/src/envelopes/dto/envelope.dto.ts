@@ -248,6 +248,33 @@ export class MoveEnvelopeMoneyDto {
   note?: string | null
 }
 
+/** Adding to an envelope from « libre » on one account (#518). */
+export class TopUpEnvelopeDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  @IsUUID()
+  accountId!: string
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    maximum: ENVELOPE_AMOUNT_MAX_CENTS,
+    description: 'Taken from the account’s « libre »; the money does not move.',
+  })
+  @Amount(1)
+  amountCents!: number
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: ENVELOPE_NOTE_MAX,
+  })
+  @IsOptional()
+  @trimToNull()
+  @IsString()
+  @MaxLength(ENVELOPE_NOTE_MAX)
+  note?: string | null
+}
+
 export class SplitKeyShareDto {
   @ApiProperty({ type: String, format: 'uuid' })
   @IsUUID()
