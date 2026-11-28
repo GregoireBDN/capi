@@ -123,6 +123,64 @@ function snapshotRoutes(initial: SnapshotDto[]) {
   }
 }
 
+function held(
+  assetId: string,
+  symbol: string,
+  quantity: string,
+  location: string,
+  priceStale = false,
+  priceEur: string | null = '61234.56',
+): ValuedHoldingDto {
+  return {
+    id: `00000000-0000-4000-8000-${String(quantity.length).padStart(12, '0')}`,
+    accountId: ledger.id,
+    assetId,
+    symbol,
+    name: symbol,
+    quantity,
+    location,
+    investedCents: null,
+    note: null,
+    origin: 'sync',
+    priceEur,
+    priceSource: priceEur === null ? null : 'provider',
+    priceFetchedAt: priceEur === null ? null : '2026-11-13T22:30:00.000Z',
+    priceChange24hPercent: null,
+    priceStale,
+    valueCents: null,
+    gainCents: null,
+  }
+}
+
+function holdings(
+  accountId: string,
+  lines: ValuedHoldingDto[],
+  costs: AccountHoldingsDto['costs'],
+): AccountHoldingsDto {
+  return {
+    accountId,
+    holdings: lines,
+    totals: {
+      valueCents: 0,
+      investedCents: null,
+      gainCents: null,
+      missingPriceCount: 0,
+      staleCount: 0,
+      withoutInvestedCount: 0,
+      unknown: [],
+      fiatCents: 0,
+    },
+    complete: false,
+    snapshot: null,
+    priceApiEnabled: true,
+    refreshFailed: false,
+    sync: null,
+    refreshDue: false,
+    costs,
+    realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
+  }
+}
+
 describe('list_investment_accounts', () => {
   it('lists investment accounts with their last value and the stale ones', async () => {
     const summary: InvestmentsSummaryDto = {
@@ -237,10 +295,43 @@ describe('list_investment_accounts', () => {
       },
       statements: [],
     }
-    const { call } = await connect({
+    const { call, calls } = await connect({
       '/api/investments/summary': summary,
       '/api/accounts': accounts,
       [`/api/accounts/${pea.id}/positions`]: positions,
+      [`GET /api/accounts/${cryptoWallet.id}/holdings`]: holdings(
+        cryptoWallet.id,
+        [],
+        [],
+      ),
+      [`GET /api/accounts/${ledger.id}/holdings`]: holdings(
+        ledger.id,
+        [
+          held('bitcoin', 'BTC', '0.123456789012345678', 'Ledger', true),
+          held('bitcoin', 'BTC', '0.000000000000000001', ''),
+          held('ethereum', 'ETH', '2', 'Ledger', false, null),
+        ],
+        [
+          {
+            assetId: 'bitcoin',
+            symbol: 'BTC',
+            quantity: '0.123456789012345679',
+            costCents: 400000,
+            unknownQuantity: '0.100000000000000000',
+            valueCents: 300000,
+            gainCents: -100000,
+          },
+          {
+            assetId: 'ethereum',
+            symbol: 'ETH',
+            quantity: '2',
+            costCents: 0,
+            unknownQuantity: '2',
+            valueCents: null,
+            gainCents: null,
+          },
+        ],
+      ),
     })
     const { text, isError } = await call('list_investment_accounts')
     expect(isError).toBe(false)
@@ -262,6 +353,17 @@ describe('list_investment_accounts', () => {
       '  · ETF Monde fictif (ZZ00MSCIWD03) : 48 parts, 23 919,36 € (cours 498,32 € au 30/09/2026), PRU 412,515 €, résultat +4 118,64 €',
     )
     expect(text).toContain('  · Liquidités : 482,24 €')
+    // A crypto account's assets (#523): exact quantities, digit for digit,
+    // its places, a stale price said so; no asset line without holdings.
+    expect(text).toContain(
+      '  · BTC : 0,123456789012345679, 3 000,00 € (cours 61234,56 €, PAS À JOUR : cours du 13/11/2026), coût 4 000,00 €, résultat -1 000,00 €, dont 0,1 sans coût connu ; 0,123456789012345678 à Ledger, 0,000000000000000001 sans lieu',
+    )
+    expect(text).toContain('  · ETH : 2, sans cours, dont 2 sans coût connu')
+    // Stored values only: no price request or chain read.
+    expect(
+      calls.filter((c) => /\/(refresh|sync|valuate)$/.test(c.url.pathname)),
+    ).toHaveLength(0)
+    expect(calls.every((c) => c.method === 'GET')).toBe(true)
     expect(text).toContain('À mettre à jour : PEA, Crypto Test.')
     expect(text).toContain('Archivés (non modifiables) : PEE Ancien.')
   })

@@ -13,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Rows of a list of choices under titles (#396: « Habituels », « Les plus utilisées », « Toutes les catégories »): the whole row a button at least 52px high, a check once chosen. Put the groups in a `role="radiogroup"`.',
+          'Rows of a list of choices under titles (#396: « Habituels », « Les plus utilisées », « Toutes les catégories »): the whole row a rounded tile at least 52px high; the chosen one a solid raised tile of the primary colour with a check (#544). Put the groups in a `role="radiogroup"`.',
       },
     },
   },
@@ -33,7 +33,11 @@ const CATEGORIES = [
 function Categories() {
   const [chosen, setChosen] = React.useState('groceries')
   return (
-    <div role="radiogroup" aria-label="Catégorie" className="max-w-sm border">
+    <div
+      role="radiogroup"
+      aria-label="Catégorie"
+      className="max-w-sm border py-1.5"
+    >
       <OptionGroup title="Habituels">
         <OptionRow
           leading={<CategoryIcon icon="shopping-cart" color="#d97706" />}

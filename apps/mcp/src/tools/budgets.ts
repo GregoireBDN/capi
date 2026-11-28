@@ -69,7 +69,7 @@ export const budgetStatusTool = defineTool({
   name: 'budget_status',
   title: 'Budget du mois',
   description:
-    "Budget of one month, both sides: the planned income per income category vs what came in (income lines only, transfers never; a partial month is compared with what was due by the data's last day when the date of the credit is known), what the plan leaves to save (planned income − budgeted expenses), then spent vs target per budgeted expense category (positive cents, refunds deducted), totals, and the biggest spending without a budget. A month without planned income lists the income to plan (from the confirmed recurring credits). For the current month it also lists the envelopes tracked during the month with the even pace (target × day / days in the month).",
+    "Budget of one month: planned income per category vs what came in (transfers never; a partial month vs what was due by the data's last day), what the plan leaves to save, spent vs target per budgeted expense category (refunds deducted), totals and the biggest unbudgeted spending. Without planned income: the income to plan (confirmed recurring credits). Current month: tracked envelopes with the even pace.",
   inputSchema: {
     month: z
       .string()

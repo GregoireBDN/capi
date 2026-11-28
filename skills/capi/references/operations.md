@@ -21,12 +21,14 @@ The tools describe their own arguments; this file says when to use which, and wh
 
 ## Rules
 
+Read the rules first: `list_rules` (with `category` to narrow it) gives each rule as a sentence, its rank in the evaluation order, its matches over 12 months and the conflicts (which rule wins). Before proposing a rule, check that none already does it, or that editing one with `update_rule` (pattern, category, turn it off) is not the better fix. Deleting a rule or making another one win (« Faire gagner cette règle ») is done in the app.
+
 `create_rule`: transactions whose label contains the pattern get the category.
 
 - Take the stable part of the label (the merchant's name), never a date, a card number or a mandate reference.
 - The most precise rule wins; transactions filed by hand are never rewritten.
 - The preview says how many transactions match and the conflicts with existing rules: sum them up.
-- By default a rule applies to the next imports only; ask before applying it to existing transactions.
+- By default a new or edited rule applies to the next imports only; ask before applying it to existing transactions.
 
 ## Splitting a transaction
 
