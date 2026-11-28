@@ -398,3 +398,13 @@ Impact: **C** correctness, **S** simplicity, **F** upcoming features, **P** perf
 13. **Rules, budgets, categories.** (S) `position` is only the creation order now (#299) and duplicates `created_at`; harmless, left as is. Budgets' effective dating works well and is the model to copy (R2's dated base). `deleted_default_categories` is a small, clear tombstone table: keep. Months are `varchar` `YYYY-MM` in `month_closes` and first-of-month `date` in `budgets`: two spellings of one notion, not worth a migration; new tables use `date` first of month.
 14. **Indexes.** (P) Fine at today's scale (§ 5). R4 makes bank-date reads indexable; a partial index on `needs_review` costs nothing. A trigram index for the label search is not needed yet.
 15. **Single user.** Finance tables have no `user_id`, on purpose: there is one owner, sign-up closes after the first account, and every query would otherwise carry a filter that is always the same. Multi-user is out of scope (#362); adding it later would mean a `user_id` on the roots (`accounts`, `categories`, `categorization_rules`, `budgets`, `envelopes`, `month_closes`, `app_settings`, `crypto_asset_aliases`) and row-level security. Recorded in ADR 0005.
+
+## 7. Several users (ADR 0009, planned)
+
+Finding 15 no longer holds: the owner chose real users in one instance (#538, 2026-11-26). [ADR 0009](../adr/0009-several-users.md) is the target; nothing below is in the code yet.
+
+- **Owner on every private row**: `user_id uuid NOT NULL DEFAULT app_user_id() REFERENCES users ON DELETE CASCADE` on the 13 root and 24 child tables (list in the ADR), `UNIQUE (id, user_id)` on every parent and composite foreign keys between private tables, so a link never crosses owners (#555).
+- **Per-user unique keys**: `(user_id, slug)` for `categories` and `deleted_default_categories`, `(user_id, key)` for `app_settings`, `(user_id, lower(name))` for `contacts`, `(user_id, month)` for `month_closes`, `(user_id, type)` and `(user_id, position)` for `dashboard_widgets`, `(user_id, delimiter, headers)` for `import_profiles`, `(user_id, public_key)` for `crypto_wallet_keys` (#555).
+- **Row-level security** on every private table (`user_id = app_user_id()`, `FORCE`), the API connected as `capi_app` (not the owner, no `BYPASSRLS`), `transaction_lines` with `security_invoker` (#557).
+- **Global**: `crypto_prices`, `crypto_price_history`, `crypto_asset_aliases`, `securities`, `security_prices`. **Identity** (already per user, outside RLS): `users` and the session, passkey, token and OAuth tables.
+- **Shared tables** (#561, #562): `user_connections` and one table per shared object with its members, read through a membership policy, each member writing only the rows that come from their own data.

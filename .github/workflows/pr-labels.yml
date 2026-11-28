@@ -1,0 +1,70 @@
+# Labels the pull requests that wait for the owner (#600), and keeps
+# auto-merge off on them:
+# - `visuel`: the PR changes what is on screen (apps/web, packages/ui,
+#   apps/ui-docs), so the owner tests it on the phone first;
+# - `à-valider`: the PR changes a migration, auth, the workflows or the
+#   deployment, so the owner reads it first.
+# A PR with neither label may get auto-merge (squash) once it is opened: the
+# `main` ruleset still requires its four checks. This workflow never enables
+# auto-merge itself: a merge made with GITHUB_TOKEN would not start the
+# workflows of the push to `main` (staging). It only disables it on a PR that
+# carries one of the labels, whenever the PR changes, is labelled, or has
+# auto-merge enabled.
+name: PR labels
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, auto_merge_enabled]
+
+concurrency:
+  group: pr-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  labels:
+    name: visuel · à-valider
+    # A fork's token can't write labels; such PRs are never auto-merged.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # disabling auto-merge
+      issues: write # creating the labels
+      pull-requests: write # adding labels, disabling auto-merge
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      ACTION: ${{ github.event.action }}
+    steps:
+      - name: Label from the changed files
+        if: env.ACTION != 'labeled' && env.ACTION != 'auto_merge_enabled'
+        run: |
+          set -euo pipefail
+          files=$(gh api --paginate "repos/$GH_REPO/pulls/$PR/files" --jq '.[].filename')
+
+          gh label create 'visuel' --color 1d76db \
+            --description 'Changes the screen: the owner tests it before merge' --force
+          gh label create 'à-valider' --color d93f0b \
+            --description 'Migration, auth, workflows or deployment: the owner reads it before merge' --force
+
+          if grep -qE '^(apps/web|packages/ui|apps/ui-docs)/' <<<"$files"; then
+            gh pr edit "$PR" --add-label 'visuel'
+          fi
+          if grep -qE '^(apps/api/drizzle/|apps/api/src/auth/|\.github/workflows/|deploy/|docker-compose[^/]*\.yml$)' <<<"$files"; then
+            gh pr edit "$PR" --add-label 'à-valider'
+          fi
+
+      - name: No auto-merge on a labelled PR
+        run: |
+          set -euo pipefail
+          state=$(gh pr view "$PR" --json labels,autoMergeRequest \
+            --jq '[([.labels[].name] | any(. == "visuel" or . == "à-valider")), (.autoMergeRequest != null)] | @tsv')
+          read -r labelled auto <<<"$state"
+          if [ "$labelled" = true ] && [ "$auto" = true ]; then
+            gh pr merge "$PR" --disable-auto
+            echo "::notice::Auto-merge disabled: this PR waits for the owner (visuel / à-valider)."
+          fi
