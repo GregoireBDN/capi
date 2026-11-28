@@ -41,6 +41,14 @@ while (($#)); do
   esac
 done
 cmd=${args[0]}
+# Like compose: the files require CAPI_VERSION, from the environment or .env.
+if ((${#files[@]})); then
+  version=${CAPI_VERSION:-$(sed -n 's/^CAPI_VERSION=//p' .env 2>/dev/null | tail -n 1)}
+  if [[ -z $version ]]; then
+    echo "required variable CAPI_VERSION is missing a value" >&2
+    exit 1
+  fi
+fi
 if [[ $cmd == config ]]; then
   n=$(sed -n 's/^PREVIEW_NUMBER=//p' .env)
   if [[ ${args[1]:-} == --services ]]; then
@@ -175,6 +183,18 @@ pulls 40:1::b
 image 40 b
 run sync
 check "next commit deployed, failure cleared" 'grep -q "^CAPI_VERSION=pr-40-bbbbbbb$" "$srv/pr-40/.env" && [[ ! -e $srv/pr-40/.failed ]]'
+
+echo "# a stopped preview (failed deploy) is still removed when its pull request closes"
+reset
+pulls 40:5
+image 40
+echo "capi-pr-40 run dist/database/migrate.js" >"$state/fail"
+run sync || true
+rm "$state/fail"
+pulls 41:5
+: >"$state/calls"
+run sync
+check "pr-40 down -v despite its empty version" '[[ "$(calls)" == *"capi-pr-40 down"* ]] && [[ ! -e $srv/pr-40 ]]'
 
 echo "# a preview never takes production's or staging's alias"
 reset
