@@ -50,6 +50,7 @@ import {
 } from '#/auth/session-cookies'
 import { UserDto } from '#/user/user.dto'
 import { env } from '#/config/env'
+import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
 
 const demoSignInConfig = () => ({
   enabled: env.DEMO_AUTO_SIGN_IN,
@@ -58,6 +59,7 @@ const demoSignInConfig = () => ({
 })
 
 @ApiTags('Auth')
+@WithoutOwnerScope()
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name)

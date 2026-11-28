@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { APP_FILTER, APP_GUARD } from '@nestjs/core'
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { LoggerModule } from 'nestjs-pino'
 import { loggerParams } from './config/logger'
@@ -17,6 +17,7 @@ import { CryptoModule } from '#/crypto/crypto.module'
 import { CryptoImportsModule } from '#/imports/crypto/crypto-imports.module'
 import { DashboardModule } from '#/dashboard/dashboard.module'
 import { DatabaseModule } from '#/database/database.module'
+import { OwnerScopeInterceptor } from '#/database/request-scope/owner-scope.interceptor'
 import { EmailModule } from '#/email/email.module'
 import { ForecastModule } from '#/forecast/forecast.module'
 import { HealthModule } from '#/health/health.module'
@@ -77,6 +78,8 @@ import { UserModule } from '#/user/user.module'
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Each authenticated request in its user's transaction (ADR 0009, #557).
+    { provide: APP_INTERCEPTOR, useClass: OwnerScopeInterceptor },
     // Normalises every unhandled exception into a uniform error envelope.
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
