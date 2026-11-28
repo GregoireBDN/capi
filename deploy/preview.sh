@@ -133,9 +133,14 @@ failed_version() {
 }
 
 compose_in() {
-  local n=$1
+  local n=$1 version
   shift
-  (cd "$PREVIEWS_DIR/pr-$n" && docker compose -p "capi-pr-$n" -f "${COMPOSE_FILES[0]}" -f "${COMPOSE_FILES[1]}" "$@")
+  # A stopped preview (failed deploy) has an empty CAPI_VERSION in its .env,
+  # which the compose files require: a placeholder lets `down` and `config`
+  # still read them (#608). Nothing is pulled or started with it.
+  version=$(running_version "$n")
+  (cd "$PREVIEWS_DIR/pr-$n" && CAPI_VERSION=${version:-stopped} FINANCES_VERSION=${version:-stopped} \
+    docker compose -p "capi-pr-$n" -f "${COMPOSE_FILES[0]}" -f "${COMPOSE_FILES[1]}" "$@")
 }
 
 # write_env N VERSION — the preview's .env: secrets made once, version updated.

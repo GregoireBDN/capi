@@ -17,6 +17,27 @@ The owner's week starts on **Friday**, when his weekly usage limit resets, and *
 
 Evening runs land after the day's work and before the next morning run, so a « Oui » given in the evening starts the next morning (Sunday evening's starts on Wednesday).
 
+## Every run leaves its recap on « Routines Capi »
+
+The owner reads his routines on a page, not in conversations. Every run, whatever the routine, ends by writing **one document** to the database of the « Routines Capi » artifact (https://claude.ai/artifact/Q11jKVYRX3E4bPekevPLzz), with the `ArtifactData` tool: `set` in the collection `runs`, `doc_id` `<routine>-<YYYY-MM-DD>` (rewriting the same day's document if it runs again, pinned with `if_version`):
+
+```json
+{
+  "routine": "matin | securite | maintenabilite | propositions | revue | bilan",
+  "at": "2026-11-29T06:00:00+01:00",
+  "summary": "one or two short French sentences",
+  "items": [
+    {
+      "label": "few words",
+      "url": "https://…",
+      "status": "attente | alerte | demarre | fusionne | info"
+    }
+  ]
+}
+```
+
+`attente` items (a decision card, a preview to test, a PR to read) and `alerte` items (a live risk) appear at the top of the page under « T'attend »; the page shows each routine's latest run. At most 5 items, links to GitHub, threads or artifacts only, French, no amounts, labels or other financial data. A message in the project chat stays short and points to the page.
+
 ## How a proposal becomes work
 
 ```text
@@ -58,6 +79,8 @@ What makes the next thread faster and safer: files and functions that grew too b
 
 Claude proposes evolutions itself: from the roadmap and its milestones, what the merged work now makes possible, gaps between the app, the MCP and the Skill, the mobile audit conventions, and the owner's recurring asks in the project chat. Never from real financial data. 2–3 ideas per run, each with a one-line why and, for a visual idea, the note that it will start with 2–3 mockups. Proposals: `feat` issues.
 
+Mostly the app, and **at most one proposal a week on the owner's workflow around Capi**: the routines themselves, how Claude projects are split, tooling and CI, as an issue in `capi` with `area:ci`. The server and the `infra` repository (Caddy, the portal, backups, Tailscale) belong to the separate « Serveur gbodin.cloud » Claude project since 2026-11-28, which has its own routines: Capi's proposals never cover them. Every proposal says what the owner would have to do himself. A proposal may also be **a new artifact** that would help him understand or follow something; « Oui » makes it.
+
 ### Weekly review and artifacts (weekly, Thursday)
 
 - One message: merged this week, started, waiting for the owner, `proposition` cards still open, what the next week's mornings will start.
@@ -69,9 +92,9 @@ Claude proposes evolutions itself: from the roadmap and its milestones, what the
 
 One message: import the month's statements in Capi, then ask Claude for the « Bilan du mois » (Skill `capi`). With the Capi tools, it names the accounts still to import by type only, never amounts or labels; it imports, categorizes and closes nothing. After the re-import (#483) it will propose replacing the owner's separate Drive-based monthly task.
 
-### Server health (GitHub workflow, #613)
+### The server is another project's
 
-The cloud cannot reach the server, so this one is not a Claude routine: a scheduled workflow joins the tailnet, runs a read-only report (disk, reclaimable images, certificate, backups, health endpoints, previews) and opens an issue only when a check fails.
+Server health (disk, certificate, backups, server ≟ `infra` `main`) is checked by the « Serveur gbodin.cloud » Claude project, not here (#613 closed). What stays in `capi` is what runs from this repository: previews (`deploy/preview.sh`), staging and production deploys.
 
 ## Change or stop a routine
 
