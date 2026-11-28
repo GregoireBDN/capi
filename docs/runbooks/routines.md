@@ -73,7 +73,7 @@ Reads, never changes production. Inputs: the week's `security.yml` and `containe
 
 ### Maintainability audit for an AI (weekly, Saturday)
 
-What makes the next thread faster and safer: files and functions that grew too big, duplicated logic, dead code and unused exports, tests missing around domain rules, `CLAUDE.md` and `docs/domain/` that drifted from the code or grew past what a session reads, `TODO` without an issue, slow or flaky tests. One area per run, rotating (API, web, MCP, packages, docs), so a run stays short. Proposals: `chore` refactor issues, each behaviour-preserving with the tests that prove it.
+What makes the next thread faster and safer: files and functions that grew too big, duplicated logic, dead code and unused exports, tests missing around domain rules, `CLAUDE.md` and `docs/domain/` that drifted from the code or grew past what a session reads, `TODO` without an issue, slow or flaky tests. One area per run, rotating (API, web, MCP, packages, docs), so a run stays short; the `docs` area comes first when Thursday's review found `CLAUDE.md`, `docs/domain/` or the Skill over budget. Proposals: `chore` refactor issues, each behaviour-preserving with the tests that prove it.
 
 ### Product proposals (weekly, Sunday)
 
@@ -85,7 +85,10 @@ Mostly the app, and **at most one proposal a week on the owner's workflow around
 
 - One message: merged this week, started, waiting for the owner, `proposition` cards still open, what the next week's mornings will start.
 - Every artifact of the project is read: one that drifted from the code or the roadmap is updated in place (same link); one that no longer serves (a decision taken and recorded elsewhere, a duplicate, a finished test protocol) is **proposed for deletion on one card** with its replacement. Deletion only after the owner's « Oui » on that card.
-- Project memory: wrong or stale entries fixed.
+- **Claude's context** (every thread loads `CLAUDE.md`, the memory index and what it recalls, so less to load is faster, cheaper and less error-prone; the owner's ask, 2026-11-28):
+  - Measure and note in the recap (`info`, sizes only): `CLAUDE.md`, the memory index `MEMORY.md`, the memory files, the Skill `skills/capi/`. Budgets: `CLAUDE.md` under 40 KB, `MEMORY.md` under 3 KB, each memory file under 4 KB.
+  - Project memory, decided alone: fix wrong or stale entries, merge duplicates, delete what the repo or GitHub now records (merged tickets, decisions in an ADR or `docs/domain/`, finished plans), keep the index one line per subject. Never delete a preference or a rule of the owner's; never write a secret.
+  - `CLAUDE.md`, `docs/domain/` or the Skill over budget or repeating each other: not changed here. The next Saturday's maintainability audit takes the `docs` area and proposes the move (details to `docs/domain/`, every rule kept, one line left in `CLAUDE.md`), inside its card budget.
 - **Release proposal**: when `main` has commits the latest `v*` tag does not and the latest staging deploy is green, one card « Mettre en prod vX.Y.Z ? » with the changes in plain words and the link to Actions › Staging. The owner tags and approves; no routine ever creates a tag.
 
 ### Month-end reminder (monthly, the 1st)
