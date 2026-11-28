@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
+  AccountEnvelopesDto,
   BudgetMonthDto,
   DashboardOverviewDto,
   EnvelopesDto,
@@ -153,9 +154,13 @@ describe('accounts_overview', () => {
       previous: flow(),
       reviewCount: 0,
     }
-    const { call } = await connect({ '/api/dashboard/overview': overview })
+    const { call } = await connect({
+      '/api/dashboard/overview': overview,
+      '/api/envelopes': [],
+    })
     const { text, isError } = await call('accounts_overview')
     expect(isError).toBe(false)
+    expect(text).not.toContain('libre')
     expect(text).toContain('Patrimoine net : 12 345,67 €')
     expect(text).toContain('soit +345,67 € depuis')
     expect(text).toContain(
@@ -164,6 +169,129 @@ describe('accounts_overview', () => {
     expect(text).toContain(
       'PEA (PEA, Banque Test) : 10 000,00 € au 30/09/2026 — pas à jour',
     )
+  })
+  it('gives « libre » and the shortfall of accounts holding envelopes (#522)', async () => {
+    const overview: DashboardOverviewDto = {
+      netWorth: {
+        totalCents: 1133456,
+        cashCents: 133456,
+        investmentsCents: 1000000,
+        previousMonthEnd: '2026-10-31',
+        previousMonthEndCents: null,
+        unknownBalanceCount: 0,
+      },
+      accounts: [
+        { ...checking, group: 'cash', dataUntil: '2026-11-10', stale: false },
+        {
+          ...livret,
+          balanceCents: 10000,
+          group: 'cash',
+          dataUntil: '2026-11-10',
+          stale: false,
+        },
+        {
+          ...pea,
+          group: 'investments',
+          balanceCents: 1000000,
+          dataUntil: null,
+          stale: false,
+        },
+      ],
+      period: period(),
+      current: flow({ month: '2026-11' }),
+      previous: flow(),
+      reviewCount: 0,
+    }
+    const plan = {
+      remainingCents: null,
+      progressRatio: null,
+      reached: false,
+      monthsLeft: null,
+      targetDatePassed: false,
+      requiredMonthlyCents: null,
+    }
+    const envelope = (id: string, amounts: [string, number][]) => ({
+      id,
+      name: `Enveloppe ${id}`,
+      icon: null,
+      color: null,
+      targetCents: null,
+      dueDate: null,
+      archived: false,
+      categoryIds: [],
+      totalCents: amounts.reduce((s, [, c]) => s + c, 0),
+      paidCents: 0,
+      putAsideCents: 0,
+      accounts: amounts.map(([accountId, amountCents]) => ({
+        accountId,
+        accountName: 'test',
+        amountCents,
+      })),
+      plan,
+    })
+    const split = (
+      accountId: string,
+      balanceCents: number,
+      allocatedCents: number,
+    ): AccountEnvelopesDto => ({
+      accountId,
+      balanceCents,
+      balanceDate: '2026-11-10',
+      envelopes: [],
+      allocatedCents,
+      freeCents: balanceCents - allocatedCents,
+      shortfallCents: Math.max(0, allocatedCents - balanceCents),
+      splitKey: [],
+      freeBasisPoints: 10000,
+    })
+    const { call, calls } = await connect({
+      '/api/dashboard/overview': overview,
+      '/api/envelopes': [
+        envelope('e1', [
+          [checking.id, 30000],
+          [livret.id, 25000],
+        ]),
+        envelope('e2', [
+          [checking.id, 15000],
+          [pea.id, 0],
+        ]),
+      ],
+      [`/api/accounts/${checking.id}/envelopes`]: split(
+        checking.id,
+        123456,
+        45000,
+      ),
+      [`/api/accounts/${livret.id}/envelopes`]: split(livret.id, 10000, 25000),
+    })
+    const { text, isError } = await call('accounts_overview')
+    expect(isError).toBe(false)
+    expect(text).toContain(
+      'Patrimoine net : 11 334,56 € (liquidités 1 334,56 €',
+    )
+    expect(text).toContain(
+      '- Compte courant (compte courant, Banque Test) : 1 234,56 € au 10/11/2026 · dont 450,00 € dans des enveloppes · 784,56 € libre',
+    )
+    expect(text).toContain(
+      '- Livret A (épargne, Banque Test) : 100,00 € au 10/11/2026 · dont 250,00 € dans des enveloppes · il manque 150,00 € pour couvrir les enveloppes',
+    )
+    expect(text).toContain(
+      '- PEA (PEA, Banque Test) : 10 000,00 € au 10/11/2026\n',
+    )
+    expect(text).toContain(
+      'Libre sur les comptes bancaires (soldes moins enveloppes, déjà comptées dans le patrimoine) : 634,56 €.',
+    )
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/envelopes')!
+        .url.searchParams.get('includeArchived'),
+    ).toBe('true')
+    expect(
+      calls.filter(
+        (c) =>
+          c.url.pathname.endsWith('/envelopes') &&
+          c.url.pathname.startsWith('/api/accounts/'),
+      ),
+    ).toHaveLength(2)
   })
 })
 
