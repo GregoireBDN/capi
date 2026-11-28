@@ -36,7 +36,7 @@ The owner reads his routines on a page, not in conversations. Every run, whateve
 }
 ```
 
-`attente` items (a decision card, a preview to test, a PR to read) and `alerte` items (a live risk) appear at the top of the page under « T'attend »; the page shows each routine's latest run. At most 5 items, links to GitHub, threads or artifacts only, French, no amounts, labels or other financial data. A message in the project chat stays short and points to the page.
+`attente` items (a decision card, a preview to test, a PR to read), together with the « what to test » steps of every open visual PR (collection `tests`, [morning routine](morning-routine.md#decision-rules)), and `alerte` items (a live risk) appear at the top of the page under « T'attend »; the page shows each routine's latest run. At most 5 items, links to GitHub, threads or artifacts only, French, no amounts, labels or other financial data. A message in the project chat stays short and points to the page.
 
 ## How a proposal becomes work
 

@@ -4,6 +4,10 @@
 
 Closes #
 
+## À tester
+
+<!-- Visual PRs (`visuel`): 2 to 5 steps for the owner on the preview, each « screen › action → what he should see ». Delete for other PRs. -->
+
 ## How tested
 
 <!-- Commands run, scenarios checked manually, screenshots for UI changes. -->
