@@ -56,6 +56,7 @@ describe('tool list', () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       'accounts_overview',
       'add_investment_snapshots',
+      'add_to_envelope',
       'add_transaction',
       'budget_history',
       'budget_status',
@@ -63,6 +64,7 @@ describe('tool list', () => {
       'categorize_transactions',
       'close_months',
       'commit_bank_import',
+      'create_envelope',
       'create_investment_account',
       'create_rule',
       'integrity_checks',
@@ -110,6 +112,8 @@ describe('tool list', () => {
       'split_transaction',
       'share_expense',
       'link_repayment',
+      'create_envelope',
+      'add_to_envelope',
     ])
     // Writes no transaction (a pending preview only): nothing to confirm (#103).
     const withoutConfirm = new Set(['preview_bank_import'])
