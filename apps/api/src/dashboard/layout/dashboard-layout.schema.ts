@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -40,6 +41,7 @@ export const dashboardWidgetsTable = pgTable(
   'dashboard_widgets',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     type: dashboardWidgetTypeEnum('type').notNull(),
     position: integer('position').notNull(),
     hidden: boolean('hidden').notNull().default(false),
@@ -58,8 +60,8 @@ export const dashboardWidgetsTable = pgTable(
       .default({}),
   },
   (t) => [
-    unique('dashboard_widgets_type_unique').on(t.type),
-    unique('dashboard_widgets_position_unique').on(t.position),
+    unique('dashboard_widgets_type_unique').on(t.userId, t.type),
+    unique('dashboard_widgets_position_unique').on(t.userId, t.position),
     check('dashboard_widgets_position_positive', sql`${t.position} >= 0`),
     check(
       'dashboard_widgets_settings_object',
@@ -85,6 +87,7 @@ export const dashboardWidgetAccountsTable = pgTable(
   'dashboard_widget_accounts',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     widgetId: uuid('widget_id')
       .notNull()
       .references(() => dashboardWidgetsTable.id, { onDelete: 'cascade' }),
@@ -110,6 +113,7 @@ export const dashboardWidgetEnvelopesTable = pgTable(
   'dashboard_widget_envelopes',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     widgetId: uuid('widget_id')
       .notNull()
       .references(() => dashboardWidgetsTable.id, { onDelete: 'cascade' }),
@@ -131,6 +135,7 @@ export const dashboardWidgetCategoriesTable = pgTable(
   'dashboard_widget_categories',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     widgetId: uuid('widget_id')
       .notNull()
       .references(() => dashboardWidgetsTable.id, { onDelete: 'cascade' }),

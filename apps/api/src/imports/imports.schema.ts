@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { IMPORT_SOURCES } from '#/database/schema/domain-enums'
 import { sql } from 'drizzle-orm'
 import {
@@ -35,6 +36,7 @@ export const importsTable = pgTable(
   'imports',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'restrict' }),

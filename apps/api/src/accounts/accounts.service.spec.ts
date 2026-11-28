@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { NotFoundException, ValidationPipe } from '@nestjs/common'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -46,6 +47,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
   ) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         // The service only reads `db`; its own transactions become savepoints.
         await fn({ tx, service: new AccountsService({ db: tx } as never) })
         throw ROLLBACK

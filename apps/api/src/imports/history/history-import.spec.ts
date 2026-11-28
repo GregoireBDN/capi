@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -67,7 +68,8 @@ describe.skipIf(!process.env.DATABASE_URL)('history import (database)', () => {
   async function inRollback(fn: (tx: Tx) => Promise<void>) {
     await db
       .transaction(async (tx) => {
-        await seedDefaultCategories(tx)
+        await asSpecOwner(tx)
+        await seedDefaultCategories(tx, await asSpecOwner(tx))
         await fn(tx)
         throw ROLLBACK
       })

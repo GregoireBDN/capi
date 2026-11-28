@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   check,
@@ -23,6 +24,7 @@ export const monthClosesTable = pgTable(
   'month_closes',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     /** `YYYY-MM`. */
     month: varchar('month', { length: 7 }).notNull(),
     notes: text('notes'),
@@ -41,7 +43,7 @@ export const monthClosesTable = pgTable(
     reportVersion: smallint('report_version'),
   },
   (t) => [
-    unique('month_closes_month_unique').on(t.month),
+    unique('month_closes_month_unique').on(t.userId, t.month),
     check(
       'month_closes_month_format',
       sql`${t.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,

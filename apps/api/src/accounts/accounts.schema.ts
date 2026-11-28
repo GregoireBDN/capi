@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   ACCOUNT_TYPES,
@@ -37,6 +38,7 @@ export const accountsTable = pgTable(
   'accounts',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     name: varchar('name', { length: 100 }).notNull(),
     type: accountTypeEnum('type').notNull(),
     institution: varchar('institution', { length: 100 }),
@@ -129,6 +131,7 @@ export const balanceSnapshotsTable = pgTable(
   'balance_snapshots',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),

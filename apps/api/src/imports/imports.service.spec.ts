@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import {
   BadRequestException,
@@ -103,6 +104,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
   async function withFixture(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         // Deterministic categorization: only the rules created below.
         await tx.delete(categorizationRulesTable)
         const [account] = await tx

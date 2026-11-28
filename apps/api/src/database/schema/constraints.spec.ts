@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { eq, sql } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -57,6 +58,7 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
   async function inRollback(fn: (tx: Tx) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         await fn(tx)
         throw ROLLBACK
       })

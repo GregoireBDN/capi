@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import {
   BadRequestException,
@@ -66,6 +67,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     async function withFixture(fn: (f: Fixture) => Promise<void>) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           await tx.delete(recurringItemsTable)
           await tx.delete(transactionsTable)
           const [checking, savings] = await tx

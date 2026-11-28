@@ -212,7 +212,12 @@ export class CategoriesService {
         await tx
           .insert(deletedDefaultCategoriesTable)
           .values({ slug: category.slug })
-          .onConflictDoNothing({ target: deletedDefaultCategoriesTable.slug })
+          .onConflictDoNothing({
+            target: [
+              deletedDefaultCategoriesTable.userId,
+              deletedDefaultCategoriesTable.slug,
+            ],
+          })
       }
     })
   }

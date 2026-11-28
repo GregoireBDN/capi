@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import {
   BadRequestException,
@@ -95,6 +96,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     async function withFixture(fn: (f: Fixture) => Promise<void>) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           await tx.delete(transactionsTable)
           await tx.delete(recurringItemsTable)
           await tx.delete(budgetsTable)
@@ -456,7 +458,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
       it('keeps a deleted default category from being seeded again', async () => {
         await withFixture(async ({ tx, service }) => {
-          await seedDefaultCategories(tx)
+          await seedDefaultCategories(tx, await asSpecOwner(tx))
           const custom = await service.create({
             name: 'Custom',
             kind: 'expense',
@@ -468,7 +470,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             .where(eq(categoriesTable.slug, 'rent'))
           await service.remove(rent.id)
 
-          const result = await seedDefaultCategories(tx)
+          const result = await seedDefaultCategories(tx, await asSpecOwner(tx))
 
           expect(result).toMatchObject({ inserted: 0, deleted: 1 })
           const slugs = (await service.list()).map((c) => c.slug)

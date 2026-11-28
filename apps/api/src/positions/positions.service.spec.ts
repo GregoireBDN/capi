@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { and, asc, eq } from 'drizzle-orm'
@@ -84,6 +85,7 @@ describe.skipIf(!process.env.DATABASE_URL)('positions (database)', () => {
   async function inRollback(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         const database = { db: tx } as never
         const accounts = new AccountsService(database)
         await fn({

@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { eq } from 'drizzle-orm'
 import { BadRequestException } from '@nestjs/common'
@@ -70,6 +71,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
   async function withFixture(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         await tx.delete(recurringItemsTable)
         await tx.delete(transactionsTable)
         await tx.delete(importsTable)

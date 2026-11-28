@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -54,6 +55,7 @@ export const cryptoHoldingsTable = pgTable(
   'crypto_holdings',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
@@ -96,12 +98,13 @@ export const cryptoWalletKeysTable = pgTable(
   'crypto_wallet_keys',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
     family: cryptoKeyFamilyEnum('family').notNull(),
     /** Validated key; EVM addresses in their EIP-55 checksummed form. */
-    publicKey: varchar('public_key', { length: 150 }).notNull().unique(),
+    publicKey: varchar('public_key', { length: 150 }).notNull(),
     chains: cryptoChainEnum('chains').array().notNull(),
     label: varchar('label', { length: 100 }),
     /**
@@ -122,6 +125,7 @@ export const cryptoWalletKeysTable = pgTable(
   },
   (t) => [
     index().on(t.accountId),
+    unique('crypto_wallet_keys_public_key_unique').on(t.userId, t.publicKey),
     check(
       'crypto_wallet_keys_chains_not_empty',
       sql`cardinality(${t.chains}) > 0`,
@@ -142,6 +146,7 @@ export const cryptoBitcoinScansTable = pgTable(
   'crypto_bitcoin_scans',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     keyId: uuid('key_id')
       .notNull()
       .references(() => cryptoWalletKeysTable.id, { onDelete: 'cascade' }),
@@ -163,6 +168,7 @@ export const cryptoBitcoinScanAddressesTable = pgTable(
   'crypto_bitcoin_scan_addresses',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     scanId: uuid('scan_id')
       .notNull()
       .references(() => cryptoBitcoinScansTable.id, { onDelete: 'cascade' }),
@@ -201,6 +207,7 @@ export const cryptoWalletTokensTable = pgTable(
   'crypto_wallet_tokens',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),

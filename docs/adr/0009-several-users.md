@@ -101,3 +101,7 @@ Production was emptied on 2026-11-26 and is re-imported by the owner (#483). The
 - The threat model gains two actors (another user of the instance, a connected user) and their threats (T23–T26); the multi-user audit (#553) checks them before the first invitation.
 - Deleting a user (#547) is `DELETE FROM users`: every private row cascades, shared rows the user wrote go with them.
 - What the owner can read as root is said in the privacy notice (#552).
+
+## Amendments
+
+- **2026-11-28, #555 (first part)**: until the request scope of #557 exists, `app_user_id()` falls back to the only user when `app.user_id` is unset, so a single-user instance keeps working with no service change; #557 removes the fallback. The migration gives existing rows to the single user, deletes the default categories of an instance without users (seeded on deploy, owned by nobody; sign-up now seeds them for the new user), and stops with a count otherwise. Composite foreign keys `(id, user_id)` come in the second part of #555.

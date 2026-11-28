@@ -407,6 +407,13 @@
       "when": 1795728723570,
       "tag": "0057_dashboard_budget_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795847410666,
+      "tag": "0058_owner_on_every_row",
+      "breakpoints": true
     }
   ]
 }

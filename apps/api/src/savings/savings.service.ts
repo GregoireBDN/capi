@@ -1,6 +1,4 @@
-import {
-  Injectable,
-} from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { and, eq, gte, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { AccountsService } from '#/accounts/accounts.service'
@@ -328,7 +326,7 @@ export class SavingsService {
         .insert(appSettingsTable)
         .values({ key: MONTHLY_TARGET_KEY, value: monthlyTargetCents })
         .onConflictDoUpdate({
-          target: appSettingsTable.key,
+          target: [appSettingsTable.userId, appSettingsTable.key],
           set: { value: monthlyTargetCents, updatedAt: new Date() },
         })
     }

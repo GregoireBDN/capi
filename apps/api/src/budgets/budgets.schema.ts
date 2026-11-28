@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -31,6 +32,7 @@ export const budgetsTable = pgTable(
   'budgets',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     categoryId: uuid('category_id')
       .notNull()
       .references(() => categoriesTable.id, { onDelete: 'cascade' }),

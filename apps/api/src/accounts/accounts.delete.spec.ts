@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { NotFoundException } from '@nestjs/common'
 import { eq, inArray } from 'drizzle-orm'
@@ -58,6 +59,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
   ) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         await fn({ tx, service: new AccountsService({ db: tx } as never) })
         throw ROLLBACK
       })
