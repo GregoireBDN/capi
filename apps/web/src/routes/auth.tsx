@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { AuthCard } from '#/components/auth/AuthCard'
-import { getRegistrationOpen } from '#/lib/auth'
+import { getDemoSignInAvailable, getRegistrationOpen } from '#/lib/auth'
 import { redirectIfAuthenticated } from '#/lib/auth-guard'
 import { safeReturnPath } from '#/lib/post-login'
 
@@ -17,23 +17,28 @@ export const Route = createFileRoute('/auth')({
     return redirect ? { redirect } : {}
   },
   beforeLoad: ({ search }) => redirectIfAuthenticated(search.redirect),
-  loader: async () => ({ registrationOpen: await getRegistrationOpen() }),
+  loader: async () => {
+    const [registrationOpen, demoSignIn] = await Promise.all([
+      getRegistrationOpen(),
+      getDemoSignInAvailable(),
+    ])
+    return { registrationOpen, demoSignIn }
+  },
   head: () => ({ meta: [{ title: 'Connexion · Capi' }] }),
   component: AuthPage,
 })
 
 function AuthPage() {
-  const { registrationOpen } = Route.useLoaderData()
+  const { registrationOpen, demoSignIn } = Route.useLoaderData()
   const { mode } = Route.useSearch()
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 px-4 py-8">
-      <AuthCard
-        // Remount when the requested mode changes so the card picks it up.
-        key={mode ?? 'login'}
-        registrationOpen={registrationOpen}
-        initialMode={mode ?? 'login'}
-      />
-    </div>
+    <AuthCard
+      // Remount when the requested mode changes so the card picks it up.
+      key={mode ?? 'login'}
+      registrationOpen={registrationOpen}
+      demoSignIn={demoSignIn}
+      initialMode={mode ?? 'login'}
+    />
   )
 }

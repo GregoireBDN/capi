@@ -40,12 +40,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
         CREATE SCHEMA ${SCHEMA};
         SET LOCAL search_path TO ${SCHEMA}, public;
         CREATE TABLE ${SCHEMA}.accounts (LIKE public.accounts INCLUDING DEFAULTS);
+        -- Owners came with 0058 (ADR 0009).
+        ALTER TABLE ${SCHEMA}.accounts DROP COLUMN user_id;
         ALTER TABLE ${SCHEMA}.accounts
           DROP COLUMN crypto_source,
           DROP COLUMN crypto_provider,
           DROP COLUMN crypto_synced_at,
           ADD PRIMARY KEY (id);
         CREATE TABLE ${SCHEMA}.crypto_holdings (LIKE public.crypto_holdings INCLUDING DEFAULTS);
+        -- Owners came with 0058 (ADR 0009).
+        ALTER TABLE ${SCHEMA}.crypto_holdings DROP COLUMN user_id;
         ALTER TABLE ${SCHEMA}.crypto_holdings
           DROP COLUMN origin,
           ADD CONSTRAINT crypto_holdings_account_asset_location_unique

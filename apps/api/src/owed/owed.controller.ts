@@ -364,11 +364,12 @@ export class ReceivablesController {
   }
 
   @Post(':id/forgive')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Let a debt go',
     description:
-      '« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible. Session only: Claude never lets a debt go.',
+      '« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible in the app (claiming it again stays session only). Open to write tokens (#597): `forgive_debt`, re-approved by the owner each time.',
   })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: ForgiveReceivableDto })

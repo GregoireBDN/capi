@@ -7,17 +7,11 @@ import { z } from 'zod'
 import { authControllerResetPassword } from '#/api'
 import { newPasswordField } from '#/components/auth/auth.schemas'
 import { ROUTES } from '#/lib/routes'
+import { AuthFooter, AuthFrame, AuthPanel } from '#/components/auth/AuthFrame'
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
   Checkbox,
   Field,
-  FieldDescription,
   FieldError,
   FieldLabel,
   Label,
@@ -82,115 +76,96 @@ function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="flex min-h-full items-center justify-center px-4 py-6">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Lien invalide</CardTitle>
-            <CardDescription>
-              Ce lien de réinitialisation est invalide ou a expiré.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="justify-center">
-            <Button asChild variant="secondary">
-              <a href={ROUTES.auth}>Retour à la connexion</a>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+      <AuthFrame>
+        <AuthPanel title="Lien invalide">
+          <p className="text-muted-foreground text-center text-sm text-balance">
+            Ce lien a expiré ou a déjà servi.
+          </p>
+          <Button asChild size="lg" fullWidth>
+            <a href={ROUTES.auth}>Retour à la connexion</a>
+          </Button>
+        </AuthPanel>
+      </AuthFrame>
     )
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-4 py-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Nouveau mot de passe</CardTitle>
-          <CardDescription>
-            Choisissez un nouveau mot de passe pour votre compte.
-          </CardDescription>
-        </CardHeader>
+    <AuthFrame>
+      <AuthPanel title="Nouveau mot de passe">
+        {done ? (
+          <p className="text-muted-foreground text-center text-sm py-4">
+            Mot de passe mis à jour. Toutes vos sessions ont été fermées :
+            reconnectez-vous. Redirection en cours…
+          </p>
+        ) : (
+          <form
+            method="post"
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-3"
+            noValidate
+          >
+            <Field data-invalid={!!form.formState.errors.password}>
+              <FieldLabel htmlFor="new-password">Mot de passe</FieldLabel>
+              <PasswordInput
+                id="new-password"
+                autoComplete="new-password"
+                aria-invalid={!!form.formState.errors.password}
+                {...form.register('password')}
+              />
+              {form.formState.errors.password && (
+                <FieldError>
+                  {form.formState.errors.password.message}
+                </FieldError>
+              )}
+            </Field>
 
-        <CardContent>
-          {done ? (
-            <p className="text-muted-foreground text-center text-sm py-4">
-              Mot de passe mis à jour. Toutes vos sessions ont été fermées :
-              reconnectez-vous. Redirection en cours…
-            </p>
-          ) : (
-            <form
-              method="post"
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-3"
-              noValidate
+            <Field data-invalid={!!form.formState.errors.confirm}>
+              <FieldLabel htmlFor="confirm-password">Confirmer</FieldLabel>
+              <PasswordInput
+                id="confirm-password"
+                autoComplete="new-password"
+                aria-invalid={!!form.formState.errors.confirm}
+                {...form.register('confirm')}
+              />
+              {form.formState.errors.confirm && (
+                <FieldError>{form.formState.errors.confirm.message}</FieldError>
+              )}
+            </Field>
+
+            <Field>
+              <div className="flex min-h-11 items-start gap-2 py-1">
+                <Checkbox
+                  id="revoke-access-tokens"
+                  className="mt-0.5"
+                  checked={form.watch('revokeAccessTokens')}
+                  onCheckedChange={(value) =>
+                    form.setValue('revokeAccessTokens', value === true)
+                  }
+                />
+                <Label htmlFor="revoke-access-tokens" className="font-normal">
+                  Déconnecter aussi Claude et les scripts
+                </Label>
+              </div>
+            </Field>
+
+            <Button
+              type="submit"
+              size="lg"
+              fullWidth
+              loading={form.formState.isSubmitting}
+              disabled={!hydrated}
             >
-              <Field data-invalid={!!form.formState.errors.password}>
-                <FieldLabel htmlFor="new-password">
-                  Nouveau mot de passe
-                </FieldLabel>
-                <PasswordInput
-                  id="new-password"
-                  autoComplete="new-password"
-                  aria-invalid={!!form.formState.errors.password}
-                  {...form.register('password')}
-                />
-                {form.formState.errors.password && (
-                  <FieldError>
-                    {form.formState.errors.password.message}
-                  </FieldError>
-                )}
-              </Field>
-
-              <Field data-invalid={!!form.formState.errors.confirm}>
-                <FieldLabel htmlFor="confirm-password">
-                  Confirmer le mot de passe
-                </FieldLabel>
-                <PasswordInput
-                  id="confirm-password"
-                  autoComplete="new-password"
-                  aria-invalid={!!form.formState.errors.confirm}
-                  {...form.register('confirm')}
-                />
-                {form.formState.errors.confirm && (
-                  <FieldError>
-                    {form.formState.errors.confirm.message}
-                  </FieldError>
-                )}
-              </Field>
-
-              <Field>
-                <div className="flex min-h-11 items-start gap-2 py-1">
-                  <Checkbox
-                    id="revoke-access-tokens"
-                    className="mt-0.5"
-                    checked={form.watch('revokeAccessTokens')}
-                    onCheckedChange={(value) =>
-                      form.setValue('revokeAccessTokens', value === true)
-                    }
-                  />
-                  <Label htmlFor="revoke-access-tokens" className="font-normal">
-                    Révoquer aussi les jetons d’accès et les applications
-                    connectées
-                  </Label>
-                </div>
-                <FieldDescription>
-                  Toutes vos sessions seront fermées. Cochez si un jeton
-                  (Claude, script) a pu être exposé.
-                </FieldDescription>
-              </Field>
-
-              <Button
-                type="submit"
-                fullWidth
-                loading={form.formState.isSubmitting}
-                disabled={!hydrated}
-              >
-                Réinitialiser le mot de passe
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              Enregistrer
+            </Button>
+          </form>
+        )}
+      </AuthPanel>
+      <AuthFooter>
+        <Button asChild variant="secondary" link size="xs">
+          <a href={ROUTES.auth}>Retour à la connexion</a>
+        </Button>
+      </AuthFooter>
+    </AuthFrame>
   )
 }
 

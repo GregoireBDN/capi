@@ -22,12 +22,22 @@ services:
 
   api:
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/finances_staging
+      DATABASE_URL: postgres://capi_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@db:5432/finances_staging
       # The one database the demo seed may wipe with NODE_ENV=production
       # (demo/guard.ts); it still refuses `finances`.
       DEMO_STAGING_DATABASE: finances_staging
       # No email, no remote MCP, no call to price or chain APIs: the demo's
       # crypto prices are seeded manual prices.
+      SMTP_HOST: ''
+      REMOTE_MCP_ENABLED: 'false'
+      PRICE_API_ENABLED: 'false'
+      WALLET_SYNC_ENABLED: 'false'
+
+  # The same settings, as the owner role (#557).
+  migrate:
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/finances_staging
+      DEMO_STAGING_DATABASE: finances_staging
       SMTP_HOST: ''
       REMOTE_MCP_ENABLED: 'false'
       PRICE_API_ENABLED: 'false'

@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import {
   BadRequestException,
@@ -71,6 +72,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     ) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           const database = { db: tx } as never
           const accounts = new AccountsService(database)
           const budgets = new BudgetsService(database)
@@ -203,10 +205,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'investments',
           'close',
         ])
+        // Budget and savings are read, never ticked (#541).
         expect(doneSteps(review)).toEqual([
           'imports',
           'review_queue',
           'recurring',
+          'budget',
+          'savings',
           'investments',
         ])
         expect(review.imports.accounts).toEqual([

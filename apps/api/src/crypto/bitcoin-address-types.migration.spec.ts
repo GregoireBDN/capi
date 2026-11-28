@@ -45,6 +45,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             CREATE TABLE ${SCHEMA}.crypto_wallet_keys
               (LIKE public.crypto_wallet_keys INCLUDING DEFAULTS);
             ALTER TABLE ${SCHEMA}.crypto_wallet_keys
+              DROP COLUMN user_id,
               DROP COLUMN address_types,
               DROP COLUMN detect_address_types;
           `)

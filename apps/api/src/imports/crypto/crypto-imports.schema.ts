@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -50,6 +51,7 @@ export const cryptoImportsTable = pgTable(
   'crypto_imports',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       // Like `imports`: the account deletion deletes them explicitly (#297).
@@ -93,6 +95,7 @@ export const cryptoMovementsTable = pgTable(
   'crypto_movements',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
@@ -202,6 +205,7 @@ export const cryptoTransferLinksTable = pgTable(
   'crypto_transfer_links',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     outMovementId: uuid('out_movement_id')
       .notNull()
       .references(() => cryptoMovementsTable.id, { onDelete: 'cascade' }),

@@ -317,7 +317,11 @@ function Row({
 }
 
 /** A category of the report, a question mark for the uncategorized. */
-function ReportCategoryIcon({ category }: { category: ReportCategoryDto }) {
+export function ReportCategoryIcon({
+  category,
+}: {
+  category: ReportCategoryDto
+}) {
   return (
     <CategoryIcon
       icon={category.icon}
@@ -382,7 +386,7 @@ const CHANGE_LABELS: Record<
 }
 
 /** Figures that moved since the close: the report above keeps the old ones. */
-function Changes({ changes }: { changes: ReportChangeDto[] }) {
+export function Changes({ changes }: { changes: ReportChangeDto[] }) {
   const show = (cents: number | null) =>
     cents === null ? '—' : formatCents(cents)
   return (

@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { ConflictException } from '@nestjs/common'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -70,6 +71,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Contacts (database)', () => {
   async function withFixture(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         const [account] = await tx
           .insert(accountsTable)
           .values({ name: 'Contacts checking', type: 'checking' })

@@ -182,6 +182,20 @@ set_version() {
   mv -f "$tmp" "$ENV_FILE"
 }
 
+# The password of the API's database role `capi_app` (#557), written into
+# .env once when the compose file asks for it and kept after that (the
+# `migrate` service sets it on the role at every deploy). 64 hex characters.
+ensure_app_db_password() {
+  local tmp
+  grep -q 'APP_DB_PASSWORD' "${COMPOSE_FILES[0]}" || return 0
+  [[ -z $(read_env APP_DB_PASSWORD) ]] || return 0
+  tmp=$(umask 077 && mktemp "$ENV_FILE.XXXXXX")
+  grep -v '^APP_DB_PASSWORD=' "$ENV_FILE" >"$tmp" || true
+  printf 'APP_DB_PASSWORD=%s\n' "$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')" >>"$tmp"
+  mv -f "$tmp" "$ENV_FILE"
+  log "generated APP_DB_PASSWORD in $ENV_FILE"
+}
+
 healthy() {
   timeout 15 docker compose "${compose_args[@]}" exec -T web node -e \
     "fetch('$HEALTH_URL').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" \
@@ -272,8 +286,13 @@ for i in "${!sources[@]}"; do
   mv -f "$target.tmp" "$target"
 done
 set_version "$version"
+ensure_app_db_password
 
 docker compose "${file_args[@]}" config --quiet || rollback "invalid compose configuration"
+# Migrations and seeds run as the database owner in the `migrate` service
+# (#557), or in `api` with a compose file from before it.
+db_service=api
+if grep -q '^  migrate:' "${COMPOSE_FILES[0]}"; then db_service=migrate; fi
 project=$(compose_project)
 [[ -n $project ]] || rollback "the compose files name no project"
 if [[ $mode == staging && $project != *-staging ]]; then
@@ -331,19 +350,19 @@ if [[ $moving == true ]]; then
 fi
 
 log "running migrations"
-compose run --rm -T api node dist/database/migrate.js || rollback "migrations"
+compose run --rm -T "$db_service" node dist/database/migrate.js || rollback "migrations"
 
 log "seeding reference data"
-compose run --rm -T api node dist/database/seed.js || rollback "seed"
+compose run --rm -T "$db_service" node dist/database/seed.js || rollback "seed"
 
 if [[ $mode == staging ]]; then
   # One transaction: a failure leaves the previous data in place.
   if [[ $reset_demo == true ]]; then
     log "resetting the demo data"
-    compose run --rm -T api node dist/database/seed-demo.js --reset || rollback "demo data"
+    compose run --rm -T "$db_service" node dist/database/seed-demo.js --reset || rollback "demo data"
   else
     log "demo data on an empty database, existing data kept"
-    compose run --rm -T api node dist/database/seed-demo.js --if-empty || rollback "demo data"
+    compose run --rm -T "$db_service" node dist/database/seed-demo.js --if-empty || rollback "demo data"
   fi
 fi
 

@@ -1,3 +1,4 @@
+import { asSpecOwner, asTableOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -84,6 +85,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     ) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           const database = { db: tx } as never
           const accounts = new AccountsService(database)
           const transactions = new TransactionsService(database)
@@ -347,31 +349,33 @@ describe.skipIf(!process.env.DATABASE_URL)(
         // the dinner's 20 € share (written past the service's guards, and
         // past the database rule of #437, switched off in this rolled-back
         // transaction: the check is for data from before it).
-        await tx.execute(
-          sql`alter table receivable_payments disable trigger receivable_payments_within_share`,
-        )
-        await tx.insert(receivablePaymentsTable).values([
-          {
-            receivableId: owedDinner.id,
-            transactionId: repayment.id,
-            amountCents: 2_000,
-            paidOn: '2026-09-20',
-          },
-          {
-            receivableId: owedGroceries.id,
-            transactionId: repayment.id,
-            amountCents: 1_000,
-            paidOn: '2026-09-20',
-          },
-          {
-            receivableId: owedDinner.id,
-            amountCents: 1_000,
-            paidOn: '2026-09-25',
-          },
-        ])
-        await tx.execute(
-          sql`alter table receivable_payments enable trigger receivable_payments_within_share`,
-        )
+        await asTableOwner(tx, async () => {
+          await tx.execute(
+            sql`alter table receivable_payments disable trigger receivable_payments_within_share`,
+          )
+          await tx.insert(receivablePaymentsTable).values([
+            {
+              receivableId: owedDinner.id,
+              transactionId: repayment.id,
+              amountCents: 2_000,
+              paidOn: '2026-09-20',
+            },
+            {
+              receivableId: owedGroceries.id,
+              transactionId: repayment.id,
+              amountCents: 1_000,
+              paidOn: '2026-09-20',
+            },
+            {
+              receivableId: owedDinner.id,
+              amountCents: 1_000,
+              paidOn: '2026-09-25',
+            },
+          ])
+          await tx.execute(
+            sql`alter table receivable_payments enable trigger receivable_payments_within_share`,
+          )
+        })
 
         const result = await run(service)
         const owed = result.findings.filter((f) => f.check === 'owed')

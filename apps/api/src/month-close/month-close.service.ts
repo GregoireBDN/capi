@@ -271,8 +271,10 @@ export class MonthCloseService {
         suggested === 0 &&
         ((priceChanges.length === 0 && chargedAfterEnd.length === 0) ||
           ack.has('recurring')),
-      budget: ack.has('budget'),
-      savings: ack.has('savings'),
+      // Shown as the month's answer, nothing to tick (#541); old ticks are
+      // kept and ignored.
+      budget: true,
+      savings: true,
       investments: investments.length === 0,
       close: closed,
     }
@@ -352,7 +354,7 @@ export class MonthCloseService {
       .insert(monthClosesTable)
       .values({ month, ...set })
       .onConflictDoUpdate({
-        target: monthClosesTable.month,
+        target: [monthClosesTable.userId, monthClosesTable.month],
         set: { ...set, updatedAt: new Date() },
         setWhere: isNull(monthClosesTable.closedAt),
       })
@@ -408,7 +410,7 @@ export class MonthCloseService {
       .insert(monthClosesTable)
       .values({ month, ...values })
       .onConflictDoUpdate({
-        target: monthClosesTable.month,
+        target: [monthClosesTable.userId, monthClosesTable.month],
         set: { ...values, updatedAt: new Date() },
         setWhere: isNull(monthClosesTable.closedAt),
       })

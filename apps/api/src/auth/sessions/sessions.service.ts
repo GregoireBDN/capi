@@ -64,7 +64,7 @@ export class SessionsService {
       createdAt: Date
       expiresAt: Date
       authenticatedAt: Date | null
-      signInMethod: 'password' | 'passkey' | 'sign_up' | null
+      signInMethod: 'password' | 'passkey' | 'sign_up' | 'demo' | null
       device: string | null
     }[],
     currentRefreshToken: string | undefined,
@@ -143,7 +143,7 @@ export class SessionsService {
           refreshTokensTable.revokedAt,
         ),
         signInMethod: sql<
-          'password' | 'passkey' | 'sign_up' | null
+          'password' | 'passkey' | 'sign_up' | 'demo' | null
         >`max(${refreshTokensTable.signInMethod})`,
         device: sql<string | null>`max(${refreshTokensTable.device})`,
       })

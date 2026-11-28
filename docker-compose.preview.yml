@@ -1,0 +1,58 @@
+# Pull request previews (#599, runbook: docs/runbooks/previews.md): an
+# override of docker-compose.prod.yml for one compose project per open pull
+# request, `capi-pr-<n>`, run by deploy/preview.sh from /srv/capi-previews/pr-<n>
+# with an `.env` the script writes itself (its own secrets, PREVIEW_NUMBER,
+# DB_VOLUME=capi-pr-<n>_db_data).
+#
+#   docker compose -p capi-pr-<n> -f docker-compose.prod.yml -f docker-compose.preview.yml ...
+#
+# The images are the pull request's own (CAPI_VERSION=pr-<n>-<commit>), with
+# demo data only, no published port, no email, no remote MCP and no outbound
+# price or chain call. Caddy (infra repo) sends capi-pr-<n>.gbodin.cloud to the
+# alias below. What must never differ is fixed here rather than in `.env`, as
+# in docker-compose.staging.yml.
+name: capi-pr-${PREVIEW_NUMBER:?set PREVIEW_NUMBER in .env}
+
+services:
+  db:
+    environment:
+      # Ends in `_staging`: the one kind of name the demo seed accepts with the
+      # production images (apps/api/src/database/demo/guard.ts).
+      POSTGRES_DB: finances_preview_staging
+
+  api:
+    environment:
+      DATABASE_URL: postgres://capi_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@db:5432/finances_preview_staging
+      DEMO_STAGING_DATABASE: finances_preview_staging
+      SMTP_HOST: ''
+      REMOTE_MCP_ENABLED: 'false'
+      PRICE_API_ENABLED: 'false'
+      WALLET_SYNC_ENABLED: 'false'
+
+  # The same settings, as the owner role (#557).
+  migrate:
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/finances_preview_staging
+      DEMO_STAGING_DATABASE: finances_preview_staging
+      # The demo sign-in (#608): the sign-in page signs in the demo account by
+      # itself. The API also checks the database is the `_staging` one above.
+      # Set from the settings panel (preview.sh), `true` or `false`.
+      DEMO_AUTO_SIGN_IN: ${PREVIEW_AUTO_SIGN_IN:-true}
+      SMTP_HOST: ''
+      REMOTE_MCP_ENABLED: 'false'
+      PRICE_API_ENABLED: 'false'
+      WALLET_SYNC_ENABLED: 'false'
+
+  web:
+    environment:
+      # Yellow, like staging (#454), unless the owner picks the production
+      # look in the settings panel (#608): the look only, the data stays the
+      # demo's and the address capi-pr-<n>.
+      APP_ENVIRONMENT: ${PREVIEW_APP_ENVIRONMENT:-staging}
+    networks:
+      default: {}
+      proxy:
+        # Replaces production's aliases (a plain list would be merged with
+        # them and Caddy would send production traffic here).
+        aliases: !override
+          - capi-pr-${PREVIEW_NUMBER}-web

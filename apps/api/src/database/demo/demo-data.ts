@@ -1,3 +1,4 @@
+import { setOwner } from '#/database/owner-scope'
 import { createHash } from 'node:crypto'
 import * as bcrypt from 'bcryptjs'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
@@ -819,18 +820,22 @@ export async function generateDemoData(
     monthList.push(m)
   const random = createRandom(PRNG_SEED)
 
-  await seedDefaultCategories(db)
-
   // Owner account, verified, password set directly (sign-up rules don't apply).
-  await db.insert(usersTable).values({
-    email: DEMO_EMAIL,
-    name: DEMO_NAME,
-    passwordHash: await bcrypt.hash(
-      DEMO_PASSWORD,
-      options.bcryptRounds ?? BCRYPT_SALT_ROUNDS,
-    ),
-    emailVerifiedAt: new Date(),
-  })
+  const [owner] = await db
+    .insert(usersTable)
+    .values({
+      email: DEMO_EMAIL,
+      name: DEMO_NAME,
+      passwordHash: await bcrypt.hash(
+        DEMO_PASSWORD,
+        options.bcryptRounds ?? BCRYPT_SALT_ROUNDS,
+      ),
+      emailVerifiedAt: new Date(),
+    })
+    .returning({ id: usersTable.id })
+  // Every row below is the demo owner's (ADR 0009).
+  await setOwner(db, owner.id)
+  await seedDefaultCategories(db, owner.id)
 
   const categories = await db.select().from(categoriesTable)
   const bySlug = new Map(categories.map((c) => [c.slug, c]))
@@ -1592,7 +1597,7 @@ export async function generateDemoData(
     .insert(appSettingsTable)
     .values({ key: MONTHLY_TARGET_KEY, value: 60_000 })
     .onConflictDoUpdate({
-      target: appSettingsTable.key,
+      target: [appSettingsTable.userId, appSettingsTable.key],
       set: { value: 60_000 },
     })
   // Envelopes (#430), through the app's own service: what used to be the

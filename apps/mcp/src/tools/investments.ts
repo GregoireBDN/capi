@@ -5,14 +5,21 @@
  */
 import type {
   AccountDto,
+  AccountHoldingsDto,
   AccountType,
   InvestmentAccountSummaryDto,
   InvestmentsSummaryDto,
   PositionsDto,
 } from '../api/types.js'
 import type { ApiClient } from '../api/client.js'
-import { euros, frenchDate, percent, signedEuros } from '../format.js'
-import { frenchQuantity } from '../quantity.js'
+import {
+  euros,
+  frenchDate,
+  parisToday,
+  percent,
+  signedEuros,
+} from '../format.js'
+import { frenchQuantity, isZeroQuantity } from '../quantity.js'
 import { ACCOUNT_TYPE_LABELS } from './labels.js'
 import { listAccounts, normalize, pickAccount } from './lookup.js'
 import { defineTool, ToolInputError } from './tool.js'
@@ -152,11 +159,55 @@ export function positionLines(data: PositionsDto | undefined): string[] {
   ]
 }
 
+/**
+ * A crypto account's assets (#523), read from the database only (#381): one
+ * line per asset with its exact quantity, value, cost of the coins of known
+ * cost, result and the part of unknown cost; then its places when it is held
+ * at several (the labels only, never an address).
+ */
+export function holdingLines(data: AccountHoldingsDto | undefined): string[] {
+  if (!data || data.costs.length === 0) return []
+  return data.costs.map((asset) => {
+    const held = data.holdings.filter((h) => h.assetId === asset.assetId)
+    const priced = held.find((h) => h.priceEur !== null)
+    const stale = held.find((h) => h.priceStale)
+    const value =
+      asset.valueCents === null || !priced
+        ? 'sans cours'
+        : `${euros(asset.valueCents)} (cours ${frenchQuantity(priced.priceEur!)} €${
+            stale?.priceFetchedAt
+              ? `, PAS À JOUR : cours du ${frenchDate(parisToday(new Date(stale.priceFetchedAt)))}`
+              : ''
+          })`
+    const known = asset.costCents > 0 || asset.gainCents !== null
+    const cost = known
+      ? `, coût ${euros(asset.costCents)}${
+          asset.gainCents === null
+            ? ''
+            : `, résultat ${signedEuros(asset.gainCents)}`
+        }`
+      : ''
+    const unknown = isZeroQuantity(asset.unknownQuantity)
+      ? ''
+      : `, dont ${frenchQuantity(asset.unknownQuantity)} sans coût connu`
+    const places =
+      held.length > 1
+        ? ` ; ${held
+            .map(
+              (h) =>
+                `${frenchQuantity(h.quantity)} ${h.location ? `à ${h.location}` : 'sans lieu'}`,
+            )
+            .join(', ')}`
+        : ''
+    return `  · ${asset.symbol} : ${frenchQuantity(asset.quantity)}, ${value}${cost}${unknown}${places}`
+  })
+}
+
 export const listInvestmentAccountsTool = defineTool({
   name: 'list_investment_accounts',
   title: 'Comptes de placement',
   description:
-    "Open investment accounts (PEA, compte-titres, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), whether they are stale, and the lines of a PEA or a compte-titres (ISIN, quantity, value, PRU and result, then its cash). Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots, sync_security_positions and sync_crypto_holdings accept.",
+    "Open investment accounts (PEA, compte-titres, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), whether they are stale, and the lines of a PEA or a compte-titres (ISIN, quantity, value, PRU and result, then its cash) or a crypto account's assets (quantity, value, cost, result). Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots, sync_security_positions and sync_crypto_holdings accept.",
   inputSchema: {},
   async run({ api }) {
     const [summary, accounts] = await Promise.all([
@@ -181,6 +232,22 @@ export const listInvestmentAccountsTool = defineTool({
         ),
       ),
     )
+    // A crypto account's assets (#523): stored prices only, never a refresh.
+    const holdings = new Map(
+      await Promise.all(
+        summary.accounts
+          .filter((row) => row.type === 'crypto')
+          .map(
+            async (row) =>
+              [
+                row.id,
+                await api.get<AccountHoldingsDto>(
+                  `/api/accounts/${row.id}/holdings`,
+                ),
+              ] as const,
+          ),
+      ),
+    )
     const stale = summary.accounts.filter(
       (a) => a.stale || a.valueCents === null,
     )
@@ -190,6 +257,7 @@ export const listInvestmentAccountsTool = defineTool({
       ...summary.accounts.flatMap((row) => [
         accountLine(row, byId.get(row.id)),
         ...positionLines(positions.get(row.id)),
+        ...holdingLines(holdings.get(row.id)),
       ]),
     ]
     lines.push(

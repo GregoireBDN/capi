@@ -6,12 +6,13 @@ import {
   Optional,
 } from '@nestjs/common'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
-import { DatabaseService } from '#/database/database.service'
+import { DatabaseService, outsideOwnerScope } from '#/database/database.service'
 import {
   accountsTable,
   balanceSnapshotsTable,
   cryptoHoldingsTable,
   cryptoMovementsTable,
+  usersTable,
 } from '#/database/schema'
 import { loadAssetMappings } from '#/imports/crypto/asset-mappings'
 import type { AssetMapping } from '#/imports/crypto/crypto-import.types'
@@ -25,7 +26,10 @@ import {
   cryptoInvestedOn,
   type LoadedCostBasis,
 } from '../cost-basis.service'
-import { CryptoPriceHistoryService } from './crypto-price-history.service'
+import {
+  CryptoPriceHistoryService,
+  type DayPrices,
+} from './crypto-price-history.service'
 import {
   type DayLine,
   dayRange,
@@ -155,7 +159,11 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
     now: Date = new Date(),
     options: CloseOptions = {},
   ): Promise<CloseResult> {
-    const run = this.queue.then(() => this.close(now, options))
+    // Outside the request that may have asked for it: each owner gets a
+    // transaction of their own.
+    const run = this.queue.then(() =>
+      outsideOwnerScope(() => this.close(now, options)),
+    )
     this.queue = run.catch(() => undefined)
     return run
   }
@@ -181,6 +189,54 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
   }
 
   private async close(now: Date, options: CloseOptions): Promise<CloseResult> {
+    // Each owner's accounts in a transaction of their own (ADR 0009, #557):
+    // read per owner, the day prices (global) fetched once, written per owner.
+    const owners = await this.db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .orderBy(asc(usersTable.createdAt), asc(usersTable.id))
+    const planned: { owner: string; plans: Plan[]; rebuilt: Set<string> }[] = []
+    for (const { id: owner } of owners) {
+      const result = await this.database.asOwner(owner, () =>
+        this.plan(owner, now, options),
+      )
+      planned.push({ owner, ...result })
+    }
+
+    const needs = new Map<string, Set<string>>()
+    for (const plan of planned.flatMap(({ plans }) => plans)) {
+      for (const [day, lines] of plan.lines) {
+        for (const line of lines) {
+          const set = needs.get(line.assetId) ?? new Set<string>()
+          set.add(day)
+          needs.set(line.assetId, set)
+        }
+      }
+    }
+    const { prices, failed } = await this.history.dayPrices(needs, now)
+
+    let written = 0
+    let accounts = 0
+    for (const { owner, plans, rebuilt } of planned) {
+      written += await this.database.asOwner(owner, () =>
+        this.write(plans, rebuilt, prices, failed, now),
+      )
+      accounts += plans.length
+    }
+    if (written > 0) {
+      this.logger.log(
+        `Crypto daily close: ${written} value(s) written for ${accounts} account(s)`,
+      )
+    }
+    return { written, retry: failed }
+  }
+
+  /** One owner's accounts: the days each one needs, with its lines. */
+  private async plan(
+    owner: string,
+    now: Date,
+    options: CloseOptions,
+  ): Promise<{ plans: Plan[]; rebuilt: Set<string> }> {
     const today = parisToday(now)
     const yesterday = addDays(today, -1)
     const accounts = await this.db
@@ -190,7 +246,11 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
       })
       .from(accountsTable)
       .where(
-        and(isNull(accountsTable.archivedAt), eq(accountsTable.type, 'crypto')),
+        and(
+          eq(accountsTable.userId, owner),
+          isNull(accountsTable.archivedAt),
+          eq(accountsTable.type, 'crypto'),
+        ),
       )
       .orderBy(asc(accountsTable.createdAt), asc(accountsTable.id))
     const rebuilt = new Set(
@@ -288,19 +348,17 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
             : 0,
       })
     }
+    return { plans, rebuilt }
+  }
 
-    const needs = new Map<string, Set<string>>()
-    for (const plan of plans) {
-      for (const [day, lines] of plan.lines) {
-        for (const line of lines) {
-          const set = needs.get(line.assetId) ?? new Set<string>()
-          set.add(day)
-          needs.set(line.assetId, set)
-        }
-      }
-    }
-    const { prices, failed } = await this.history.dayPrices(needs, now)
-
+  /** One owner's values, upserted. */
+  private async write(
+    plans: Plan[],
+    rebuilt: Set<string>,
+    prices: DayPrices['prices'],
+    failed: boolean,
+    now: Date,
+  ): Promise<number> {
     let written = 0
     for (const plan of plans) {
       const rows: (typeof s.$inferInsert)[] = []
@@ -335,12 +393,7 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
         this.pendingRebuilds.add(plan.accountId)
       }
     }
-    if (written > 0) {
-      this.logger.log(
-        `Crypto daily close: ${written} value(s) written for ${plans.length} account(s)`,
-      )
-    }
-    return { written, retry: failed }
+    return written
   }
 
   /** Computed points only: a typed value is never overwritten. */

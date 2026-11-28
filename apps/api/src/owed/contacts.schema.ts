@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -24,6 +25,7 @@ export const contactsTable = pgTable(
   'contacts',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     name: varchar('name', { length: CONTACT_NAME_MAX }).notNull(),
     /**
      * Words of the bank labels of this person's transfers (« VIR CAMILLE
@@ -46,7 +48,7 @@ export const contactsTable = pgTable(
     archivedAt: timestamp('archived_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('contacts_name_unique').on(sql`lower(${t.name})`),
+    uniqueIndex('contacts_name_unique').on(t.userId, sql`lower(${t.name})`),
     check(
       'contacts_repayment_day_range',
       sql`${t.repaymentDay} is null or (${t.repaymentDay} >= 1 and ${t.repaymentDay} <= 31)`,

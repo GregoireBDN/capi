@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -51,6 +52,7 @@ export const receivablesTable = pgTable(
   'receivables',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     direction: receivableDirectionEnum('direction').notNull(),
     transactionId: uuid('transaction_id')
       .notNull()
@@ -130,6 +132,7 @@ export const receivableOffsetsTable = pgTable(
   'receivable_offsets',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     contactId: uuid('contact_id')
       .notNull()
       .references(() => contactsTable.id, { onDelete: 'restrict' }),
@@ -156,6 +159,7 @@ export const receivablePaymentsTable = pgTable(
   'receivable_payments',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     /**
      * `restrict` (#438): a repaid share is never removed implicitly, its
      * repayment would count as income. The deliberate wholesale deletes

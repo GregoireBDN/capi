@@ -27,5 +27,6 @@ Recording the values of the investments (PEA, compte-titres, life insurance « a
 
 - The statement gives **net contributions** next to each value: pass them with the value (`contributions` of `add_investment_snapshots`).
 - The statement gives a value **without contributions** (many PEAs and employee savings plans): `set_invested_amount` once, with what was invested up to the day the owner knows it. Transfers linked to the account after that day add up on their own.
+- **Transfers paid in** from a bank account (checking → PEA, life insurance…) count in the invested amount once linked to it: find them with `search_transactions`, then `categorize_transactions` with `counterpart` (the account's name) on those not linked yet. The preview gives what the amount gains; transfers dated on or before the base's day are already in it. A link is removed in the app.
 - Not for crypto: a crypto account's invested amount is the cost of its coins, set in the app.
 - An unreadable figure is never copied: ask, or leave the invested amount unknown.

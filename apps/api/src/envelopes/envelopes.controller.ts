@@ -27,6 +27,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   AccountEnvelopesDto,
@@ -41,6 +42,7 @@ import {
   ListEnvelopesQueryDto,
   MoveEnvelopeMoneyDto,
   SetSplitKeyDto,
+  TopUpEnvelopeDto,
   UpdateEnvelopeDto,
 } from './dto/envelope.dto'
 import { EnvelopesService } from './envelopes.service'
@@ -53,8 +55,10 @@ const TRANSACTION_PARAM = {
 } as const
 
 /**
- * Envelopes (#429, ADR 0008). Tokens and the MCP read them; every write is
- * session only (no `@TokenAccess('write')`).
+ * Envelopes (#429, ADR 0008). Tokens and the MCP read them. A `write` token
+ * may only create one and add to one from « libre » (#518, the MCP's
+ * `create_envelope` and `add_to_envelope`); every other write (change,
+ * delete, moves out of an envelope, attaching, splits, keys) is session only.
  */
 @ApiTags('Envelopes')
 @ApiCookieAuth('token')
@@ -111,6 +115,7 @@ export class EnvelopesController {
   }
 
   @Post('envelopes')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Create an envelope',
     description:
@@ -170,6 +175,28 @@ export class EnvelopesController {
   @ApiNotFoundResponse()
   move(@Body() dto: MoveEnvelopeMoneyDto): Promise<AccountEnvelopesDto> {
     return this.envelopes.move(dto)
+  }
+
+  @Post('envelopes/:id/top-up')
+  @HttpCode(200)
+  @TokenAccess('write')
+  @ApiOperation({
+    summary: 'Add money to an envelope from an account’s « libre »',
+    description:
+      'A move from « libre » into the envelope on one account (#518): the balance does not change, never more than « libre ». Open to `write` tokens; taking money out of an envelope stays session only.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: TopUpEnvelopeDto })
+  @ApiOkResponse({ type: AccountEnvelopesDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid body, archived envelope, or more than « libre ».',
+  })
+  @ApiNotFoundResponse({ description: 'Unknown envelope or account.' })
+  topUp(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: TopUpEnvelopeDto,
+  ): Promise<AccountEnvelopesDto> {
+    return this.envelopes.topUp(id, dto)
   }
 
   @Post('envelopes/:id/transactions')

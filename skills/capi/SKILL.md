@@ -56,8 +56,9 @@ Answer in a few lines: the figure, its period and how far the data goes, and the
 
 ## Good to know
 
-- **Envelopes** (« Enveloppes »): money set aside for a project, spread across accounts (they replaced the former savings goals). Never a transaction: they change no balance and no statistic; « libre » is the balance minus the envelopes. A balance below its envelopes is reported, never changed. What an envelope paid adds to that month's budget of its categories. They are changed in the app only.
-- **Subscriptions**: a confirmed quarterly or yearly debit shows as a prepaid item (term, monthly equivalent, renewal date). Detected items not yet confirmed are flagged: the owner confirms them in « Abonnements »; cancelling is « Résilier », in the app.
+- **Envelopes** (« Enveloppes »): money set aside for a project, spread across accounts (they replaced the former savings goals). Never a transaction: they change no balance and no statistic; « libre » is the balance minus the envelopes. A balance below its envelopes is reported, never changed. What an envelope paid adds to that month's budget of its categories. Claude creates one (`create_envelope`) or adds to one from « libre » (`add_to_envelope`) only after the owner agreed, preview first; changing, deleting or taking money out of one is done in the app.
+- **Subscriptions**: a confirmed quarterly or yearly debit shows as a prepaid item (term, monthly equivalent, renewal date). Detected items not yet confirmed are flagged: the owner confirms them in « Abonnements ». Cancelling (« Résilier »): `cancel_subscription`, see [references/operations.md](references/operations.md).
+- **Two writes the owner must ask for**: `cancel_subscription` and `forgive_debt`. Only when the owner asked for it in this conversation, never on your own initiative or as a step of a review; besides the preview, the client asks the owner to approve each of these calls.
 - **Money owed**: the owner's spending already counts only their own part of a shared expense; what is owed is never part of net worth; offsetting both sides is « Compenser », in the app.
 - **Forecast**: it projects from the day after the imported data ends, not from today; with old data, say it is only indicative and suggest importing the statement.
 
@@ -65,13 +66,13 @@ Answer in a few lines: the figure, its period and how far the data goes, and the
 
 Read the task's file before starting:
 
-| Task                                                                                  | File                                                         |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Month-end review (« Bilan du mois »: guided review, then closing the month)           | [references/bilan-du-mois.md](references/bilan-du-mois.md)   |
-| Importing a bank statement (CIC CSV, another bank, a PDF, a pasted table)             | [references/import-releve.md](references/import-releve.md)   |
-| Updating investments (PEA, compte-titres, life insurance, employee savings, crypto)   | [references/placements.md](references/placements.md)         |
-| Entering, filing, splitting a transaction; rules; shared expenses and repayments      | [references/operations.md](references/operations.md)         |
-| A full review and plan (« point sur mes finances »), emergency fund, investor profile | [references/point-finances.md](references/point-finances.md) |
-| Budgeting a project (a trip, a purchase), then its envelope                           | [references/projet.md](references/projet.md)                 |
-| Guiding a bank export (« je suis chez … »), before an import                          | [references/export-banque.md](references/export-banque.md)   |
-| Bringing in all the crypto (exchanges, a Ledger) so quantities and gains match        | [references/crypto.md](references/crypto.md)                 |
+| Task                                                                                                                        | File                                                         |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Month-end review (« Bilan du mois »: guided review, then closing the month)                                                 | [references/bilan-du-mois.md](references/bilan-du-mois.md)   |
+| Importing a bank statement (CIC CSV, another bank, a PDF, a pasted table)                                                   | [references/import-releve.md](references/import-releve.md)   |
+| Updating investments (PEA, compte-titres, life insurance, employee savings, crypto)                                         | [references/placements.md](references/placements.md)         |
+| Entering, filing, splitting a transaction; rules; shared expenses, repayments, letting a debt go; cancelling a subscription | [references/operations.md](references/operations.md)         |
+| A full review and plan (« point sur mes finances »), emergency fund, investor profile                                       | [references/point-finances.md](references/point-finances.md) |
+| Budgeting a project (a trip, a purchase), then its envelope                                                                 | [references/projet.md](references/projet.md)                 |
+| Guiding a bank export (« je suis chez … »), before an import                                                                | [references/export-banque.md](references/export-banque.md)   |
+| Bringing in all the crypto (exchanges, a Ledger) so quantities and gains match                                              | [references/crypto.md](references/crypto.md)                 |

@@ -1,8 +1,15 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { seedDefaultCategories } from '#/categories/seed-default-categories'
 import { env } from '#/config/env'
 import { AuthService } from './auth.service'
+
+// Sign-up seeds the new owner's categories (ADR 0009); covered by its own spec.
+vi.mock('#/categories/seed-default-categories', () => ({
+  seedDefaultCategories: vi.fn(),
+}))
+vi.mock('#/database/owner-scope', () => ({ setOwner: vi.fn() }))
 
 // Mutable copy of the validated env, so tests can switch SMTP on and off.
 vi.mock('#/config/env', async (importOriginal) => {
@@ -104,6 +111,7 @@ describe('AuthService', () => {
 
       expect(mockDb.transaction).toHaveBeenCalledOnce()
       expect(mockDb.execute).toHaveBeenCalledOnce()
+      expect(seedDefaultCategories).toHaveBeenCalledWith(mockDb, 'new-id')
       expect(tokens.accessToken).toBe('mock-token')
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
       expect(mockJwt.sign).toHaveBeenCalledWith(

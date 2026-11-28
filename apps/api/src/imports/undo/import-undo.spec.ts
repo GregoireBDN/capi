@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { asc, eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -85,6 +86,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
   async function withFixture(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         await tx.delete(categorizationRulesTable)
         const [account, savings] = await tx
           .insert(accountsTable)

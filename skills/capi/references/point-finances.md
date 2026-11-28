@@ -8,7 +8,7 @@ Call, in one go: `accounts_overview`, `spending_history` (last 6 to 12 months), 
 
 - **Income and spending**: monthly average of each over the complete months, and what is saved (income − spending, transfers excluded). Savings rate = saved ÷ income.
 - **Fixed costs**: subscriptions and fixed bills per month, as a share of income.
-- **Emergency fund** (« matelas de sécurité »): what sits on checking and savings accounts minus the envelopes (« libre »), counted in months of spending. Rule of thumb: 3 to 6 months; more with irregular income.
+- **Emergency fund** (« matelas de sécurité »): what sits on checking and savings accounts minus the envelopes (« libre », given by `accounts_overview`: never subtract it yourself), counted in months of spending. Rule of thumb: 3 to 6 months; more with irregular income.
 - **Envelopes**: each one, its amount against its target and date, on pace or late.
 - **Investments**: value by type (PEA, compte-titres, life insurance, employee savings, crypto), invested vs value, share of net worth.
 - **Owed**: what others owe, never counted in net worth.
@@ -39,4 +39,4 @@ From their answers, name a profile in plain words (prudent, balanced, dynamic) a
 
 ## 5. Plan
 
-End with a short plan: one line per project and for the fund, with amount, date and monthly effort, then what to watch out for (a category drifting, a subscription to question, a late envelope). Each project becomes an envelope: follow [projet.md](projet.md) once the owner agrees, one project at a time.
+End with a short plan: one line per project and for the fund, with amount, date and monthly effort, then what to watch out for (a category drifting, a subscription to question, a late envelope). Each project becomes an envelope, created with `create_envelope` once the owner agrees: follow [projet.md](projet.md), one project at a time. Last, the monthly amount the plan saves becomes the savings target: `set_budget_targets` with `savingsTarget` only (preview, then `confirm: true` once they agree).

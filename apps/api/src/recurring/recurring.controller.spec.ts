@@ -240,18 +240,36 @@ describe('RecurringController (HTTP)', () => {
       expect(service.update).not.toHaveBeenCalled()
     })
 
-    it('refuses a cancellation from an access token, not other edits', async () => {
+    it('lets an access token cancel (#597), not reactivate', async () => {
       const headers = { authorization: `Bearer ${WRITE_TOKEN}` }
-      for (const endedOn of ['2026-12-15', null]) {
-        const refused = await request(
+      const refused = await request(
+        'PATCH',
+        `/recurring/${ITEM_ID}`,
+        { endedOn: null },
+        headers,
+      )
+      expect(refused.statusCode).toBe(403)
+      for (const body of [{ termMonths: 12 }, { keepRenewal: true }]) {
+        const locked = await request(
           'PATCH',
           `/recurring/${ITEM_ID}`,
-          { endedOn },
+          body,
           headers,
         )
-        expect(refused.statusCode).toBe(403)
+        expect(locked.statusCode).toBe(403)
       }
       expect(service.update).not.toHaveBeenCalled()
+
+      const cancelled = await request(
+        'PATCH',
+        `/recurring/${ITEM_ID}`,
+        { endedOn: '2026-12-15' },
+        headers,
+      )
+      expect(cancelled.statusCode).toBe(200)
+      expect(service.update).toHaveBeenCalledWith(ITEM_ID, {
+        endedOn: '2026-12-15',
+      })
 
       const allowed = await request(
         'PATCH',

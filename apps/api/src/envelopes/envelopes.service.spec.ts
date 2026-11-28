@@ -1,5 +1,6 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -154,6 +155,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     async function inRollback(fn: (f: Fixture) => Promise<void>) {
       await db
         .transaction(async (tx) => {
+          await asSpecOwner(tx)
           const database = { db: tx } as never
           const accounts = new AccountsService(database)
           const envelopes = new EnvelopesService(database, accounts)
@@ -323,6 +325,69 @@ describe.skipIf(!process.env.DATABASE_URL)(
           totalCents: 15_000,
         })
       })
+    })
+
+    it('creates and adds to an envelope from « libre » only, changing no balance or statistic (#518)', async () => {
+      await inRollback(
+        async ({ tx, envelopes, accounts, checking, livret }) => {
+          const flows = async () =>
+            (
+              await tx.execute<{ n: number; cents: string | null }>(
+                sql`select count(*)::int as n, sum(amount_cents)::text as cents from transaction_lines`,
+              )
+            )[0]
+          const balances = async () =>
+            (await accounts.list({ includeArchived: true })).map((a) => [
+              a.id,
+              a.balanceCents,
+            ])
+          const [beforeFlows, beforeBalances, beforeWorth] = await Promise.all([
+            flows(),
+            balances(),
+            netWorth(accounts),
+          ])
+          const japan = await envelopes.create(
+            {
+              name: 'Voyage Japon',
+              targetCents: 240_000,
+              dueDate: '2027-06-15',
+              start: [{ accountId: livret, amountCents: 30_000 }],
+            },
+            { now: NOW },
+          )
+          const after = await envelopes.topUp(
+            japan.id,
+            { accountId: livret, amountCents: 20_000 },
+            { now: NOW },
+          )
+          expect(after).toMatchObject({
+            allocatedCents: 50_000,
+            freeCents: 450_000,
+          })
+          expect((await envelopes.detail(japan.id)).totalCents).toBe(50_000)
+          expect(await flows()).toEqual(beforeFlows)
+          expect(await balances()).toEqual(beforeBalances)
+          expect(await netWorth(accounts)).toBe(beforeWorth)
+
+          // Never more than « libre », never into an archived envelope.
+          await expect(
+            envelopes.topUp(japan.id, {
+              accountId: checking,
+              amountCents: 200_001,
+            }),
+          ).rejects.toThrow('libre')
+          await envelopes.update(japan.id, { archived: true })
+          await expect(
+            envelopes.topUp(japan.id, { accountId: livret, amountCents: 100 }),
+          ).rejects.toThrow('archived')
+          await expect(
+            envelopes.topUp('7f0c5a7e-2d1b-4c3a-9e8f-123456789abc', {
+              accountId: livret,
+              amountCents: 100,
+            }),
+          ).rejects.toThrow('not found')
+        },
+      )
     })
 
     it('reports the gap when the balance falls under its envelopes, reducing nothing', async () => {

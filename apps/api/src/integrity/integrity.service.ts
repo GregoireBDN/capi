@@ -126,18 +126,20 @@ export class IntegrityService {
       totals: () => this.totals(shown, executor),
     }
     const keys = Object.keys(runs) as IntegrityCheck[]
-    const results = await Promise.all(
-      keys.map(async (key) => {
-        try {
-          return { key, findings: await runs[key]() }
-        } catch (error) {
-          this.logger.warn(
-            `Integrity check ${key} failed: ${error instanceof Error ? error.name : 'unknown error'}`,
-          )
-          return { key, findings: null }
-        }
-      }),
-    )
+    // One after the other, each in a savepoint: a check that fails leaves
+    // the request's transaction usable for the others (#557).
+    const results: { key: IntegrityCheck; findings: Finding[] | null }[] = []
+    for (const key of keys) {
+      try {
+        const findings = await (executor as Db).transaction(() => runs[key]())
+        results.push({ key, findings })
+      } catch (error) {
+        this.logger.warn(
+          `Integrity check ${key} failed: ${error instanceof Error ? error.name : 'unknown error'}`,
+        )
+        results.push({ key, findings: null })
+      }
+    }
 
     const checks: IntegrityCheckDto[] = results.map(({ key, findings }) => ({
       key,

@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { MailCheckIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -32,10 +33,17 @@ export function ForgotForm() {
 
   if (sent) {
     return (
-      <p className="text-muted-foreground text-center text-sm py-4">
-        Si cet email est associé à un compte, un lien de réinitialisation vous a
-        été envoyé.
-      </p>
+      <div className="flex flex-col items-center gap-2 py-2 text-center">
+        <span
+          aria-hidden
+          className="bg-primary/10 text-primary grid size-11 place-items-center rounded-full"
+        >
+          <MailCheckIcon className="size-5" />
+        </span>
+        <p className="text-muted-foreground text-sm text-balance">
+          Si ce compte existe, le lien vient de partir par email.
+        </p>
+      </div>
     )
   }
 
@@ -61,6 +69,7 @@ export function ForgotForm() {
       </Field>
       <Button
         type="submit"
+        size="lg"
         fullWidth
         loading={form.formState.isSubmitting}
         disabled={!hydrated}

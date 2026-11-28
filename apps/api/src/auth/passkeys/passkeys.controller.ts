@@ -48,6 +48,7 @@ import {
   WEBAUTHN_OPTIONS_SCHEMA,
 } from './dto/passkey.dto'
 import { PasskeysService } from './passkeys.service'
+import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
 
 const OPTIONS_THROTTLE = {
   default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.passkeyOptions },
@@ -63,6 +64,7 @@ const VERIFY_THROTTLE = {
  */
 @ApiTags('Passkeys')
 @TokenAccess('none')
+@WithoutOwnerScope()
 @Controller('auth/passkeys')
 export class PasskeysController {
   constructor(

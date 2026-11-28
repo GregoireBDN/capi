@@ -4,6 +4,7 @@ export const SESSION_SIGN_IN_METHODS = [
   'password',
   'passkey',
   'sign_up',
+  'demo',
   'unknown',
 ] as const
 

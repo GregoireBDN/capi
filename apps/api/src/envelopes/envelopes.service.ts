@@ -41,6 +41,7 @@ import {
   type EnvelopeOffersDto,
   type EnvelopePlanDto,
   type MoveEnvelopeMoneyDto,
+  type TopUpEnvelopeDto,
   type SetSplitKeyDto,
   type UpdateEnvelopeDto,
 } from './dto/envelope.dto'
@@ -602,6 +603,27 @@ export class EnvelopesService {
     return this.forAccount(dto.accountId)
   }
 
+  /**
+   * Adds money to an envelope from « libre » on one account (#518): the one
+   * move a `write` token may make, so the MCP never takes money out of one.
+   */
+  topUp(
+    id: string,
+    dto: TopUpEnvelopeDto,
+    options: { now?: Date } = {},
+  ): Promise<AccountEnvelopesDto> {
+    return this.move(
+      {
+        accountId: dto.accountId,
+        fromEnvelopeId: null,
+        toEnvelopeId: id,
+        amountCents: dto.amountCents,
+        note: dto.note ?? null,
+      },
+      options,
+    )
+  }
+
   /** Replaces an account's split key. */
   async setSplitKey(
     accountId: string,
@@ -960,7 +982,7 @@ export class EnvelopesService {
       .from(accountsTable)
       .where(eq(accountsTable.id, accountId))
       .for('update')
-    if (!account) throw new BadRequestException('Unknown account')
+    if (!account) throw new NotFoundException('Account not found')
   }
 
   /** « Libre » of an account: its balance (0 when unknown) − its envelopes. */

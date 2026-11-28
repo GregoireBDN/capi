@@ -1,3 +1,4 @@
+import { ownerColumn } from '#/database/schema/owner'
 import { sql } from 'drizzle-orm'
 import {
   check,
@@ -58,6 +59,7 @@ export const importProfilesTable = pgTable(
   'import_profiles',
   {
     ...coreColumns,
+    userId: ownerColumn(),
     name: varchar('name', { length: 100 }).notNull(),
     target: importProfileTargetEnum('target').notNull(),
     encoding: varchar('encoding', { length: 20 }).notNull(),
@@ -71,7 +73,11 @@ export const importProfilesTable = pgTable(
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   },
   (t) => [
-    unique('import_profiles_header_unique').on(t.delimiter, t.headers),
+    unique('import_profiles_header_unique').on(
+      t.userId,
+      t.delimiter,
+      t.headers,
+    ),
     check('import_profiles_name_not_blank', sql`btrim(${t.name}) <> ''`),
     check(
       'import_profiles_encoding_known',

@@ -4,6 +4,12 @@ import * as crypto from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthService } from './auth.service'
 
+// Sign-up seeds the new owner's categories (ADR 0009); covered by its own spec.
+vi.mock('#/categories/seed-default-categories', () => ({
+  seedDefaultCategories: vi.fn(),
+}))
+vi.mock('#/database/owner-scope', () => ({ setOwner: vi.fn() }))
+
 /**
  * Covers the email-verification and password-reset token logic. The ticket
  * refers to this as `email/tokens.ts`, but the token generation/validation
@@ -12,7 +18,8 @@ import { AuthService } from './auth.service'
  * SHA-256 hash, single-use, and rejected once expired.
  */
 
-const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex')
+const sha256 = (value: string) =>
+  crypto.createHash('sha256').update(value).digest('hex')
 
 /**
  * Drizzle query-builder stub. `insert().values()` captures the inserted row so a
@@ -30,7 +37,8 @@ function buildChain(result: unknown[], captured?: { values?: unknown }) {
     if (captured) captured.values = row
     return chain
   })
-  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+  chain.then = (resolve: (v: unknown) => unknown) =>
+    Promise.resolve(result).then(resolve)
   return chain
 }
 
@@ -65,18 +73,28 @@ describe('AuthService email verification tokens', () => {
     const inserted: { values?: unknown } = {}
     mockDb.select.mockReturnValue(buildChain([])) // register: no existing user
     mockDb.insert
-      .mockReturnValueOnce(buildChain([{ id: 'user-1', email: 'new@test.com' }])) // user
+      .mockReturnValueOnce(
+        buildChain([{ id: 'user-1', email: 'new@test.com' }]),
+      ) // user
       .mockReturnValueOnce(buildChain([{}], inserted)) // verification token
       .mockReturnValueOnce(buildChain([{}])) // session refresh token
 
-    await service.register({ email: 'new@test.com', name: 'New', password: 'password123' })
+    await service.register({
+      email: 'new@test.com',
+      name: 'New',
+      password: 'password123',
+    })
 
     const url = mockEmail.sendEmailVerification.mock.calls[0][1] as string
     const rawToken = new URL(url).searchParams.get('token')
     expect(rawToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
-    expect((inserted.values as { tokenHash: string }).tokenHash).toBe(sha256(rawToken!))
+    expect((inserted.values as { tokenHash: string }).tokenHash).toBe(
+      sha256(rawToken!),
+    )
     // The plaintext token is never persisted.
-    expect((inserted.values as { tokenHash: string }).tokenHash).not.toBe(rawToken)
+    expect((inserted.values as { tokenHash: string }).tokenHash).not.toBe(
+      rawToken,
+    )
   })
 
   it('verifies a valid token: marks the user verified and the token used', async () => {
@@ -96,16 +114,26 @@ describe('AuthService email verification tokens', () => {
   it('rejects an unknown token', async () => {
     mockDb.select.mockReturnValue(buildChain([]))
 
-    await expect(service.verifyEmail('does-not-exist')).rejects.toThrow(BadRequestException)
+    await expect(service.verifyEmail('does-not-exist')).rejects.toThrow(
+      BadRequestException,
+    )
     expect(mockDb.update).not.toHaveBeenCalled()
   })
 
   it('rejects an expired token', async () => {
     mockDb.select.mockReturnValue(
-      buildChain([{ id: 'tok-1', userId: 'user-1', expiresAt: new Date(Date.now() - 1000) }]),
+      buildChain([
+        {
+          id: 'tok-1',
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() - 1000),
+        },
+      ]),
     )
 
-    await expect(service.verifyEmail('expired')).rejects.toThrow(BadRequestException)
+    await expect(service.verifyEmail('expired')).rejects.toThrow(
+      BadRequestException,
+    )
     expect(mockDb.update).not.toHaveBeenCalled()
   })
 
@@ -113,22 +141,30 @@ describe('AuthService email verification tokens', () => {
     it('throws when the user does not exist', async () => {
       mockDb.select.mockReturnValue(buildChain([]))
 
-      await expect(service.resendVerification('ghost')).rejects.toThrow(UnauthorizedException)
+      await expect(service.resendVerification('ghost')).rejects.toThrow(
+        UnauthorizedException,
+      )
       expect(mockEmail.sendEmailVerification).not.toHaveBeenCalled()
     })
 
     it('throws when the email is already verified', async () => {
       mockDb.select.mockReturnValue(
-        buildChain([{ id: 'user-1', email: 'a@test.com', emailVerifiedAt: new Date() }]),
+        buildChain([
+          { id: 'user-1', email: 'a@test.com', emailVerifiedAt: new Date() },
+        ]),
       )
 
-      await expect(service.resendVerification('user-1')).rejects.toThrow(BadRequestException)
+      await expect(service.resendVerification('user-1')).rejects.toThrow(
+        BadRequestException,
+      )
       expect(mockEmail.sendEmailVerification).not.toHaveBeenCalled()
     })
 
     it('sends a fresh verification email to an unverified user', async () => {
       mockDb.select.mockReturnValue(
-        buildChain([{ id: 'user-1', email: 'a@test.com', emailVerifiedAt: null }]),
+        buildChain([
+          { id: 'user-1', email: 'a@test.com', emailVerifiedAt: null },
+        ]),
       )
       mockDb.insert.mockReturnValue(buildChain([{}]))
 
@@ -153,7 +189,9 @@ describe('AuthService password reset tokens', () => {
   it('stores only a hash of the reset token and emails the raw token', async () => {
     const inserted: { values?: unknown } = {}
     mockDb.select.mockReturnValue(
-      buildChain([{ id: 'user-1', email: 'user@test.com', passwordHash: 'hash' }]),
+      buildChain([
+        { id: 'user-1', email: 'user@test.com', passwordHash: 'hash' },
+      ]),
     )
     mockDb.insert.mockReturnValue(buildChain([{}], inserted))
 
@@ -162,16 +200,26 @@ describe('AuthService password reset tokens', () => {
     const url = mockEmail.sendPasswordReset.mock.calls[0][1] as string
     const rawToken = new URL(url).searchParams.get('token')
     expect(rawToken).toMatch(/^[a-f0-9]{64}$/)
-    expect((inserted.values as { tokenHash: string }).tokenHash).toBe(sha256(rawToken!))
+    expect((inserted.values as { tokenHash: string }).tokenHash).toBe(
+      sha256(rawToken!),
+    )
   })
 
   it('resets the password for a valid token and consumes it', async () => {
     mockDb.select.mockReturnValue(
-      buildChain([{ id: 'tok-1', userId: 'user-1', expiresAt: new Date(Date.now() + 60_000) }]),
+      buildChain([
+        {
+          id: 'tok-1',
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]),
     )
     mockDb.update.mockReturnValue(buildChain([{}]))
 
-    await expect(service.resetPassword('raw-token', 'newpassword123')).resolves.toBeUndefined()
+    await expect(
+      service.resetPassword('raw-token', 'newpassword123'),
+    ).resolves.toBeUndefined()
     // Spend the link, set the new passwordHash, end every session, spend the
     // other pending links (sessions: see auth.password.http.spec.ts).
     expect(mockDb.update).toHaveBeenCalledTimes(4)
@@ -179,20 +227,26 @@ describe('AuthService password reset tokens', () => {
 
   it('rejects an expired reset token', async () => {
     mockDb.select.mockReturnValue(
-      buildChain([{ id: 'tok-1', userId: 'user-1', expiresAt: new Date(Date.now() - 1000) }]),
+      buildChain([
+        {
+          id: 'tok-1',
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() - 1000),
+        },
+      ]),
     )
 
-    await expect(service.resetPassword('expired', 'newpassword123')).rejects.toThrow(
-      BadRequestException,
-    )
+    await expect(
+      service.resetPassword('expired', 'newpassword123'),
+    ).rejects.toThrow(BadRequestException)
     expect(mockDb.update).not.toHaveBeenCalled()
   })
 
   it('rejects an unknown reset token', async () => {
     mockDb.select.mockReturnValue(buildChain([]))
 
-    await expect(service.resetPassword('nope', 'newpassword123')).rejects.toThrow(
-      BadRequestException,
-    )
+    await expect(
+      service.resetPassword('nope', 'newpassword123'),
+    ).rejects.toThrow(BadRequestException)
   })
 })

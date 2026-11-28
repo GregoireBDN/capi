@@ -208,6 +208,51 @@
         ]
       }
     },
+    "/api/auth/demo-sign-in": {
+      "get": {
+        "operationId": "AuthController_demoSignInStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSignInStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "operationId": "AuthController_demoSignIn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": true
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No demo sign-in on this server."
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "operationId": "AuthController_logout",
@@ -3664,7 +3709,7 @@
             "description": ""
           },
           "403": {
-            "description": "Access token with `endedOn`, `termMonths` or `keepRenewal`: cancelling, the prepaid term and renewals stay in the app (session only)."
+            "description": "Access token with `endedOn: null`, `termMonths` or `keepRenewal`: reactivating, the prepaid term and renewals stay in the app (session only). Cancelling (`endedOn` a date) is open to write tokens (#597): `cancel_subscription`, re-approved by the owner each time."
           },
           "404": {
             "description": "Unknown item."
@@ -5356,7 +5401,7 @@
     },
     "/api/receivables/{id}/forgive": {
       "post": {
-        "description": "« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible. Session only: Claude never lets a debt go.",
+        "description": "« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible in the app (claiming it again stays session only). Open to write tokens (#597): `forgive_debt`, re-approved by the owner each time.",
         "operationId": "ReceivablesController_forgive",
         "parameters": [
           {
@@ -9642,6 +9687,63 @@
         ]
       }
     },
+    "/api/envelopes/{id}/top-up": {
+      "post": {
+        "description": "A move from « libre » into the envelope on one account (#518): the balance does not change, never more than « libre ». Open to `write` tokens; taking money out of an envelope stays session only.",
+        "operationId": "EnvelopesController_topUp",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpEnvelopeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, archived envelope, or more than « libre »."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown envelope or account."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Add money to an envelope from an account’s « libre »",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
     "/api/envelopes/{id}/transactions": {
       "post": {
         "description": "An expense keeps its category and counts once in the month; the envelope pays it (or `amountCents` of it) and adds that to the month’s budget. A transfer out carries the envelope’s money (or `amountCents` of it) to its other account.",
@@ -10396,6 +10498,18 @@
           "password"
         ]
       },
+      "DemoSignInStatusDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "True on a pull request preview that signs in the demo account by itself (#608)."
+          }
+        },
+        "required": [
+          "available"
+        ]
+      },
       "ForgotPasswordDto": {
         "type": "object",
         "properties": {
@@ -10750,6 +10864,7 @@
           "password",
           "passkey",
           "sign_up",
+          "demo",
           "unknown"
         ],
         "description": "`unknown` for sessions started before the list existed."
@@ -23928,6 +24043,30 @@
           "shortfallCents",
           "splitKey",
           "freeBasisPoints"
+        ]
+      },
+      "TopUpEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Taken from the account’s « libre »; the money does not move."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "accountId",
+          "amountCents"
         ]
       },
       "AttachTransactionDto": {

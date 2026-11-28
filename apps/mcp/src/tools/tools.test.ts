@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
+  AccountEnvelopesDto,
   BudgetMonthDto,
   DashboardOverviewDto,
   EnvelopesDto,
@@ -55,20 +56,25 @@ describe('tool list', () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       'accounts_overview',
       'add_investment_snapshots',
+      'add_to_envelope',
       'add_transaction',
       'budget_history',
       'budget_status',
       'budget_suggestions',
+      'cancel_subscription',
       'categorize_transactions',
       'close_months',
       'commit_bank_import',
+      'create_envelope',
       'create_investment_account',
       'create_rule',
+      'forgive_debt',
       'integrity_checks',
       'link_repayment',
       'list_categories',
       'list_imports',
       'list_investment_accounts',
+      'list_rules',
       'mark_one_off',
       'month_close_status',
       'month_end_forecast',
@@ -88,6 +94,7 @@ describe('tool list', () => {
       'subscriptions',
       'sync_crypto_holdings',
       'sync_security_positions',
+      'update_rule',
     ])
     const writeTools = new Set([
       'add_investment_snapshots',
@@ -97,6 +104,7 @@ describe('tool list', () => {
       'add_transaction',
       'categorize_transactions',
       'create_rule',
+      'update_rule',
       'mark_one_off',
       'set_budget_targets',
       'set_transaction_note',
@@ -106,14 +114,22 @@ describe('tool list', () => {
       'split_transaction',
       'share_expense',
       'link_repayment',
+      'cancel_subscription',
+      'forgive_debt',
+      'create_envelope',
+      'add_to_envelope',
     ])
+    // #597: the client asks the owner to approve each of these calls.
+    const destructive = new Set(['cancel_subscription', 'forgive_debt'])
     // Writes no transaction (a pending preview only): nothing to confirm (#103).
     const withoutConfirm = new Set(['preview_bank_import'])
     for (const tool of tools) {
       const write = writeTools.has(tool.name)
       expect(tool.annotations?.readOnlyHint).toBe(!write)
       if (write) {
-        expect(tool.annotations?.destructiveHint).toBe(false)
+        expect(tool.annotations?.destructiveHint).toBe(
+          destructive.has(tool.name),
+        )
         if (!withoutConfirm.has(tool.name))
           expect(tool.inputSchema.properties).toHaveProperty('confirm')
       }
@@ -153,9 +169,13 @@ describe('accounts_overview', () => {
       previous: flow(),
       reviewCount: 0,
     }
-    const { call } = await connect({ '/api/dashboard/overview': overview })
+    const { call } = await connect({
+      '/api/dashboard/overview': overview,
+      '/api/envelopes': [],
+    })
     const { text, isError } = await call('accounts_overview')
     expect(isError).toBe(false)
+    expect(text).not.toContain('libre')
     expect(text).toContain('Patrimoine net : 12 345,67 €')
     expect(text).toContain('soit +345,67 € depuis')
     expect(text).toContain(
@@ -164,6 +184,129 @@ describe('accounts_overview', () => {
     expect(text).toContain(
       'PEA (PEA, Banque Test) : 10 000,00 € au 30/09/2026 — pas à jour',
     )
+  })
+  it('gives « libre » and the shortfall of accounts holding envelopes (#522)', async () => {
+    const overview: DashboardOverviewDto = {
+      netWorth: {
+        totalCents: 1133456,
+        cashCents: 133456,
+        investmentsCents: 1000000,
+        previousMonthEnd: '2026-10-31',
+        previousMonthEndCents: null,
+        unknownBalanceCount: 0,
+      },
+      accounts: [
+        { ...checking, group: 'cash', dataUntil: '2026-11-10', stale: false },
+        {
+          ...livret,
+          balanceCents: 10000,
+          group: 'cash',
+          dataUntil: '2026-11-10',
+          stale: false,
+        },
+        {
+          ...pea,
+          group: 'investments',
+          balanceCents: 1000000,
+          dataUntil: null,
+          stale: false,
+        },
+      ],
+      period: period(),
+      current: flow({ month: '2026-11' }),
+      previous: flow(),
+      reviewCount: 0,
+    }
+    const plan = {
+      remainingCents: null,
+      progressRatio: null,
+      reached: false,
+      monthsLeft: null,
+      targetDatePassed: false,
+      requiredMonthlyCents: null,
+    }
+    const envelope = (id: string, amounts: [string, number][]) => ({
+      id,
+      name: `Enveloppe ${id}`,
+      icon: null,
+      color: null,
+      targetCents: null,
+      dueDate: null,
+      archived: false,
+      categoryIds: [],
+      totalCents: amounts.reduce((s, [, c]) => s + c, 0),
+      paidCents: 0,
+      putAsideCents: 0,
+      accounts: amounts.map(([accountId, amountCents]) => ({
+        accountId,
+        accountName: 'test',
+        amountCents,
+      })),
+      plan,
+    })
+    const split = (
+      accountId: string,
+      balanceCents: number,
+      allocatedCents: number,
+    ): AccountEnvelopesDto => ({
+      accountId,
+      balanceCents,
+      balanceDate: '2026-11-10',
+      envelopes: [],
+      allocatedCents,
+      freeCents: balanceCents - allocatedCents,
+      shortfallCents: Math.max(0, allocatedCents - balanceCents),
+      splitKey: [],
+      freeBasisPoints: 10000,
+    })
+    const { call, calls } = await connect({
+      '/api/dashboard/overview': overview,
+      '/api/envelopes': [
+        envelope('e1', [
+          [checking.id, 30000],
+          [livret.id, 25000],
+        ]),
+        envelope('e2', [
+          [checking.id, 15000],
+          [pea.id, 0],
+        ]),
+      ],
+      [`/api/accounts/${checking.id}/envelopes`]: split(
+        checking.id,
+        123456,
+        45000,
+      ),
+      [`/api/accounts/${livret.id}/envelopes`]: split(livret.id, 10000, 25000),
+    })
+    const { text, isError } = await call('accounts_overview')
+    expect(isError).toBe(false)
+    expect(text).toContain(
+      'Patrimoine net : 11 334,56 € (liquidités 1 334,56 €',
+    )
+    expect(text).toContain(
+      '- Compte courant (compte courant, Banque Test) : 1 234,56 € au 10/11/2026 · dont 450,00 € dans des enveloppes · 784,56 € libre',
+    )
+    expect(text).toContain(
+      '- Livret A (épargne, Banque Test) : 100,00 € au 10/11/2026 · dont 250,00 € dans des enveloppes · il manque 150,00 € pour couvrir les enveloppes',
+    )
+    expect(text).toContain(
+      '- PEA (PEA, Banque Test) : 10 000,00 € au 10/11/2026\n',
+    )
+    expect(text).toContain(
+      'Libre sur les comptes bancaires (soldes moins enveloppes, déjà comptées dans le patrimoine) : 634,56 €.',
+    )
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/envelopes')!
+        .url.searchParams.get('includeArchived'),
+    ).toBe('true')
+    expect(
+      calls.filter(
+        (c) =>
+          c.url.pathname.endsWith('/envelopes') &&
+          c.url.pathname.startsWith('/api/accounts/'),
+      ),
+    ).toHaveLength(2)
   })
 })
 
@@ -399,6 +542,190 @@ describe('spending', () => {
     expect(text).toContain('| Courses | 100,00 € | 120,00 € | 220,00 € |')
     expect(text).toContain('| Autres | 5,00 € | 0,00 € | 5,00 € |')
     expect(text).toContain('| Total | 105,00 € | 120,00 € | 225,00 € |')
+  })
+
+  // #520: the three parts of Mouvements, passed to the API as is.
+  const byKind = (
+    kind: SpendingByCategoryDto['kind'],
+    row: Partial<SpendingByCategoryDto['categories'][number]>,
+    overrides: Partial<SpendingByCategoryDto> = {},
+  ): SpendingByCategoryDto => ({
+    kind,
+    month: '2026-11',
+    previousMonth: '2026-10',
+    period: period(),
+    includeOneOffs: false,
+    averageMonths: 6,
+    averageFrom: '2026-05',
+    totalCents: 250000,
+    transactionCount: 1,
+    previousTotalCents: 250000,
+    averageTotalCents: 250000,
+    oneOffCents: 0,
+    expectedCents: 0,
+    categories: [
+      {
+        categoryId: null,
+        slug: null,
+        name: null,
+        color: null,
+        icon: null,
+        spentCents: 250000,
+        share: 1,
+        transactionCount: 1,
+        previousSpentCents: 250000,
+        deltaCents: 0,
+        averageCents: 250000,
+        notYetThisMonth: false,
+        targetCents: null,
+        expectedCents: 0,
+        accountId: null,
+        accountType: null,
+        inCents: null,
+        outCents: null,
+        ...row,
+      },
+    ],
+    ...overrides,
+  })
+
+  it('reads income with its planned amount and the credits still expected', async () => {
+    const data = byKind(
+      'income',
+      {
+        categoryId: salary.id,
+        slug: salary.slug,
+        name: salary.name,
+        spentCents: 0,
+        share: 0,
+        transactionCount: 0,
+        deltaCents: -250000,
+        notYetThisMonth: true,
+        targetCents: 260000,
+        expectedCents: 250000,
+      },
+      { totalCents: 0, transactionCount: 0, expectedCents: 250000 },
+    )
+    const { call, calls } = await connect({ '/api/spending/by-category': data })
+    const { text } = await call('spending_by_category', { kind: 'income' })
+    const query = calls.find(
+      (c) => c.url.pathname === '/api/spending/by-category',
+    )!.url.searchParams
+    expect(query.get('kind')).toBe('income')
+    expect(text).toContain(
+      'Revenus de novembre 2026, hors revenus exceptionnels.',
+    )
+    expect(text).toContain('Mois partiel')
+    expect(text).toContain(
+      '- Salaire : 0,00 € (0 %, 0 op.) · mois précédent 2 500,00 € (-2 500,00 €) · moyenne 6 mois 2 500,00 € · prévu 2 600,00 € · encore attendu ce mois-ci 2 500,00 € · pas encore reçu ce mois-ci',
+    )
+    expect(text).toContain(
+      "Revenus récurrents encore attendus d'ici la fin du mois (non comptés) : 2 500,00 €.",
+    )
+  })
+
+  it('reads what was set aside per account, deposits and withdrawals', async () => {
+    const data = byKind(
+      'savings',
+      {
+        name: livret.name,
+        accountId: livret.id,
+        accountType: 'savings',
+        spentCents: 30000,
+        inCents: 50000,
+        outCents: 20000,
+        previousSpentCents: 40000,
+        deltaCents: -10000,
+        averageCents: 35000,
+      },
+      {
+        totalCents: 30000,
+        previousTotalCents: 40000,
+        averageTotalCents: 35000,
+        period: period({ status: 'complete', throughDay: null }),
+      },
+    )
+    const { call, calls } = await connect({ '/api/spending/by-category': data })
+    const { text } = await call('spending_by_category', {
+      kind: 'savings',
+      month: '2026-11',
+    })
+    const query = calls.find(
+      (c) => c.url.pathname === '/api/spending/by-category',
+    )!.url.searchParams
+    expect(Object.fromEntries(query)).toEqual({
+      kind: 'savings',
+      month: '2026-11',
+    })
+    expect(text).toContain(
+      "Mis de côté de novembre 2026, virements vers l'épargne et les placements (versé − retiré), jamais comptés comme revenus ou dépenses.",
+    )
+    expect(text).toContain(
+      '- Livret A : 300,00 € (100 %, 1 op.) · versé 500,00 € · retiré 200,00 € · mois précédent 400,00 € (-100,00 €) · moyenne 6 mois 350,00 €',
+    )
+    expect(text).not.toContain('exceptionnel')
+  })
+
+  it('gives the savings history per account, and refuses a category filter', async () => {
+    const data: SpendingTrendDto = {
+      kind: 'savings',
+      months: ['2026-10', '2026-11'],
+      includeOneOffs: false,
+      series: [
+        {
+          key: livret.id,
+          type: 'account',
+          categoryId: null,
+          accountId: livret.id,
+          slug: null,
+          name: livret.name,
+          color: null,
+          icon: null,
+          valuesCents: [40000, 30000],
+          totalCents: 70000,
+        },
+        {
+          key: 'uncategorized',
+          type: 'uncategorized',
+          categoryId: null,
+          accountId: null,
+          slug: null,
+          name: null,
+          color: null,
+          icon: null,
+          valuesCents: [0, -5000],
+          totalCents: -5000,
+        },
+      ],
+      totalsCents: [40000, 25000],
+      averageCents: 40000,
+      averageMonths: 1,
+      details: [],
+      sameDaysAverageCents: null,
+    }
+    const { call, calls } = await connect({ '/api/spending/trend': data })
+    const { text } = await call('spending_history', {
+      kind: 'savings',
+      months: 2,
+    })
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/spending/trend')!
+        .url.searchParams.get('kind'),
+    ).toBe('savings')
+    expect(text).toContain(
+      'Mis de côté par mois de octobre 2026 à novembre 2026',
+    )
+    expect(text).toContain('| Compte | oct. 2026 | nov. 2026 | Total |')
+    expect(text).toContain('| Livret A | 400,00 € | 300,00 € | 700,00 € |')
+    expect(text).toContain('| Compte inconnu | 0,00 € | -50,00 € | -50,00 € |')
+
+    const refused = await call('spending_history', {
+      kind: 'savings',
+      category: 'Courses',
+    })
+    expect(refused.isError).toBe(true)
+    expect(refused.text).toContain('account')
   })
 })
 

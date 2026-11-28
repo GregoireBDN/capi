@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -48,6 +49,7 @@ describe.skipIf(!process.env.DATABASE_URL)('data coverage (database)', () => {
   ) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         const [checking, savings] = await tx
           .insert(accountsTable)
           .values([

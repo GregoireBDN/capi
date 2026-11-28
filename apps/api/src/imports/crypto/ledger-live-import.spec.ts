@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { BadRequestException } from '@nestjs/common'
 import { and, asc, eq, inArray } from 'drizzle-orm'
@@ -71,6 +72,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Ledger Live imports (#426)', () => {
   async function inRollback(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         const database = { db: tx } as never
         const accounts = new AccountsService(database)
         const provider = {

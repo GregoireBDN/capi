@@ -28,6 +28,8 @@ import {
 import { JwtGuard } from './auth/guards/jwt.guard'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { DatabaseService } from './database/database.service'
+import { ownedTableOf } from './database/request-scope/owned-params'
+import { WITHOUT_OWNER_SCOPE } from './database/request-scope/owner-scope.interceptor'
 import { registerMultipart } from './imports/upload/multipart'
 import * as schema from './database/schema'
 import { usersTable } from './user/user.schema'
@@ -60,6 +62,9 @@ const AUTH_GUARDS: Type<CanActivate>[] = [JwtGuard]
 const PUBLIC_ROUTES = [
   'GET /api/health',
   'GET /api/auth/registration-status',
+  // The previews' demo sign-in (#608): 404 outside a preview that asked for it.
+  'GET /api/auth/demo-sign-in',
+  'POST /api/auth/demo-sign-in',
   'POST /api/auth/register',
   'POST /api/auth/login',
   'POST /api/auth/refresh',
@@ -122,14 +127,20 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/categorization-rules/matches': 'read',
   'POST /api/categorization-rules/preview': 'read',
   'POST /api/categorization-rules/suggest': 'read',
+  // #518: create_envelope and add_to_envelope (MCP); changing, deleting,
+  // taking money out, attaching, splits and keys stay session-only.
+  'POST /api/envelopes': 'write',
+  'POST /api/envelopes/:id/top-up': 'write',
   // MCP bank import tools (#103): the preview → commit flow, nothing else.
   'POST /api/imports/:id/commit': 'write',
   'POST /api/imports/preview': 'write',
   // #342: close_months (MCP); reopen stays session-only.
   'POST /api/month-close/:month/close': 'write',
   // #359: share_expense and link_repayment (MCP), and « Quelqu’un a payé pour moi »;
-  // letting a debt go, deleting and contact settings stay session-only.
+  // #597: forgive_debt lets a debt go (re-approved by the owner each time);
+  // claiming it again, deleting and contact settings stay session-only.
   'POST /api/receivables': 'write',
+  'POST /api/receivables/:id/forgive': 'write',
   'POST /api/receivables/debts': 'write',
   'POST /api/receivables/payments': 'write',
   'POST /api/recurring/confirm': 'write',
@@ -164,6 +175,8 @@ interface DiscoveredRoute {
   guarded: boolean
   /** What a personal access token needs to call it (see `JwtGuard`). */
   tokenAccess: TokenAccessLevel
+  /** Runs as its user (`OwnerScopeInterceptor`), not an identity route. */
+  ownerScoped: boolean
 }
 
 function joinPath(...parts: string[]): string {
@@ -203,6 +216,7 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
       if (!controller) continue
       const classGuarded = hasAuthGuard(controller)
       const classTokenAccess = declaredTokenAccess(controller)
+      const classUnscoped = Reflect.getMetadata(WITHOUT_OWNER_SCOPE, controller)
       const prefixes = asArray(
         Reflect.getMetadata(PATH_METADATA, controller) as string | string[],
       )
@@ -232,6 +246,10 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
               path: full,
               guarded: classGuarded || hasAuthGuard(handler),
               tokenAccess,
+              ownerScoped: !(
+                classUnscoped ||
+                Reflect.getMetadata(WITHOUT_OWNER_SCOPE, handler)
+              ),
             })
           }
         }
@@ -395,6 +413,18 @@ describe('API route audit', () => {
         }
       },
     )
+  })
+
+  it('knows the table of every row id in a path (#558)', () => {
+    const unknown = routes
+      .filter((route) => route.guarded && route.ownerScoped)
+      .flatMap((route) =>
+        [...route.path.matchAll(/:(\w+)/g)]
+          .filter(([, param]) => ownedTableOf(route.path, param) === undefined)
+          .map(([, param]) => `${route.key} :${param}`),
+      )
+    // Name it in `database/request-scope/owned-params.ts`.
+    expect(unknown).toEqual([])
   })
 
   it('no longer routes the old /api/users CRUD', async () => {

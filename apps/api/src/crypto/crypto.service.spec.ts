@@ -1,3 +1,4 @@
+import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import {
   BadRequestException,
@@ -68,6 +69,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
   ) {
     await db
       .transaction(async (tx) => {
+        await asSpecOwner(tx)
         const database = { db: tx } as never
         const accounts = new AccountsService(database)
         const provider = {

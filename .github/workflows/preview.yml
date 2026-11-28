@@ -1,0 +1,147 @@
+# Pull request previews (#599, runbook: docs/runbooks/previews.md).
+#
+# Every push to a pull request that changes the app builds, scans and pushes
+# its API and web images to GHCR as pr-<number>-<short commit>, then posts the
+# preview's address on the pull request. The server picks them up by itself:
+# deploy/preview.sh, run every two minutes by a systemd timer, deploys the open
+# pull requests' latest images to capi-pr-<number>.gbodin.cloud (tailnet only,
+# demo data only) and removes the previews of closed ones. This workflow holds
+# no key to the server and never reaches it.
+#
+# Only pull requests from this repository's branches: a fork's code never gets
+# an image (and its token could not push one anyway).
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - 'docker-compose.prod.yml'
+      - 'docker-compose.preview.yml'
+
+permissions:
+  contents: read
+
+# A newer push replaces the images being built.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io/gregoirebdn
+
+jobs:
+  images:
+    name: Image (${{ matrix.app }})
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        app: [api, web]
+    env:
+      TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # The pull request's own commit (not the merge commit): the server looks
+      # the image up by the head commit GitHub's API gives it.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Resolve the tag
+        id: tag
+        run: |
+          tag=pr-$PR_NUMBER-${HEAD_SHA::7}
+          if [[ ! $tag =~ ^pr-[0-9]+-[0-9a-f]{7}$ ]]; then
+            echo "::error::unexpected tag '$tag'"
+            exit 1
+          fi
+          echo "image=$REGISTRY/capi-${{ matrix.app }}:$tag" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same build and scan as staging.yml: a vulnerable image is never pushed.
+      # Reads main's cache, writes its own.
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+          tags: ${{ steps.tag.outputs.image }}
+          cache-from: |
+            type=gha,scope=capi-${{ matrix.app }}
+            type=gha,scope=capi-${{ matrix.app }}-preview
+          cache-to: type=gha,mode=max,scope=capi-${{ matrix.app }}-preview
+
+      - name: Trivy (fixable high/critical, secrets)
+        env:
+          IMAGE_DIR: ${{ runner.temp }}
+        run: |
+          docker run --rm -v "$IMAGE_DIR:/scan:ro" -v "$PWD:/repo:ro" -w /repo "$TRIVY_IMAGE" \
+            image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
+            --skip-dirs app/node_modules --skip-dirs app/server/node_modules \
+            --no-progress --skip-version-check --disable-telemetry
+
+      - name: Push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tag.outputs.image }}
+          cache-from: |
+            type=gha,scope=capi-${{ matrix.app }}
+            type=gha,scope=capi-${{ matrix.app }}-preview
+
+  comment:
+    name: Preview address
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN || 'gbodin.cloud' }}
+    steps:
+      # One comment per pull request, updated in place (found by its marker).
+      - name: Post or update the comment
+        run: |
+          marker='<!-- capi-preview -->'
+          url=https://capi-pr-$PR_NUMBER.$PREVIEW_DOMAIN
+          # The backticks are Markdown, not a command substitution.
+          # shellcheck disable=SC2016
+          body=$(printf '%s\n**Aperçu** : %s (Tailscale)\n\nCommit `%s`, en ligne environ 2 minutes après ce message. Données de démo uniquement : `usertest@finances.test` / `usertest`.\n\nSeuls les 3 aperçus les plus récents tournent ; celui-ci disparaît à la fermeture de la PR.' \
+            "$marker" "$url" "${HEAD_SHA::7}")
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq "map(select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))) | .[0].id // empty" | head -n 1)
+          if [[ -n $id ]]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+          fi
+          echo "Preview: $url" >>"$GITHUB_STEP_SUMMARY"
