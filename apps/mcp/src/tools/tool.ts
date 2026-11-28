@@ -20,9 +20,10 @@ export interface ToolDefinition<Shape extends z.ZodRawShape> {
   /**
    * Set on write tools: they preview without `confirm: true` and need a
    * `write` token to apply. `idempotent`: calling again with the same
-   * arguments changes nothing more.
+   * arguments changes nothing more. `destructive` (#597): the client asks
+   * the owner to approve each call (`destructiveHint`), on top of the preview.
    */
-  write?: { idempotent: boolean }
+  write?: { idempotent: boolean; destructive?: boolean }
   /** Returns the text shown to the model (French, euros, French dates). */
   run(context: ToolContext, args: z.infer<z.ZodObject<Shape>>): Promise<string>
 }

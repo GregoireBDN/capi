@@ -162,7 +162,7 @@ export class RecurringController {
   })
   @ApiForbiddenResponse({
     description:
-      'Access token with `endedOn`, `termMonths` or `keepRenewal`: cancelling, the prepaid term and renewals stay in the app (session only).',
+      'Access token with `endedOn: null`, `termMonths` or `keepRenewal`: reactivating, the prepaid term and renewals stay in the app (session only). Cancelling (`endedOn` a date) is open to write tokens (#597): `cancel_subscription`, re-approved by the owner each time.',
   })
   @ApiNotFoundResponse({ description: 'Unknown item.' })
   update(
@@ -170,11 +170,11 @@ export class RecurringController {
     @Body() dto: UpdateRecurringItemDto,
     @Req() req: FastifyRequest,
   ): Promise<RecurringItemDto> {
-    // The route is open to write tokens for the other fields; a
-    // cancellation is the owner's, in the app.
-    if (req.accessToken && dto.endedOn !== undefined) {
+    // The route is open to write tokens; a token may cancel from a date
+    // (#597, `cancel_subscription`), reactivating stays the owner's, in the app.
+    if (req.accessToken && dto.endedOn === null) {
       throw new ForbiddenException(
-        'Cancelling a recurring item needs a session',
+        'Reactivating a recurring item needs a session',
       )
     }
     if (

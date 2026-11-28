@@ -61,12 +61,14 @@ describe('tool list', () => {
       'budget_history',
       'budget_status',
       'budget_suggestions',
+      'cancel_subscription',
       'categorize_transactions',
       'close_months',
       'commit_bank_import',
       'create_envelope',
       'create_investment_account',
       'create_rule',
+      'forgive_debt',
       'integrity_checks',
       'link_repayment',
       'list_categories',
@@ -112,16 +114,22 @@ describe('tool list', () => {
       'split_transaction',
       'share_expense',
       'link_repayment',
+      'cancel_subscription',
+      'forgive_debt',
       'create_envelope',
       'add_to_envelope',
     ])
+    // #597: the client asks the owner to approve each of these calls.
+    const destructive = new Set(['cancel_subscription', 'forgive_debt'])
     // Writes no transaction (a pending preview only): nothing to confirm (#103).
     const withoutConfirm = new Set(['preview_bank_import'])
     for (const tool of tools) {
       const write = writeTools.has(tool.name)
       expect(tool.annotations?.readOnlyHint).toBe(!write)
       if (write) {
-        expect(tool.annotations?.destructiveHint).toBe(false)
+        expect(tool.annotations?.destructiveHint).toBe(
+          destructive.has(tool.name),
+        )
         if (!withoutConfirm.has(tool.name))
           expect(tool.inputSchema.properties).toHaveProperty('confirm')
       }
