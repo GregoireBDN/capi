@@ -89,7 +89,9 @@ pulls() {
     IFS=: read -r n min repo letter <<<"$spec"
     out+=("{\"number\":$n,\"updated_at\":\"$(ago "$min minutes")\",\"head\":{\"sha\":\"$(sha "$n" "${letter:-a}")\",\"repo\":{\"full_name\":\"${repo:-GregoireBDN/capi}\"}}}")
   done
-  (IFS=,; echo "[${out[*]}]") >"$PREVIEW_PULLS_FILE"
+  local joined
+  joined=$(printf '%s,' "${out[@]}")
+  echo "[${joined%,}]" >"$PREVIEW_PULLS_FILE"
 }
 image() { echo "pr-$1-$(sha "$1" "${2:-a}" | cut -c1-7)" >>"$state/images"; }
 calls() { cat "$state/calls"; }
