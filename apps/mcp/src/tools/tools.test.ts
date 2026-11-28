@@ -531,6 +531,190 @@ describe('spending', () => {
     expect(text).toContain('| Autres | 5,00 € | 0,00 € | 5,00 € |')
     expect(text).toContain('| Total | 105,00 € | 120,00 € | 225,00 € |')
   })
+
+  // #520: the three parts of Mouvements, passed to the API as is.
+  const byKind = (
+    kind: SpendingByCategoryDto['kind'],
+    row: Partial<SpendingByCategoryDto['categories'][number]>,
+    overrides: Partial<SpendingByCategoryDto> = {},
+  ): SpendingByCategoryDto => ({
+    kind,
+    month: '2026-11',
+    previousMonth: '2026-10',
+    period: period(),
+    includeOneOffs: false,
+    averageMonths: 6,
+    averageFrom: '2026-05',
+    totalCents: 250000,
+    transactionCount: 1,
+    previousTotalCents: 250000,
+    averageTotalCents: 250000,
+    oneOffCents: 0,
+    expectedCents: 0,
+    categories: [
+      {
+        categoryId: null,
+        slug: null,
+        name: null,
+        color: null,
+        icon: null,
+        spentCents: 250000,
+        share: 1,
+        transactionCount: 1,
+        previousSpentCents: 250000,
+        deltaCents: 0,
+        averageCents: 250000,
+        notYetThisMonth: false,
+        targetCents: null,
+        expectedCents: 0,
+        accountId: null,
+        accountType: null,
+        inCents: null,
+        outCents: null,
+        ...row,
+      },
+    ],
+    ...overrides,
+  })
+
+  it('reads income with its planned amount and the credits still expected', async () => {
+    const data = byKind(
+      'income',
+      {
+        categoryId: salary.id,
+        slug: salary.slug,
+        name: salary.name,
+        spentCents: 0,
+        share: 0,
+        transactionCount: 0,
+        deltaCents: -250000,
+        notYetThisMonth: true,
+        targetCents: 260000,
+        expectedCents: 250000,
+      },
+      { totalCents: 0, transactionCount: 0, expectedCents: 250000 },
+    )
+    const { call, calls } = await connect({ '/api/spending/by-category': data })
+    const { text } = await call('spending_by_category', { kind: 'income' })
+    const query = calls.find(
+      (c) => c.url.pathname === '/api/spending/by-category',
+    )!.url.searchParams
+    expect(query.get('kind')).toBe('income')
+    expect(text).toContain(
+      'Revenus de novembre 2026, hors revenus exceptionnels.',
+    )
+    expect(text).toContain('Mois partiel')
+    expect(text).toContain(
+      '- Salaire : 0,00 € (0 %, 0 op.) · mois précédent 2 500,00 € (-2 500,00 €) · moyenne 6 mois 2 500,00 € · prévu 2 600,00 € · encore attendu ce mois-ci 2 500,00 € · pas encore reçu ce mois-ci',
+    )
+    expect(text).toContain(
+      "Revenus récurrents encore attendus d'ici la fin du mois (non comptés) : 2 500,00 €.",
+    )
+  })
+
+  it('reads what was set aside per account, deposits and withdrawals', async () => {
+    const data = byKind(
+      'savings',
+      {
+        name: livret.name,
+        accountId: livret.id,
+        accountType: 'savings',
+        spentCents: 30000,
+        inCents: 50000,
+        outCents: 20000,
+        previousSpentCents: 40000,
+        deltaCents: -10000,
+        averageCents: 35000,
+      },
+      {
+        totalCents: 30000,
+        previousTotalCents: 40000,
+        averageTotalCents: 35000,
+        period: period({ status: 'complete', throughDay: null }),
+      },
+    )
+    const { call, calls } = await connect({ '/api/spending/by-category': data })
+    const { text } = await call('spending_by_category', {
+      kind: 'savings',
+      month: '2026-11',
+    })
+    const query = calls.find(
+      (c) => c.url.pathname === '/api/spending/by-category',
+    )!.url.searchParams
+    expect(Object.fromEntries(query)).toEqual({
+      kind: 'savings',
+      month: '2026-11',
+    })
+    expect(text).toContain(
+      "Mis de côté de novembre 2026, virements vers l'épargne et les placements (versé − retiré), jamais comptés comme revenus ou dépenses.",
+    )
+    expect(text).toContain(
+      '- Livret A : 300,00 € (100 %, 1 op.) · versé 500,00 € · retiré 200,00 € · mois précédent 400,00 € (-100,00 €) · moyenne 6 mois 350,00 €',
+    )
+    expect(text).not.toContain('exceptionnel')
+  })
+
+  it('gives the savings history per account, and refuses a category filter', async () => {
+    const data: SpendingTrendDto = {
+      kind: 'savings',
+      months: ['2026-10', '2026-11'],
+      includeOneOffs: false,
+      series: [
+        {
+          key: livret.id,
+          type: 'account',
+          categoryId: null,
+          accountId: livret.id,
+          slug: null,
+          name: livret.name,
+          color: null,
+          icon: null,
+          valuesCents: [40000, 30000],
+          totalCents: 70000,
+        },
+        {
+          key: 'uncategorized',
+          type: 'uncategorized',
+          categoryId: null,
+          accountId: null,
+          slug: null,
+          name: null,
+          color: null,
+          icon: null,
+          valuesCents: [0, -5000],
+          totalCents: -5000,
+        },
+      ],
+      totalsCents: [40000, 25000],
+      averageCents: 40000,
+      averageMonths: 1,
+      details: [],
+      sameDaysAverageCents: null,
+    }
+    const { call, calls } = await connect({ '/api/spending/trend': data })
+    const { text } = await call('spending_history', {
+      kind: 'savings',
+      months: 2,
+    })
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/spending/trend')!
+        .url.searchParams.get('kind'),
+    ).toBe('savings')
+    expect(text).toContain(
+      'Mis de côté par mois de octobre 2026 à novembre 2026',
+    )
+    expect(text).toContain('| Compte | oct. 2026 | nov. 2026 | Total |')
+    expect(text).toContain('| Livret A | 400,00 € | 300,00 € | 700,00 € |')
+    expect(text).toContain('| Compte inconnu | 0,00 € | -50,00 € | -50,00 € |')
+
+    const refused = await call('spending_history', {
+      kind: 'savings',
+      category: 'Courses',
+    })
+    expect(refused.isError).toBe(true)
+    expect(refused.text).toContain('account')
+  })
 })
 
 describe('budget_status', () => {
