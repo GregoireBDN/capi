@@ -3,15 +3,18 @@ import {
   type ExecutionContext,
   Injectable,
   type NestInterceptor,
+  NotFoundException,
   SetMetadata,
 } from '@nestjs/common'
+import { and, eq, sql } from 'drizzle-orm'
 import { Reflector } from '@nestjs/core'
 import type { FastifyRequest } from 'fastify'
 import { from, lastValueFrom, type Observable } from 'rxjs'
 import { DatabaseService } from '#/database/database.service'
+import { ownedTableOf } from './owned-params'
 import '#/auth/request-user'
 
-const WITHOUT_OWNER_SCOPE = 'withoutOwnerScope'
+export const WITHOUT_OWNER_SCOPE = 'withoutOwnerScope'
 
 /**
  * Identity routes (sign-in, sessions, passkeys, tokens, OAuth): they read
@@ -35,7 +38,8 @@ export class OwnerScopeInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle()
-    const owner = context.switchToHttp().getRequest<FastifyRequest>().user?.sub
+    const request = context.switchToHttp().getRequest<FastifyRequest>()
+    const owner = request.user?.sub
     if (
       !owner ||
       // Specs that replace the database with a double of `db` only.
@@ -48,9 +52,34 @@ export class OwnerScopeInterceptor implements NestInterceptor {
       return next.handle()
     }
     return from(
-      this.database.asOwner(owner, () =>
-        lastValueFrom(next.handle(), { defaultValue: undefined }),
-      ),
+      this.database.asOwner(owner, async () => {
+        await this.assertOwnsPathRows(request, owner)
+        return lastValueFrom(next.handle(), { defaultValue: undefined })
+      }),
     )
   }
+
+  /**
+   * The second lock (ADR 0009, #558): every row a path names is the
+   * caller's, checked on `user_id` against the signed-in user, not on the
+   * policies, so a route answers 404 for someone else's id even if row-level
+   * security were off. An id that is not a UUID is left to the route's pipe.
+   */
+  private async assertOwnsPathRows(request: FastifyRequest, owner: string) {
+    const route = request.routeOptions?.url ?? ''
+    const params = (request.params ?? {}) as Record<string, string>
+    for (const [name, value] of Object.entries(params)) {
+      if (!UUID.test(value)) continue
+      const table = ownedTableOf(route, name)
+      if (!table) continue
+      const [row] = await this.database.db
+        .select({ found: sql<number>`1` })
+        .from(table)
+        .where(and(eq(table.id, value), eq(table.userId, owner)))
+        .limit(1)
+      if (!row) throw new NotFoundException()
+    }
+  }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
