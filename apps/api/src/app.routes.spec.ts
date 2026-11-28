@@ -28,6 +28,7 @@ import {
 import { JwtGuard } from './auth/guards/jwt.guard'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { DatabaseService } from './database/database.service'
+import { setOwner } from './database/owner-scope'
 import { ownedTableOf } from './database/request-scope/owned-params'
 import { WITHOUT_OWNER_SCOPE } from './database/request-scope/owner-scope.interceptor'
 import { registerMultipart } from './imports/upload/multipart'
@@ -474,6 +475,9 @@ describe('API route audit', () => {
               emailVerifiedAt: new Date(),
             })
             .returning({ id: usersTable.id })
+          // What the request scope does in the app (the double of `db` here
+          // has none): the owner's rows are theirs.
+          await setOwner(tx, owner.id)
           // A sign-in just now: deleting the account needs a fresh session.
           const token = app
             .get(JwtService, { strict: false })

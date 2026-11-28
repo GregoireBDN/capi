@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
 import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
-import { DatabaseService, outsideOwnerScope } from '#/database/database.service'
+import { DatabaseService } from '#/database/database.service'
 import {
   accountsTable,
   cryptoHoldingsTable,
@@ -260,7 +260,9 @@ export class WalletSyncService {
     )
     if (!finished && onLate) {
       void work
-        .then(() => onLate(due.map(({ id }) => id)))
+        .then(() =>
+          this.database.outsideRequest(() => onLate(due.map(({ id }) => id))),
+        )
         .catch((error: unknown) => {
           const name = error instanceof Error ? error.name : 'unknown'
           this.logger.error(
@@ -410,9 +412,10 @@ export class WalletSyncService {
     const running = this.inFlight.get(accountId)
     if (running) return running
     this.attempts.set(accountId, now.getTime())
-    // On the pool: it may outlive the request, and its progress is kept
-    // even when it fails (#557).
-    const run = outsideOwnerScope(() => this.sync(accountId, now, mode))
+    // Outside the request's transaction, as its user (#559): it may outlive
+    // the request, and its progress is kept even when it fails (#557).
+    const run = this.database
+      .outsideRequest(() => this.sync(accountId, now, mode))
       .catch((error: unknown) => {
         // The error class only: a database error carries bound values.
         const name = error instanceof Error ? error.name : 'unknown'

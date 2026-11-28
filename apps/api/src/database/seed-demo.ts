@@ -1,10 +1,13 @@
 import '#/load-env'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '#/config/env'
+import { APP_ROLE, ensureAppRole } from './app-role'
 import { assertDemoTarget, DemoTargetError } from './demo/guard'
 import {
   DEMO_EMAIL,
+  DEMO_FRIEND,
   DEMO_PASSWORD,
   generateDemoData,
   hasExistingData,
@@ -65,6 +68,9 @@ async function main() {
 
   const client = postgres(url, { max: 1, onnotice: () => {} })
   try {
+    // The role the demo writes as below (a database migrated by
+    // `drizzle-kit` alone has no grants yet); idempotent.
+    await ensureAppRole(client)
     const db = drizzle(client, { schema })
     const result = await db.transaction(async (tx) => {
       if (reset) {
@@ -72,7 +78,13 @@ async function main() {
       } else if (await hasExistingData(tx)) {
         return null
       }
-      return generateDemoData(tx)
+      // As the API reads (#557): the demo's own services see one user's
+      // rows at a time, as they would in a request.
+      await tx.execute(sql.raw(`set local role ${APP_ROLE}`))
+      const main = await generateDemoData(tx)
+      // A second user (#559): staging shows that neither sees the other.
+      await generateDemoData(tx, { user: DEMO_FRIEND })
+      return main
     })
     if (!result && ifEmpty) {
       console.log(
@@ -98,7 +110,7 @@ async function main() {
       `  ${c.snapshots} value snapshots, ${c.cryptoHoldings} crypto holdings, ${c.positionStatements} position statements, ${c.dividends} dividends, ${c.rules} rules, ${c.budgets} budget lines, ${c.envelopes} envelopes, ${c.recurringItems} recurring items`,
     )
     console.log(
-      `\nSign in with:\n  email:    ${DEMO_EMAIL}\n  password: ${DEMO_PASSWORD}`,
+      `\nSign in with:\n  email:    ${DEMO_EMAIL} (or ${DEMO_FRIEND.email}, a second user with data of their own)\n  password: ${DEMO_PASSWORD}`,
     )
   } finally {
     await client.end()

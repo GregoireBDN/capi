@@ -38,7 +38,7 @@ What the override fixes, whatever `.env` says:
 
 Staging and production share **no database, cookie origin or secret**: staging has its own volume and `POSTGRES_PASSWORD`, its own `JWT_SECRET` (a production session is never valid there), and its own host (`APP_URL`), so its `__Host-` session cookies and its passkeys belong to that host only. There is no backup of staging: a reset or `dcs down -v` loses whatever was entered there.
 
-**A deploy keeps staging's data and sessions**; only a reset empties them (and signs everyone out). The demo account is `usertest@finances.test` / `usertest` (public: staging is reachable from the tailnet only); a password or email changed there stays changed until the next reset. The demo data ends 10 days before the day it was seeded and then ages like any data: reset to get recent months again.
+**A deploy keeps staging's data and sessions**; only a reset empties them (and signs everyone out). The demo account is `usertest@finances.test` / `usertest`, and `amitest@finances.test` (same password) is a second user with data of their own, to check that neither sees the other (#559; a staging seeded before it gets them at the next reset) (public: staging is reachable from the tailnet only); a password or email changed there stays changed until the next reset. The demo data ends 10 days before the day it was seeded and then ages like any data: reset to get recent months again.
 
 ## One-time setup (owner)
 

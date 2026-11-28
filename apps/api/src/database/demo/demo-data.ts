@@ -94,6 +94,15 @@ export type DemoDb = Db | Tx
 export const DEMO_EMAIL = 'usertest@finances.test'
 export const DEMO_PASSWORD = 'usertest'
 export const DEMO_NAME = 'Compte démo'
+/**
+ * A second demo user (#559), with the same password: the two never see
+ * each other's data, which staging shows by signing in as each.
+ */
+export const DEMO_FRIEND = {
+  email: 'amitest@finances.test',
+  name: 'Ami démo',
+  seed: 0x5eed_2027,
+} as const
 
 /** Months of history before the current one. */
 export const DEMO_MONTHS = 14
@@ -132,6 +141,8 @@ export interface DemoOptions {
   today?: string
   /** bcrypt cost of the password hash (lower in specs). */
   bcryptRounds?: number
+  /** Another demo user than the main one (`DEMO_FRIEND`), same password. */
+  user?: { email: string; name: string; seed: number }
 }
 
 export interface DemoCounts {
@@ -818,14 +829,14 @@ export async function generateDemoData(
   const monthList: string[] = []
   for (let m = firstMonth; m <= dataUntil; m = addMonths(m, 1))
     monthList.push(m)
-  const random = createRandom(PRNG_SEED)
+  const random = createRandom(options.user?.seed ?? PRNG_SEED)
 
   // Owner account, verified, password set directly (sign-up rules don't apply).
   const [owner] = await db
     .insert(usersTable)
     .values({
-      email: DEMO_EMAIL,
-      name: DEMO_NAME,
+      email: options.user?.email ?? DEMO_EMAIL,
+      name: options.user?.name ?? DEMO_NAME,
       passwordHash: await bcrypt.hash(
         DEMO_PASSWORD,
         options.bcryptRounds ?? BCRYPT_SALT_ROUNDS,
@@ -1477,7 +1488,10 @@ export async function generateDemoData(
     dayPrices.set(assetId, byDay)
   }
   for (let i = 0; i < priceRows.length; i += 500) {
-    await db.insert(cryptoPriceHistoryTable).values(priceRows.slice(i, i + 500))
+    await db
+      .insert(cryptoPriceHistoryTable)
+      .values(priceRows.slice(i, i + 500))
+      .onConflictDoNothing()
   }
   const pricesOn = (day: string) =>
     new Map(
@@ -2091,14 +2105,18 @@ async function seedPositions(
         })(),
       })),
     )
-    await db.insert(securityPricesTable).values(
-      held.map((line) => ({
-        securityId: idOf.get(line.isin)!,
-        day,
-        priceEur: centsText(line.price),
-        source: 'statement' as const,
-      })),
-    )
+    await db
+      .insert(securityPricesTable)
+      .values(
+        held.map((line) => ({
+          securityId: idOf.get(line.isin)!,
+          day,
+          priceEur: centsText(line.price),
+          source: 'statement' as const,
+        })),
+      )
+      // Global prices: the second demo user's statements share them (#559).
+      .onConflictDoNothing()
   }
   const values = await revalue(
     db,

@@ -21,6 +21,8 @@ Options:
   --accounts <path>       JSON account mapping, merged over the defaults
                           (CC = Compte courant, LA = Livret A, LJ = Livret Jeune)
   --categories <path>     JSON category overrides { "sheet_slug": "category_slug" | null }
+  --user <email>          Whose history it is (required when the instance
+                          has several users; default: the only user)
   --commit                Write to the database (default: dry run, rolled back)
   --create-rules          Create the proposed categorization rules
   --include-conflicts     Also insert rows that probably duplicate an existing
@@ -35,6 +37,8 @@ export interface CliOptions {
   accounts: string | null
   categories: string | null
   report: string | null
+  /** Email of the user the history belongs to; null = the only user. */
+  user: string | null
   commit: boolean
   createRules: boolean
   includeConflicts: boolean
@@ -79,6 +83,7 @@ export function parseCliArgs(
     accounts: path(values.accounts),
     categories: path(values.categories),
     report: path(values.report),
+    user: values.user?.trim() || null,
     commit: values.commit ?? false,
     createRules: values['create-rules'] ?? false,
     includeConflicts: values['include-conflicts'] ?? false,
@@ -96,6 +101,7 @@ function parse(args: string[]) {
       accounts: { type: 'string' },
       categories: { type: 'string' },
       report: { type: 'string' },
+      user: { type: 'string' },
       commit: { type: 'boolean' },
       'create-rules': { type: 'boolean' },
       'include-conflicts': { type: 'boolean' },
