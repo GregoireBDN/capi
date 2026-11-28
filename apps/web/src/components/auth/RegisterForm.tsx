@@ -29,7 +29,7 @@ export function RegisterForm() {
   const hydrated = useHydrated()
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: '', name: '', password: '', confirmPassword: '' },
+    defaultValues: { email: '', name: '', password: '' },
   })
 
   async function onSubmit(values: RegisterValues) {
@@ -103,25 +103,9 @@ export function RegisterForm() {
         )}
       </Field>
 
-      <Field data-invalid={!!form.formState.errors.confirmPassword}>
-        <FieldLabel htmlFor="register-confirm-password">
-          Confirmer le mot de passe
-        </FieldLabel>
-        <PasswordInput
-          id="register-confirm-password"
-          autoComplete="new-password"
-          aria-invalid={!!form.formState.errors.confirmPassword}
-          {...form.register('confirmPassword')}
-        />
-        {form.formState.errors.confirmPassword && (
-          <FieldError>
-            {form.formState.errors.confirmPassword.message}
-          </FieldError>
-        )}
-      </Field>
-
       <Button
         type="submit"
+        size="lg"
         fullWidth
         loading={form.formState.isSubmitting}
         disabled={!hydrated}
