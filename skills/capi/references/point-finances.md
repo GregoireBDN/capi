@@ -8,7 +8,7 @@ Call, in one go: `accounts_overview`, `spending_history` (last 6 to 12 months), 
 
 - **Income and spending**: monthly average of each over the complete months, and what is saved (income − spending, transfers excluded). Savings rate = saved ÷ income.
 - **Fixed costs**: subscriptions and fixed bills per month, as a share of income.
-- **Emergency fund** (« matelas de sécurité »): what sits on checking and savings accounts minus the envelopes (« libre »), counted in months of spending. Rule of thumb: 3 to 6 months; more with irregular income.
+- **Emergency fund** (« matelas de sécurité »): what sits on checking and savings accounts minus the envelopes (« libre », given by `accounts_overview`: never subtract it yourself), counted in months of spending. Rule of thumb: 3 to 6 months; more with irregular income.
 - **Envelopes**: each one, its amount against its target and date, on pace or late.
 - **Investments**: value by type (PEA, compte-titres, life insurance, employee savings, crypto), invested vs value, share of net worth.
 - **Owed**: what others owe, never counted in net worth.

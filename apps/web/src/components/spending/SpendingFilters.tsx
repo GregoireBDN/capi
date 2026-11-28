@@ -62,7 +62,7 @@ export function SpendingFilters({
           onClear={() => set({ account: undefined })}
           open={open}
           onOpenChange={setOpen}
-          className="max-w-[12rem]"
+          className="w-[7.5rem] sm:w-[10rem]"
         >
           <FilterOptionsList
             filter="account"

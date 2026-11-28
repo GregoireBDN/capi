@@ -19,7 +19,7 @@ Use what their own data says when it helps: `search_transactions` or `spending_h
 
 ## 2. Does it fit?
 
-Read `savings_and_goals` (envelopes already planned and what is « libre »), `budget_status` and `month_end_forecast`, and the monthly savings of the complete months (`spending_history`).
+Read `savings_and_goals` (envelopes already planned), `accounts_overview` (what is « libre »), `budget_status` and `month_end_forecast`, and the monthly savings of the complete months (`spending_history`).
 
 - Monthly effort = (target − already set aside) ÷ months left.
 - Add it to the efforts of the other envelopes. If the total goes beyond what is saved each month, say by how much and offer the choices: a later date, a lower amount, a category to cut (with its average), or taking part of the amount from « libre » now.

@@ -75,8 +75,9 @@ function Toolbar() {
         onClear={() => setAccount(undefined)}
         open={open}
         onOpenChange={setOpen}
+        className="w-[9rem]"
       >
-        <div role="radiogroup" aria-label="Compte" className="divide-y">
+        <div role="radiogroup" aria-label="Compte" className="space-y-1">
           <OptionRow
             selected={account === undefined}
             label="Tous les comptes"
@@ -128,21 +129,35 @@ function Toolbar() {
   )
 }
 
-/** Unset, set (tinted with the value's colour) and on / off. */
+/**
+ * Unset, set (tinted with the value's colour) and on / off. Given its width,
+ * a control keeps its place and its size once a value is chosen (#544).
+ */
 export const Default: Story = {
   render: () => <Toolbar />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const body = within(canvasElement.ownerDocument.body)
-    await userEvent.click(canvas.getByRole('button', { name: 'Compte, tous' }))
+    const unset = canvas.getByRole('button', { name: 'Compte, tous' })
+    const before = unset.getBoundingClientRect()
+    await userEvent.click(unset)
+    await expect(
+      await body.findByRole('radio', { name: 'Tous les comptes' }),
+    ).toHaveAttribute('data-selected')
     await userEvent.click(
       await body.findByRole('radio', { name: 'Livret démo' }),
     )
-    await expect(
-      canvas.getByRole('button', { name: 'Compte : Livret démo, changer' }),
-    ).toBeInTheDocument()
+    const set = canvas.getByRole('button', {
+      name: 'Compte : Livret démo, changer',
+    })
+    // One button set or not: same place, same size (#544).
+    const after = set.getBoundingClientRect()
+    await expect(after.left).toBe(before.left)
+    await expect(after.width).toBe(before.width)
+    // « Tous les comptes » clears it.
+    await userEvent.click(set)
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Retirer le filtre Compte' }),
+      await body.findByRole('radio', { name: 'Tous les comptes' }),
     )
     await expect(
       canvas.getByRole('button', { name: 'Compte, tous' }),
