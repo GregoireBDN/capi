@@ -40,6 +40,7 @@ import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { CurrentUser } from '#/auth/decorators/current-user.decorator'
 import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
 
 const AUDIT_DEFAULT_LIMIT = 50
 const AUDIT_MAX_LIMIT = 200
@@ -51,6 +52,7 @@ const AUDIT_MAX_LIMIT = 200
 @ApiForbiddenResponse({ description: 'Called with an access token.' })
 @UseGuards(JwtGuard)
 @TokenAccess('none')
+@WithoutOwnerScope()
 @Controller('access-tokens')
 export class AccessTokensController {
   constructor(private readonly accessTokens: AccessTokensService) {}

@@ -51,6 +51,7 @@ import {
 } from './dto/oauth.dto'
 import { OAUTH_ERRORS } from './oauth.constants'
 import { OAuthError, OAuthService } from './oauth.service'
+import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
 
 const REGISTER_THROTTLE = {
   default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.oauthRegister },
@@ -91,6 +92,7 @@ async function rfcReply(
  * adapter converts form posts. Mounted only when `REMOTE_MCP_ENABLED=true`.
  */
 @ApiTags('OAuth (remote MCP)')
+@WithoutOwnerScope()
 @Controller('oauth')
 export class OAuthController {
   constructor(private readonly oauth: OAuthService) {}
@@ -164,6 +166,7 @@ export class OAuthController {
 @ApiForbiddenResponse({ description: 'Called with a token.' })
 @UseGuards(JwtGuard)
 @TokenAccess('none')
+@WithoutOwnerScope()
 @Controller('oauth')
 export class OAuthConsentController {
   constructor(private readonly oauth: OAuthService) {}
@@ -277,6 +280,7 @@ export class OAuthConsentController {
 @ApiTags('OAuth (remote MCP)')
 @ApiBearerAuth()
 @UseGuards(JwtGuard)
+@WithoutOwnerScope()
 @Controller('oauth')
 export class OAuthTokenInfoController {
   @Get('token-info')

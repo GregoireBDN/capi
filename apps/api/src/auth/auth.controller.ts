@@ -45,8 +45,10 @@ import {
   setSessionCookies,
 } from '#/auth/session-cookies'
 import { UserDto } from '#/user/user.dto'
+import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
 
 @ApiTags('Auth')
+@WithoutOwnerScope()
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name)

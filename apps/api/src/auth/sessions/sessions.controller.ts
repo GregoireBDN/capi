@@ -28,9 +28,11 @@ import type { RequestUser } from '#/auth/request-user'
 import { readRefreshCookie } from '#/auth/session-cookies'
 import { SessionDto } from './session.dto'
 import { SessionsService } from './sessions.service'
+import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
 
 /** The owner's sessions (#217): session only, never reachable with a token. */
 @ApiTags('Auth')
+@WithoutOwnerScope()
 @Controller('auth/sessions')
 @UseGuards(JwtGuard)
 @TokenAccess('none')
