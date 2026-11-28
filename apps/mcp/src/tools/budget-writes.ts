@@ -16,6 +16,15 @@ import {
 import { listCategories, MONTH_PATTERN, pickCategory } from './lookup.js'
 import { defineTool, ToolInputError } from './tool.js'
 import { confirmSchema, PREVIEW_FOOTER, PREVIEW_HEADER } from './write.js'
+import {
+  parseSavingsTarget,
+  readSavingsTarget,
+  savingsTargetChanges,
+  savingsTargetLine,
+  savingsTargetSchema,
+  savingsTargetUndo,
+  writeSavingsTarget,
+} from './savings-target.js'
 
 const MAX_TARGETS = 30
 const TARGET_MAX_CENTS = 100_000_000
@@ -35,7 +44,7 @@ export const setBudgetTargetsTool = defineTool({
   name: 'set_budget_targets',
   title: 'Fixer des cibles de budget',
   description:
-    'Set the monthly budget of one or several categories from `month` on (later months with their own amount keep it): a spending target for an expense category, the planned income for an income category. Transfer categories are refused. Prepare with budget_status, budget_suggestions and budget_history. The preview says what the plan leaves to save.',
+    'Set the monthly budget of one or several categories from `month` on (later months with their own amount keep it): a spending target for an expense category, the planned income for an income category. Transfer categories are refused. Prepare with budget_status, budget_suggestions and budget_history. The preview says what the plan leaves to save; savingsTarget sets the monthly savings target too.',
   write: { idempotent: true },
   inputSchema: {
     month: z
@@ -68,15 +77,34 @@ export const setBudgetTargetsTool = defineTool({
       )
       .min(1)
       .max(MAX_TARGETS)
+      .optional()
       .describe(`1 to ${MAX_TARGETS} categories.`),
+    savingsTarget: savingsTargetSchema,
     confirm: confirmSchema,
   },
   async run({ api, now }, args) {
     const month = args.month ?? parisToday(now()).slice(0, 7)
-    const [categories, budget] = await Promise.all([
+    const targets = args.targets ?? []
+    if (targets.length === 0 && args.savingsTarget === undefined) {
+      throw new ToolInputError(
+        "Précisez des cibles (targets) ou une cible d'épargne (savingsTarget). Rien n'a été modifié.",
+      )
+    }
+    const savingsCents =
+      args.savingsTarget === undefined
+        ? null
+        : parseSavingsTarget(args.savingsTarget)
+    const [categories, budget, savings] = await Promise.all([
       listCategories(api),
       api.get<BudgetMonthDto>('/api/budgets', { month }),
+      savingsCents === null ? null : readSavingsTarget(api, savingsCents),
     ])
+    const savingsChange = savingsTargetChanges(savings) ? savings : null
+    const savingsLines = !savings
+      ? []
+      : savingsChange
+        ? [savingsTargetLine(savings)]
+        : [`Cible d'épargne déjà à ${euros(savings.cents)}, rien à faire.`]
     const current = new Map<string, { cents: number; tracked: boolean | null }>(
       [
         ...budget.items.map(
@@ -96,7 +124,7 @@ export const setBudgetTargetsTool = defineTool({
       ],
     )
     const planned: PlannedTarget[] = []
-    for (const target of args.targets) {
+    for (const target of targets) {
       const category = pickCategory(categories, target.category)
       if (!category || category.kind === 'transfer') {
         throw new ToolInputError(
@@ -159,7 +187,7 @@ export const setBudgetTargetsTool = defineTool({
         : []
     const scope = `à partir de ${frenchMonth(month)}`
 
-    if (changes.length === 0) {
+    if (changes.length === 0 && !savingsChange) {
       return `Rien à modifier : ces cibles sont déjà en place pour ${frenchMonth(month)}.`
     }
     if (args.confirm !== true) {
@@ -194,8 +222,12 @@ export const setBudgetTargetsTool = defineTool({
       )
       return [
         PREVIEW_HEADER,
-        `Montants mensuels qui seraient fixés ${scope} (les mois suivants qui ont déjà leur propre montant le gardent) :`,
-        ...changes.map(changeLine),
+        ...(changes.length > 0
+          ? [
+              `Montants mensuels qui seraient fixés ${scope} (les mois suivants qui ont déjà leur propre montant le gardent) :`,
+              ...changes.map(changeLine),
+            ]
+          : []),
         ...unchangedLine,
         ...(expenses.length > 0
           ? [`Total des cibles demandées : ${euros(total(expenses))} par mois.`]
@@ -210,11 +242,14 @@ export const setBudgetTargetsTool = defineTool({
               `Le budget de ${frenchMonth(month)} serait alors : revenus prévus ${euros(plannedIncome)} − dépenses prévues ${euros(budgeted)} = à épargner ${euros(plannedIncome - budgeted)}.`,
             ]
           : []),
+        ...savingsLines,
         '',
         PREVIEW_FOOTER,
       ].join('\n')
     }
 
+    // The target first: a failure there leaves nothing half done.
+    if (savingsChange) await writeSavingsTarget(api, savingsChange)
     const applied: PlannedTarget[] = []
     for (const p of changes) {
       try {
@@ -225,10 +260,15 @@ export const setBudgetTargetsTool = defineTool({
         } satisfies UpsertBudgetDto)
         applied.push(p)
       } catch (error) {
-        if (!(error instanceof ApiError) || applied.length === 0) throw error
+        if (
+          !(error instanceof ApiError) ||
+          (applied.length === 0 && !savingsChange)
+        )
+          throw error
         const notApplied = changes.filter((c) => !applied.includes(c))
         return [
           `Erreur après ${applied.length} cible(s) : ${error.message}`,
+          ...(savingsChange ? [savingsTargetLine(savingsChange)] : []),
           `Appliquées ${scope} :`,
           ...applied.map(changeLine),
           `Non appliquées : ${notApplied.map((c) => c.category.name).join(', ')}. Rappelez l'outil avec les mêmes arguments : les cibles déjà en place sont sautées.`,
@@ -246,10 +286,16 @@ export const setBudgetTargetsTool = defineTool({
       }))
     const added = applied.filter((p) => p.currentCents === null)
     return [
-      `${applied.length} montant(s) fixé(s) ${scope} :`,
-      ...applied.map(changeLine),
+      ...(applied.length > 0
+        ? [
+            `${applied.length} montant(s) fixé(s) ${scope} :`,
+            ...applied.map(changeLine),
+          ]
+        : []),
       ...unchangedLine,
+      ...savingsLines,
       '',
+      ...(savingsChange ? [savingsTargetUndo(savingsChange)] : []),
       ...(undo.length > 0
         ? [
             `Pour annuler : set_budget_targets month "${month}", targets ${JSON.stringify(undo)}, confirm: true.`,

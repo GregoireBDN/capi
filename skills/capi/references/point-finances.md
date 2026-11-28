@@ -39,4 +39,4 @@ From their answers, name a profile in plain words (prudent, balanced, dynamic) a
 
 ## 5. Plan
 
-End with a short plan: one line per project and for the fund, with amount, date and monthly effort, then what to watch out for (a category drifting, a subscription to question, a late envelope). Each project becomes an envelope, created with `create_envelope` once the owner agrees: follow [projet.md](projet.md), one project at a time.
+End with a short plan: one line per project and for the fund, with amount, date and monthly effort, then what to watch out for (a category drifting, a subscription to question, a late envelope). Each project becomes an envelope, created with `create_envelope` once the owner agrees: follow [projet.md](projet.md), one project at a time. Last, the monthly amount the plan saves becomes the savings target: `set_budget_targets` with `savingsTarget` only (preview, then `confirm: true` once they agree).
