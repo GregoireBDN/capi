@@ -67,7 +67,7 @@ export const subscriptionsTool = defineTool({
   name: 'subscriptions',
   title: 'Abonnements et prélèvements à venir',
   description:
-    'Recurring debits (subscriptions and fixed costs) with their monthly and yearly cost, recurring income, and the debits expected in the next days. Prepaid subscriptions (paid upfront for 12, 24 or 36 months...) show their term, their monthly equivalent (payment ÷ term) and their renewal date. Items detected but not confirmed by the owner are flagged; dismissed and inactive ones are left out. Subscriptions cancelled by the owner are listed apart with their end date (and flagged when charged after it); one cancelled from a future date still counts until then.',
+    'Recurring debits (subscriptions, fixed costs) with monthly and yearly cost, recurring income, and the debits expected soon. Prepaid ones show term, monthly equivalent (payment ÷ term) and renewal. Unconfirmed detections are flagged; dismissed and inactive left out. Cancelled ones are listed apart with their end date (flagged when charged after it); a future end still counts until then.',
   inputSchema: {
     upcoming_days: z
       .number()

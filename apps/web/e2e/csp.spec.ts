@@ -58,6 +58,7 @@ test('pages are sent with a CSP, frame protection and isolation headers', async 
   )
 
   // Hydrated: the client-side form reacts.
+  await page.getByRole('button', { name: 'Mot de passe', exact: true }).click()
   await page.getByRole('button', { name: 'Mot de passe oublié ?' }).click()
   await expect(
     page.getByRole('button', { name: 'Envoyer le lien' }),
@@ -72,6 +73,7 @@ test('signed-in pages load with no CSP violation', async ({ page }) => {
 
   await collectViolations(page)
   await page.goto('/auth')
+  await page.getByRole('button', { name: 'Mot de passe', exact: true }).click()
   await page.getByLabel('Email').fill(email ?? '')
   await page.getByLabel('Mot de passe', { exact: true }).fill(password ?? '')
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
