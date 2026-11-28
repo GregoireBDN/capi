@@ -34,7 +34,7 @@ export const monthCloseStatusTool = defineTool({
   name: 'month_close_status',
   title: 'Bilan du mois : étapes',
   description:
-    'Steps of the guided month-end review ("Bilan du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and envelopes, investment values missing at the month end, and whether the month is closed. Ticking steps is done in the app; close_months closes the month.',
+    'Steps of « Bilan du mois » (default: the previous month) and what is left in each: statements not imported to the month end or with balance gaps, transactions in review, recurring items to confirm, price changes, budget, savings target and envelopes, investment values missing at the month end, closed or not. Steps are ticked in the app; close_months closes the month.',
   inputSchema: {
     month: z
       .string()

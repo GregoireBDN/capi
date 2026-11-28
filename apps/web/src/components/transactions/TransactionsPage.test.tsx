@@ -710,7 +710,7 @@ describe('TransactionsPage', () => {
     )
   })
 
-  it('clears one filter with ×, all of them with « Effacer », the period and « À revoir » kept', async () => {
+  it('clears one filter with « Tous … », all of them with « Effacer », the period and « À revoir » kept', async () => {
     const { user, onChange } = setup({
       month: 'all',
       kind: 'transfer',
@@ -720,8 +720,9 @@ describe('TransactionsPage', () => {
     await waitForRows()
     const bar = monthBar()
 
+    await user.click(bar.getByRole('button', { name: /^Type : /u }))
     await user.click(
-      bar.getByRole('button', { name: 'Retirer le filtre Type' }),
+      await screen.findByRole('radio', { name: 'Tous les types' }),
     )
     expect(onChange).toHaveBeenLastCalledWith(
       { month: 'all', oneOff: true, review: true },
