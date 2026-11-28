@@ -27,6 +27,7 @@ import { monthReviewTool } from './review.js'
 import { owedToMeTool } from './owed.js'
 import { linkRepaymentTool, shareExpenseTool } from './owed-writes.js'
 import { createRuleTool } from './rule-writes.js'
+import { listRulesTool, updateRuleTool } from './rules.js'
 import { savingsTool } from './savings.js'
 import { spendingByCategoryTool, spendingHistoryTool } from './spending.js'
 import { subscriptionsTool } from './subscriptions.js'
@@ -62,6 +63,8 @@ export const readTools = [
   createInvestmentAccountTool,
   // #359: money owed, both ways.
   owedToMeTool,
+  // #531: the rules, their matches and conflicts, before create_rule.
+  listRulesTool,
 ]
 
 /**
@@ -74,6 +77,8 @@ export const writeTools = [
   markOneOffTool,
   setTransactionNoteTool,
   createRuleTool,
+  // #531: pattern, category, enabled (deleting stays in the app).
+  updateRuleTool,
   setBudgetTargetsTool,
   // Bank CSV imports (#103): preview, then commit with `confirm: true`.
   previewBankImportTool,
