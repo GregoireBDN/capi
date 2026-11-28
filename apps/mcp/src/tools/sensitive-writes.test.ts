@@ -84,8 +84,7 @@ const share: ReceivableDto = {
   payments: [],
 }
 
-const writes = (calls: Call[]) =>
-  calls.filter((c) => c.method !== 'GET')
+const writes = (calls: Call[]) => calls.filter((c) => c.method !== 'GET')
 
 describe('cancel_subscription (#597)', () => {
   it('previews without writing, then sets the end date', async () => {
