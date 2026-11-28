@@ -87,7 +87,7 @@ describe.skipIf(!process.env.DATABASE_URL).each([
   },
   {
     lock: 'services',
-    about: 'the policies switched off: the check of path ids alone',
+    about: 'the policies bypassed: the check of path ids alone',
   },
 ] as const)('isolation between two users (#558), $about', ({ lock }) => {
   {
@@ -245,18 +245,6 @@ describe.skipIf(!process.env.DATABASE_URL).each([
           })),
       )
 
-      if (lock === 'services') {
-        // Rolled back with the rest: the policies are off for this run only.
-        const tables = await tx.execute<{ table_name: string }>(sql`
-          select table_name from information_schema.columns
-          where table_schema = 'public' and column_name = 'user_id'`)
-        for (const { table_name } of tables) {
-          await tx.execute(
-            sql.raw(`alter table "${table_name}" disable row level security`),
-          )
-        }
-      }
-
       // B: the demo's whole data set, plus the identity rows it lacks.
       await generateDemoData(tx, { bcryptRounds: 4 })
       const [b] = await tx
@@ -318,8 +306,17 @@ describe.skipIf(!process.env.DATABASE_URL).each([
       })}`
       fingerprintBefore = await fingerprintB()
 
-      // From here on, the app reads and writes as the API does.
-      await tx.execute(sql.raw(`set local role ${APP_ROLE}`))
+      if (lock === 'policies') {
+        // From here on, the app reads and writes as the API does.
+        await tx.execute(sql.raw(`set local role ${APP_ROLE}`))
+      } else {
+        // The specs' own role, which the policies don't apply to (no DDL to
+        // switch them off: it would lock the tables other specs use).
+        const [role] = await tx.execute<{ bypasses: boolean }>(sql`
+          select rolsuper or rolbypassrls as bypasses
+          from pg_roles where rolname = current_user`)
+        expect(role.bypasses, 'the specs connect as a superuser').toBe(true)
+      }
     }, 120_000)
 
     afterAll(async () => {
