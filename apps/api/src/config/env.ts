@@ -162,6 +162,22 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === 'true'),
+
+  /**
+   * Demo sign-in of the pull request previews (#608, `auth/demo-sign-in.ts`):
+   * the sign-in page signs in the demo account by itself. Anything but the
+   * literal "true" keeps it off, and it also needs `DEMO_STAGING_DATABASE`
+   * to name the `_staging` database the API runs on.
+   */
+  DEMO_AUTO_SIGN_IN: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
+  /** The staging or preview database the demo seed may write (#421). */
+  DEMO_STAGING_DATABASE: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   /** Esplora REST API (mempool.space, or a self-hosted instance). */
   ESPLORA_URL: z.url().default('https://mempool.space/api'),
   /**

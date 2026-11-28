@@ -207,11 +207,16 @@ jobs:
           PREVIEWS_DIR: /srv/capi-previews
         run: |
           # shellcheck disable=SC2029
-          tar -cf - deploy/preview.sh docker-compose.prod.yml docker-compose.preview.yml |
+          # The settings panel (#608) too: preview.sh restarts it when its
+          # files change.
+          tar -cf - deploy/preview.sh docker-compose.prod.yml docker-compose.preview.yml \
+            deploy/preview-panel/compose.yml deploy/preview-panel/server.mjs deploy/preview-panel/panel.css |
             ssh "$DEPLOY_HOST" "if [ -d '$PREVIEWS_DIR' ]; then
                 tmp=\$(mktemp -d '$PREVIEWS_DIR/.install.XXXXXX') && tar -xf - -C \"\$tmp\" &&
                 chmod 755 \"\$tmp/deploy/preview.sh\" && mv -f \"\$tmp/deploy/preview.sh\" '$PREVIEWS_DIR/preview.sh' &&
                 mv -f \"\$tmp/docker-compose.prod.yml\" \"\$tmp/docker-compose.preview.yml\" '$PREVIEWS_DIR/' &&
+                mkdir -p '$PREVIEWS_DIR/preview-panel' &&
+                mv -f \"\$tmp/deploy/preview-panel/compose.yml\" \"\$tmp/deploy/preview-panel/server.mjs\" \"\$tmp/deploy/preview-panel/panel.css\" '$PREVIEWS_DIR/preview-panel/' &&
                 rm -rf \"\$tmp\" && echo installed
               else
                 cat >/dev/null && echo 'no $PREVIEWS_DIR: previews not set up'

@@ -8,6 +8,7 @@ import {
 import { authControllerLogout, authControllerMe } from '#/api'
 import type { UserDto } from '#/api/types.gen'
 import { forgetCurrentUser } from '#/lib/current-user'
+import { rememberSignedOut } from '#/lib/demo-sign-in'
 import { storeThemeMode } from '#/lib/use-theme'
 
 type AuthState = {
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await authControllerLogout({ throwOnError: false })
+    rememberSignedOut()
     forgetCurrentUser()
     setUser(null)
   }, [])

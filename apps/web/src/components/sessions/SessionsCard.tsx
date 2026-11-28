@@ -41,6 +41,7 @@ const SIGN_IN_METHODS: Record<SessionDto['signInMethod'], string> = {
   password: 'mot de passe',
   passkey: 'passkey',
   sign_up: 'inscription',
+  demo: 'compte démo',
   unknown: 'méthode inconnue',
 }
 

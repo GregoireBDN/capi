@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@capi/ui'
 import { AuthFooter, AuthFrame, AuthPanel } from './AuthFrame'
+import { DemoSignIn } from './DemoSignIn'
 import { ForgotForm } from './ForgotForm'
 import { LoginForm } from './LoginForm'
 import { PasskeyOffer } from './PasskeyOffer'
@@ -15,6 +16,8 @@ interface AuthCardProps {
    * exists. When false, the register form and every link to it are hidden.
    */
   registrationOpen: boolean
+  /** A pull request preview that signs in the demo account (#608). */
+  demoSignIn?: boolean
   initialMode?: AuthMode
 }
 
@@ -30,6 +33,7 @@ const TITLES = {
 
 export function AuthCard({
   registrationOpen,
+  demoSignIn = false,
   initialMode = 'login',
 }: AuthCardProps) {
   const [mode, setMode] = useState<AuthMode>(
@@ -47,6 +51,7 @@ export function AuthCard({
 
   return (
     <AuthFrame>
+      {mode === 'login' && demoSignIn && <DemoSignIn />}
       <AuthPanel title={TITLES[mode]}>
         {mode === 'login' && (
           <LoginForm

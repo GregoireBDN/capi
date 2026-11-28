@@ -34,6 +34,10 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/finances_preview_staging
       DEMO_STAGING_DATABASE: finances_preview_staging
+      # The demo sign-in (#608): the sign-in page signs in the demo account by
+      # itself. The API also checks the database is the `_staging` one above.
+      # Set from the settings panel (preview.sh), `true` or `false`.
+      DEMO_AUTO_SIGN_IN: ${PREVIEW_AUTO_SIGN_IN:-true}
       SMTP_HOST: ''
       REMOTE_MCP_ENABLED: 'false'
       PRICE_API_ENABLED: 'false'
@@ -41,8 +45,10 @@ services:
 
   web:
     environment:
-      # Yellow, like staging (#454): never mistaken for production.
-      APP_ENVIRONMENT: staging
+      # Yellow, like staging (#454), unless the owner picks the production
+      # look in the settings panel (#608): the look only, the data stays the
+      # demo's and the address capi-pr-<n>.
+      APP_ENVIRONMENT: ${PREVIEW_APP_ENVIRONMENT:-staging}
     networks:
       default: {}
       proxy:

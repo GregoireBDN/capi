@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  NotFoundException,
   Post,
   Req,
   Res,
@@ -17,6 +18,7 @@ import {
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -28,8 +30,10 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from '#/throttle.config'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { AuthService } from '#/auth/auth.service'
+import { demoSignInAllowed } from '#/auth/demo-sign-in'
 import {
   ChangePasswordDto,
+  DemoSignInStatusDto,
   ForgotPasswordDto,
   LoginDto,
   RegisterDto,
@@ -45,7 +49,14 @@ import {
   setSessionCookies,
 } from '#/auth/session-cookies'
 import { UserDto } from '#/user/user.dto'
+import { env } from '#/config/env'
 import { WithoutOwnerScope } from '#/database/request-scope/owner-scope.interceptor'
+
+const demoSignInConfig = () => ({
+  enabled: env.DEMO_AUTO_SIGN_IN,
+  databaseUrl: env.DATABASE_URL,
+  stagingDatabase: env.DEMO_STAGING_DATABASE,
+})
 
 @ApiTags('Auth')
 @WithoutOwnerScope()
@@ -123,6 +134,37 @@ export class AuthController {
       throw new UnauthorizedException()
     }
     const tokens = await this.authService.rotateRefreshToken(token)
+    setSessionCookies(reply, tokens)
+    await reply.send({ success: true })
+  }
+
+  /**
+   * Whether this server signs in the demo account by itself (#608): only a
+   * pull request preview that asked for it (`demo-sign-in.ts`).
+   */
+  @Get('demo-sign-in')
+  @ApiOkResponse({ type: DemoSignInStatusDto })
+  demoSignInStatus(): DemoSignInStatusDto {
+    return { available: demoSignInAllowed(demoSignInConfig()) }
+  }
+
+  /**
+   * Signs in the demo account of a pull request preview (#608). 404 anywhere
+   * else, production included: the route behaves as if it did not exist.
+   */
+  @Post('demo-sign-in')
+  @Throttle({ default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.login } })
+  @HttpCode(200)
+  @ApiOkResponse({ schema: { example: { success: true } } })
+  @ApiNotFoundResponse({ description: 'No demo sign-in on this server.' })
+  async demoSignIn(
+    @Res() reply: FastifyReply,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    if (!demoSignInAllowed(demoSignInConfig())) throw new NotFoundException()
+    const tokens = await this.authService.signInDemo(userAgent)
+    if (!tokens) throw new NotFoundException()
+    this.logger.log('Demo sign-in')
     setSessionCookies(reply, tokens)
     await reply.send({ success: true })
   }
