@@ -27,8 +27,12 @@ function skillFiles(): { path: string; text: string }[] {
 }
 
 /** Upper bound of the tool definitions sent on `tools/list`, in characters
- * (43,006 after #497, 50,306 before): methods go in the Skill, not here. */
-const TOOL_DEFINITIONS_BUDGET = 45_000
+ * (50,306 before #497, 43,006 after it, 41,366 after the slimming of #529):
+ * methods go in the Skill, not here. Raised from 45,000 to 50,000 by the
+ * owner's choice in #529, to leave room for the few new tools of #519's
+ * phase 2 (envelopes, rules, subscriptions review); slim existing
+ * descriptions before raising it again. */
+const TOOL_DEFINITIONS_BUDGET = 50_000
 
 describe('Capi skill', () => {
   it('has the frontmatter claude.ai and Claude Code expect', () => {

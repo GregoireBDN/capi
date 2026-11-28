@@ -55,7 +55,7 @@ export const integrityChecksTool = defineTool({
   name: 'integrity_checks',
   title: 'Cohérence des chiffres',
   description:
-    'Consistency checks computed from the stored data, the « Cohérence des chiffres » step of « Bilan du mois » (default: the previous calendar month): bank balances recomputed from the transactions vs the bank’s running balance and statements, hand-entered transactions never matched by an import, income − expenses vs saved, moves between own accounts counted as income or expense; and, as things stand now, crypto quantities vs the last complete chain read, money owed below zero, repayments past their transfer. Each finding names its account and day. Read only: nothing is fixed automatically.',
+    '« Cohérence des chiffres » of « Bilan du mois » (default: the previous month), from the stored data: bank balances vs running balances and statements, hand-entered transactions never matched, income − expenses vs saved, own-account moves counted as income or expense; and now: crypto quantities vs the last chain read, money owed below zero, repayments past their transfer. Each finding names its account and day. Read only: nothing is fixed.',
   inputSchema: {
     month: z
       .string()
