@@ -118,6 +118,7 @@ PREVIEW_NUMBER=$n
 DB_VOLUME=capi-pr-${n}_db_data
 POSTGRES_USER=capi
 POSTGRES_PASSWORD=$(openssl rand -hex 32)
+APP_DB_PASSWORD=$(openssl rand -hex 32)
 JWT_SECRET=$(openssl rand -hex 32)
 APP_URL=https://capi-pr-$n.$DOMAIN
 WEBAUTHN_RP_ID=
@@ -131,6 +132,10 @@ EOF
   fi
   tmp=$(umask 077 && mktemp "$env.XXXXXX")
   grep -v -e '^CAPI_VERSION=' -e '^FINANCES_VERSION=' "$env" >"$tmp" || true
+  # The API's database role (#557), for a preview made before it.
+  if ! grep -q '^APP_DB_PASSWORD=' "$tmp"; then
+    printf 'APP_DB_PASSWORD=%s\n' "$(openssl rand -hex 32)" >>"$tmp"
+  fi
   printf 'CAPI_VERSION=%s\nFINANCES_VERSION=%s\n' "$version" "$version" >>"$tmp"
   mv -f "$tmp" "$env"
 }
@@ -143,7 +148,7 @@ healthy() {
 
 # deploy N VERSION — returns non-zero (and stops the preview) on failure.
 deploy() {
-  local n=$1 version=$2 dir=$PREVIEWS_DIR/pr-$1 config alias services i
+  local n=$1 version=$2 dir=$PREVIEWS_DIR/pr-$1 config alias services i db_service
   log "pr-$n: deploying $version (was: $(running_version "$n" || true))"
   mkdir -p "$dir"
   for i in "${COMPOSE_FILES[@]}"; do
@@ -168,10 +173,13 @@ deploy() {
     return 1
   fi
 
+  # Migrations and seeds as the database owner (#557), in `api` before it.
+  db_service=api
+  if grep -q '^  migrate:' "$dir/${COMPOSE_FILES[0]}"; then db_service=migrate; fi
   if compose_in "$n" pull api web &&
-    compose_in "$n" run --rm -T api node dist/database/migrate.js &&
-    compose_in "$n" run --rm -T api node dist/database/seed.js &&
-    compose_in "$n" run --rm -T api node dist/database/seed-demo.js --if-empty &&
+    compose_in "$n" run --rm -T "$db_service" node dist/database/migrate.js &&
+    compose_in "$n" run --rm -T "$db_service" node dist/database/seed.js &&
+    compose_in "$n" run --rm -T "$db_service" node dist/database/seed-demo.js --if-empty &&
     compose_in "$n" up -d --remove-orphans; then
     for ((i = 1; i <= HEALTH_RETRIES; i++)); do
       if healthy "$n"; then

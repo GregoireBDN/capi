@@ -19,6 +19,7 @@ import { parseEnv } from 'node:util'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
+import { ensureAppRole } from './src/database/app-role'
 
 const DEV_DATABASE_URL = 'postgres://user:password@localhost:5432/finances'
 const API_ROOT = dirname(fileURLToPath(import.meta.url))
@@ -97,6 +98,8 @@ export default async function setup(): Promise<void> {
     await migrate(drizzle(client), {
       migrationsFolder: resolve(API_ROOT, 'drizzle'),
     })
+    // The API's role, for the specs that read as it (#557).
+    await ensureAppRole(client)
   } finally {
     await client.end()
   }

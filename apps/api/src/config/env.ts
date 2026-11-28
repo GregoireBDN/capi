@@ -82,6 +82,24 @@ const envSchema = z.object({
   DATABASE_URL: requiredInProduction('DATABASE_URL', DEV_DATABASE_URL),
 
   /**
+   * The owner role, for migrations and seeds (#557): the API itself connects
+   * as `capi_app` (`DATABASE_URL`), under row-level security. Empty = the
+   * same as `DATABASE_URL` (dev, specs).
+   */
+  MIGRATION_DATABASE_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  /**
+   * Password `migrate.ts` gives the `capi_app` role (#557), which then may
+   * sign in. Empty = the role exists without a password (dev, specs).
+   */
+  APP_DB_PASSWORD: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(16).optional(),
+  ),
+
+  /**
    * Secret used to sign auth JWTs (HS256). Required in production, and at
    * least {@link JWT_SECRET_MIN_LENGTH} characters long (#182): a missing or
    * short secret makes every session forgeable. Outside production we

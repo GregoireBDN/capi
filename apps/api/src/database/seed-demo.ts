@@ -55,13 +55,15 @@ async function main() {
     process.exitCode = 2
     return
   }
+  // The owner role (#557): it wipes and fills every user's rows.
+  const url = env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL
   const databaseName = assertDemoTarget(
-    env.DATABASE_URL,
+    url,
     process.env.NODE_ENV,
     process.env.DEMO_STAGING_DATABASE || undefined,
   )
 
-  const client = postgres(env.DATABASE_URL, { max: 1, onnotice: () => {} })
+  const client = postgres(url, { max: 1, onnotice: () => {} })
   try {
     const db = drizzle(client, { schema })
     const result = await db.transaction(async (tx) => {
