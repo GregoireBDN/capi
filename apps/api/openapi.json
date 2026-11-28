@@ -9642,6 +9642,63 @@
         ]
       }
     },
+    "/api/envelopes/{id}/top-up": {
+      "post": {
+        "description": "A move from « libre » into the envelope on one account (#518): the balance does not change, never more than « libre ». Open to `write` tokens; taking money out of an envelope stays session only.",
+        "operationId": "EnvelopesController_topUp",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpEnvelopeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountEnvelopesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, unknown account, archived envelope, or more than « libre »."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Add money to an envelope from an account’s « libre »",
+        "tags": [
+          "Envelopes"
+        ]
+      }
+    },
     "/api/envelopes/{id}/transactions": {
       "post": {
         "description": "An expense keeps its category and counts once in the month; the envelope pays it (or `amountCents` of it) and adds that to the month’s budget. A transfer out carries the envelope’s money (or `amountCents` of it) to its other account.",
@@ -23928,6 +23985,30 @@
           "shortfallCents",
           "splitKey",
           "freeBasisPoints"
+        ]
+      },
+      "TopUpEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Taken from the account’s « libre »; the money does not move."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "accountId",
+          "amountCents"
         ]
       },
       "AttachTransactionDto": {

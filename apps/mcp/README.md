@@ -42,6 +42,13 @@ Read tools added with the write tools: `month_close_status` (`GET /api/month-clo
 | `cancel_subscription`     | `GET /api/recurring`, `PATCH /api/recurring/:id`                    | « Résilier » a confirmed subscription from a date (#597). Only when you ask; besides the preview, your client asks you to approve each call. Reactivating stays in the app.                                                                                                                         |
 | `forgive_debt`            | `GET /api/receivables/:id`, `POST /api/receivables/:id/forgive`     | Lets all or part of a debt go, either way (#597). Only when you ask; besides the preview, your client asks you to approve each call. Claiming it again stays in the app.                                                                                                                            |
 
+### Envelopes (write token, #518)
+
+| Tool              | API                                                                        | What it changes                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_envelope` | `GET /api/envelopes`, `/api/accounts/:id/envelopes`, `POST /api/envelopes` | An envelope with an optional target, due date and starting amounts taken from accounts' « libre » (no balance changes). Refused when an active envelope has the name. The preview shows « libre » before → after. |
+| `add_to_envelope` | `GET /api/accounts/:id/envelopes`, `POST /api/envelopes/:id/top-up`        | Adds money to an envelope from one account's « libre »; each confirmed call adds again. Changing, deleting or taking money out of an envelope stays in the app.                                                   |
+
 ### Investment tools (#104)
 
 For values Claude reads in the owner's statements (see [Importing investment values from Google Drive](../../docs/runbooks/investments-from-drive.md)): the app never sees the documents, only the extracted dates, cents and quantities.

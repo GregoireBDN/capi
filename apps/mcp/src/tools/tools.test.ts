@@ -56,6 +56,7 @@ describe('tool list', () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       'accounts_overview',
       'add_investment_snapshots',
+      'add_to_envelope',
       'add_transaction',
       'budget_history',
       'budget_status',
@@ -64,6 +65,7 @@ describe('tool list', () => {
       'categorize_transactions',
       'close_months',
       'commit_bank_import',
+      'create_envelope',
       'create_investment_account',
       'create_rule',
       'forgive_debt',
@@ -114,6 +116,8 @@ describe('tool list', () => {
       'link_repayment',
       'cancel_subscription',
       'forgive_debt',
+      'create_envelope',
+      'add_to_envelope',
     ])
     // #597: the client asks the owner to approve each of these calls.
     const destructive = new Set(['cancel_subscription', 'forgive_debt'])

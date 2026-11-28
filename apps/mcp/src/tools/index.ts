@@ -28,6 +28,7 @@ import { owedToMeTool } from './owed.js'
 import { linkRepaymentTool, shareExpenseTool } from './owed-writes.js'
 import { cancelSubscriptionTool, forgiveDebtTool } from './sensitive-writes.js'
 import { createRuleTool } from './rule-writes.js'
+import { addToEnvelopeTool, createEnvelopeTool } from './envelope-writes.js'
 import { listRulesTool, updateRuleTool } from './rules.js'
 import { savingsTool } from './savings.js'
 import { spendingByCategoryTool, spendingHistoryTool } from './spending.js'
@@ -100,6 +101,9 @@ export const writeTools = [
   // every call (destructiveHint), undone in the app.
   cancelSubscriptionTool,
   forgiveDebtTool,
+  // #518: create an envelope, add to one from « libre » (the rest in the app).
+  createEnvelopeTool,
+  addToEnvelopeTool,
 ]
 
 export const tools = [...readTools, ...writeTools]
