@@ -6,16 +6,15 @@ import { isRateLimited, rateLimitMessage } from '#/lib/api-errors'
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { AuthFrame, AuthPanel } from '#/components/auth/AuthFrame'
+import { Button, Spinner, cn } from '@capi/ui'
 import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@capi/ui'
-import { CheckCircle2Icon, RefreshCwIcon } from 'lucide-react'
+  CheckCircle2Icon,
+  MailIcon,
+  RefreshCwIcon,
+  TriangleAlertIcon,
+} from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -62,118 +61,122 @@ function VerifyEmailPage() {
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-full flex-1 items-center justify-center px-4 py-6">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Vérification en cours…</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
+      <AuthFrame>
+        <AuthPanel title="Vérification…">
+          <div className="flex justify-center py-2">
+            <Spinner />
+          </div>
+        </AuthPanel>
+      </AuthFrame>
     )
   }
 
+  const home = (
+    <Button asChild size="lg" fullWidth>
+      <Link to={ROUTES.home}>Retour à l&apos;accueil</Link>
+    </Button>
+  )
+  const resend =
+    user &&
+    (resendSent ? (
+      <p className="text-success-foreground bg-success/15 flex items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-medium">
+        <CheckCircle2Icon aria-hidden className="size-4" />
+        Nouvel email envoyé
+      </p>
+    ) : (
+      <Button
+        variant="secondary"
+        ghost
+        size="lg"
+        fullWidth
+        onClick={onResend}
+        loading={resending}
+      >
+        <RefreshCwIcon />
+        Renvoyer l&apos;email
+      </Button>
+    ))
+
   if (status === 'success') {
     return (
-      <div className="flex min-h-full flex-1 items-center justify-center px-4 py-6">
-        <Card className="border-l-success/50 w-full max-w-sm border-l-4">
-          <CardHeader>
-            <CardTitle className="text-lg">Email vérifié</CardTitle>
-            <CardDescription className="leading-relaxed">
-              Votre adresse email a bien été vérifiée. Vous avez maintenant
-              accès à l&apos;ensemble des fonctionnalités de votre compte.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              onClick={() => navigate({ to: ROUTES.home })}
-              className="w-full"
-            >
-              Retour à l&apos;accueil
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthFrame>
+        <AuthPanel>
+          <StatusIcon tone="success">
+            <CheckCircle2Icon />
+          </StatusIcon>
+          <h1 className="font-heading text-center text-lg font-semibold">
+            Email vérifié
+          </h1>
+          <Button
+            size="lg"
+            fullWidth
+            onClick={() => navigate({ to: ROUTES.home })}
+          >
+            Continuer
+          </Button>
+        </AuthPanel>
+      </AuthFrame>
     )
   }
 
   if (status === 'error') {
     return (
-      <div className="flex min-h-full flex-1 items-center justify-center px-4 py-6">
-        <Card className="border-l-destructive w-full max-w-sm border-l-4">
-          <CardHeader>
-            <CardTitle className="text-destructive text-lg">
-              Lien invalide
-            </CardTitle>
-            <CardDescription className="leading-relaxed">
-              Ce lien de vérification est invalide ou a expiré.
-              {user &&
-                !resendSent &&
-                ' Demandez-en un nouveau pour activer votre compte.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {user &&
-              (resendSent ? (
-                <div className="text-success bg-success/10 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-                  <CheckCircle2Icon className="size-4" />
-                  Un nouvel email a été envoyé.
-                </div>
-              ) : (
-                <Button
-                  onClick={onResend}
-                  loading={resending}
-                  className="w-full"
-                >
-                  <RefreshCwIcon className="size-4" />
-                  Renvoyer un lien
-                </Button>
-              ))}
-            <Button asChild variant="secondary" ghost className="w-full">
-              <Link to={ROUTES.home}>Retour à l&apos;accueil</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthFrame>
+        <AuthPanel>
+          <StatusIcon tone="danger">
+            <TriangleAlertIcon />
+          </StatusIcon>
+          <h1 className="font-heading text-center text-lg font-semibold">
+            Lien invalide
+          </h1>
+          <p className="text-muted-foreground text-center text-sm text-balance">
+            Ce lien a expiré ou a déjà servi.
+          </p>
+          {resend}
+          {home}
+        </AuthPanel>
+      </AuthFrame>
     )
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-4 py-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Vérifiez votre email</CardTitle>
-          <CardDescription>
-            Un email de vérification vous a été envoyé. Cliquez sur le lien dans
-            l&apos;email pour activer votre compte.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-muted-foreground text-center text-sm">
-            Pensez à vérifier vos spams si vous ne voyez pas l&apos;email.
-          </p>
-          {user &&
-            (resendSent ? (
-              <p className="text-center text-sm text-green-600">
-                Un nouvel email a été envoyé.
-              </p>
-            ) : (
-              <div className="flex justify-center">
-                <Button
-                  variant="secondary"
-                  onClick={onResend}
-                  loading={resending}
-                >
-                  Renvoyer l&apos;email
-                </Button>
-              </div>
-            ))}
-        </CardContent>
-        <CardFooter className="justify-center">
-          <Button asChild variant="secondary">
-            <Link to={ROUTES.home}>Retour à l&apos;accueil</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
+    <AuthFrame>
+      <AuthPanel>
+        <StatusIcon tone="primary">
+          <MailIcon />
+        </StatusIcon>
+        <h1 className="font-heading text-center text-lg font-semibold">
+          Vérifiez votre email
+        </h1>
+        <p className="text-muted-foreground text-center text-sm text-balance">
+          Ouvrez le lien reçu (pensez aux spams).
+        </p>
+        {resend}
+        {home}
+      </AuthPanel>
+    </AuthFrame>
+  )
+}
+
+/** The page's state at a glance: a round icon above the title. */
+function StatusIcon({
+  tone,
+  children,
+}: {
+  tone: 'primary' | 'success' | 'danger'
+  children: ReactNode
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'mx-auto grid size-12 place-items-center rounded-full [&_svg]:size-6',
+        tone === 'primary' && 'bg-primary/10 text-primary',
+        tone === 'success' && 'bg-success/20 text-success-foreground',
+        tone === 'danger' && 'bg-destructive/10 text-destructive',
+      )}
+    >
+      {children}
+    </span>
   )
 }

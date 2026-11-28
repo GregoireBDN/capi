@@ -45,7 +45,7 @@ describe('ForgotForm', () => {
       }),
     )
     expect(
-      await screen.findByText(/un lien de réinitialisation vous a été envoyé/i),
+      await screen.findByText(/le lien vient de partir/i),
     ).toBeInTheDocument()
     expect(toastError).not.toHaveBeenCalled()
   })

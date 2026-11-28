@@ -26,17 +26,15 @@ export const loginSchema = z.object({
   password: currentPasswordField,
 })
 
-export const registerSchema = z
-  .object({
-    email: emailField,
-    name: z.string().min(1, 'Nom requis'),
-    password: newPasswordField,
-    confirmPassword: z.string().min(1, 'Confirmez le mot de passe'),
-  })
-  .refine((d) => d.password === d.confirmPassword, {
-    message: 'Les mots de passe ne correspondent pas',
-    path: ['confirmPassword'],
-  })
+/**
+ * No « Confirmer » field (#543): the eye of the password field lets the owner
+ * check what was typed, and the form fits one phone screen.
+ */
+export const registerSchema = z.object({
+  email: emailField,
+  name: z.string().min(1, 'Nom requis'),
+  password: newPasswordField,
+})
 
 export const forgotSchema = z.object({
   email: emailField,
