@@ -9724,13 +9724,13 @@
             }
           },
           "400": {
-            "description": "Invalid body, unknown account, archived envelope, or more than « libre »."
+            "description": "Invalid body, archived envelope, or more than « libre »."
           },
           "401": {
             "description": ""
           },
           "404": {
-            "description": ""
+            "description": "Unknown envelope or account."
           }
         },
         "security": [
