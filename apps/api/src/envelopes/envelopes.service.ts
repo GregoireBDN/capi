@@ -982,7 +982,7 @@ export class EnvelopesService {
       .from(accountsTable)
       .where(eq(accountsTable.id, accountId))
       .for('update')
-    if (!account) throw new BadRequestException('Unknown account')
+    if (!account) throw new NotFoundException('Account not found')
   }
 
   /** « Libre » of an account: its balance (0 when unknown) − its envelopes. */

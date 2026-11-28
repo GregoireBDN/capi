@@ -189,10 +189,9 @@ export class EnvelopesController {
   @ApiBody({ type: TopUpEnvelopeDto })
   @ApiOkResponse({ type: AccountEnvelopesDto })
   @ApiBadRequestResponse({
-    description:
-      'Invalid body, unknown account, archived envelope, or more than « libre ».',
+    description: 'Invalid body, archived envelope, or more than « libre ».',
   })
-  @ApiNotFoundResponse()
+  @ApiNotFoundResponse({ description: 'Unknown envelope or account.' })
   topUp(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: TopUpEnvelopeDto,
