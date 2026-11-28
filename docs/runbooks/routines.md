@@ -79,7 +79,7 @@ What makes the next thread faster and safer: files and functions that grew too b
 
 Claude proposes evolutions itself: from the roadmap and its milestones, what the merged work now makes possible, gaps between the app, the MCP and the Skill, the mobile audit conventions, and the owner's recurring asks in the project chat. Never from real financial data. 2–3 ideas per run, each with a one-line why and, for a visual idea, the note that it will start with 2–3 mockups. Proposals: `feat` issues.
 
-Mostly the app, and **at most one proposal a week on the owner's whole workflow**: the `infra` repository and the server (Caddy, previews, staging, deploys), how repositories and Claude projects are split (for example a separate Claude project for the gbodin.cloud portal and previews), the routines themselves, tooling and CI. An infra proposal is an issue in `infra`; a Claude project or routine proposal an issue in `capi` with `area:ci`. Every proposal says what the owner would have to do himself. A proposal may also be **a new artifact** that would help him understand or follow something (for example the infra and the app explained); « Oui » makes it.
+Mostly the app, and **at most one proposal a week on the owner's workflow around Capi**: the routines themselves, how Claude projects are split, tooling and CI, as an issue in `capi` with `area:ci`. The server and the `infra` repository (Caddy, the portal, backups, Tailscale) belong to the separate « Serveur gbodin.cloud » Claude project since 2026-11-28, which has its own routines: Capi's proposals never cover them. Every proposal says what the owner would have to do himself. A proposal may also be **a new artifact** that would help him understand or follow something; « Oui » makes it.
 
 ### Weekly review and artifacts (weekly, Thursday)
 
@@ -92,9 +92,9 @@ Mostly the app, and **at most one proposal a week on the owner's whole workflow*
 
 One message: import the month's statements in Capi, then ask Claude for the « Bilan du mois » (Skill `capi`). With the Capi tools, it names the accounts still to import by type only, never amounts or labels; it imports, categorizes and closes nothing. After the re-import (#483) it will propose replacing the owner's separate Drive-based monthly task.
 
-### Server health (GitHub workflow, #613)
+### The server is another project's
 
-The cloud cannot reach the server, so this one is not a Claude routine: a scheduled workflow joins the tailnet, runs a read-only report (disk, reclaimable images, certificate, backups, health endpoints, previews) and opens an issue only when a check fails.
+Server health (disk, certificate, backups, server ≟ `infra` `main`) is checked by the « Serveur gbodin.cloud » Claude project, not here (#613 closed). What stays in `capi` is what runs from this repository: previews (`deploy/preview.sh`), staging and production deploys.
 
 ## Change or stop a routine
 
