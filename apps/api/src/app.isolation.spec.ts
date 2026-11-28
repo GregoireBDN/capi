@@ -246,11 +246,16 @@ describe.skipIf(!process.env.DATABASE_URL).each([
       )
 
       // B: the demo's whole data set, plus the identity rows it lacks.
-      await generateDemoData(tx, { bcryptRounds: 4 })
+      // Its own email: demo-data.spec's uncommitted demo user would make one
+      // of the two wait for the other's unique key.
+      await generateDemoData(tx, {
+        bcryptRounds: 4,
+        user: { email: 'isolation-b@capi.test', name: 'User B', seed: 0xb },
+      })
       const [b] = await tx
         .select({ id: usersTable.id })
         .from(usersTable)
-        .where(sql`${usersTable.email} = 'usertest@finances.test'`)
+        .where(sql`${usersTable.email} = 'isolation-b@capi.test'`)
       userB = b.id
       await setOwner(tx, userB)
       const tokens = app.get(AccessTokensService, { strict: false })
