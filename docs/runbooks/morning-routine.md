@@ -1,6 +1,6 @@
 # Runbook — the morning routine
 
-Every weekday morning (#601), a scheduled task of the Claude project starts the next tickets the owner marked ready, one development thread per ticket, at most 3 at once. The owner never has to write a message for a ticket to start: he labels it, then answers decision cards and tests previews from the phone. Nothing runs on the server or on the owner's Mac (the agents stay in Claude Code's cloud; previews run on the server, [previews runbook](previews.md)).
+Every morning from Wednesday to Sunday (#601; Monday and Tuesday are rest days, see [routines](routines.md)), a scheduled task of the Claude project starts the next tickets the owner marked ready, one development thread per ticket, at most 3 at once. The owner never has to write a message for a ticket to start: he labels it, then answers decision cards and tests previews from the phone. Nothing runs on the server or on the owner's Mac (the agents stay in Claude Code's cloud; previews run on the server, [previews runbook](previews.md)).
 
 ## The two labels
 
@@ -16,7 +16,7 @@ Every weekday morning (#601), a scheduled task of the Claude project starts the 
 
 ## The run
 
-Weekdays, 6:52 Europe/Paris (just before 7:00, off the busy round hour), the scheduled task wakes the project's coordinator, which:
+At 6:00 Europe/Paris, Wednesday to Sunday, the scheduled task wakes the project's coordinator, which:
 
 1. counts the open `en-cours` issues; `3 − count` slots are free (none: nothing starts);
 2. lists the open `prêt` issues and orders them **by the « Roadmap Capi » page** (its order of chantiers and lots), then by milestone, then oldest issue first;
@@ -54,6 +54,6 @@ What a development thread decides alone, and what goes to the owner. When in dou
 
 ## Owner's side
 
-- Mark a ticket ready: add `prêt` on GitHub (from the phone too). It starts on the next weekday morning, or now if he asks the coordinator.
+- Mark a ticket ready: add `prêt` on GitHub (from the phone too). It starts on the next morning run, or now if he asks the coordinator.
 - Stop one: tell its thread, or remove `en-cours` and close or relabel the issue.
 - Change the time or pause the routine: ask the coordinator (the scheduled task « Routine du matin »).
