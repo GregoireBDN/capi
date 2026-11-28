@@ -478,7 +478,10 @@ export class CryptoImportsService {
   private async valuate(accountId: string, now: Date) {
     this.dailyClose.requestRebuild(accountId)
     try {
-      await this.crypto.refresh(accountId, now)
+      // In a savepoint: a failure leaves the import's transaction usable.
+      await this.database.db.transaction(() =>
+        this.crypto.refresh(accountId, now),
+      )
     } catch (error) {
       this.logger.warn(
         `Valuation after an import failed (${(error as Error).name})`,

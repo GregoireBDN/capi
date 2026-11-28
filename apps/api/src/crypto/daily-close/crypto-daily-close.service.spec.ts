@@ -1,3 +1,4 @@
+import { DatabaseService } from '#/database/database.service'
 import { asSpecOwner } from '#/database/testing/spec-owner'
 import '#/load-env'
 import { Logger } from '@nestjs/common'
@@ -116,7 +117,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await db
         .transaction(async (tx) => {
           await asSpecOwner(tx)
-          const database = { db: tx } as never
+          const database = DatabaseService.within(tx)
           const accounts = new AccountsService(database)
           const provider = {
             fetchEurPrices: vi.fn((ids: readonly string[]) =>

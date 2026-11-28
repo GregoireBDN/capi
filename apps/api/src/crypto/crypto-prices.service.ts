@@ -1,11 +1,16 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { inArray, sql } from 'drizzle-orm'
-import { DatabaseService } from '#/database/database.service'
+import { DatabaseService, outsideOwnerScope } from '#/database/database.service'
 import { cryptoPricesTable } from '#/database/schema'
 import type { CryptoPriceSource } from '#/database/schema/domain-enums'
 import { searchBuiltinAssets } from './builtin-assets'
 import { isContractAssetId } from './contract-assets'
-import { fitsNumeric, formatDecimal, parseDecimal, rescale } from '#/common/decimal'
+import {
+  fitsNumeric,
+  formatDecimal,
+  parseDecimal,
+  rescale,
+} from '#/common/decimal'
 import type { CryptoPriceDto } from './dto/crypto.dto'
 import {
   CRYPTO_PRICE_OPTIONS,
@@ -242,7 +247,9 @@ export class CryptoPricesService {
   }
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(fn, fn)
+    // Global rows, shared by every request: never in a request's transaction.
+    const outside = () => outsideOwnerScope(fn)
+    const run = this.queue.then(outside, outside)
     this.queue = run.catch(() => undefined)
     return run
   }
