@@ -128,8 +128,10 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   // #342: close_months (MCP); reopen stays session-only.
   'POST /api/month-close/:month/close': 'write',
   // #359: share_expense and link_repayment (MCP), and « Quelqu’un a payé pour moi »;
-  // letting a debt go, deleting and contact settings stay session-only.
+  // #597: forgive_debt lets a debt go (re-approved by the owner each time);
+  // claiming it again, deleting and contact settings stay session-only.
   'POST /api/receivables': 'write',
+  'POST /api/receivables/:id/forgive': 'write',
   'POST /api/receivables/debts': 'write',
   'POST /api/receivables/payments': 'write',
   'POST /api/recurring/confirm': 'write',

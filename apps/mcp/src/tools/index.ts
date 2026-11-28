@@ -26,6 +26,7 @@ import { integrityChecksTool } from './integrity.js'
 import { monthReviewTool } from './review.js'
 import { owedToMeTool } from './owed.js'
 import { linkRepaymentTool, shareExpenseTool } from './owed-writes.js'
+import { cancelSubscriptionTool, forgiveDebtTool } from './sensitive-writes.js'
 import { createRuleTool } from './rule-writes.js'
 import { listRulesTool, updateRuleTool } from './rules.js'
 import { savingsTool } from './savings.js'
@@ -95,6 +96,10 @@ export const writeTools = [
   // #359: share an expense, link a repayment (letting go stays in the app).
   shareExpenseTool,
   linkRepaymentTool,
+  // #597: cancel a subscription, let a debt go; re-approved by the owner on
+  // every call (destructiveHint), undone in the app.
+  cancelSubscriptionTool,
+  forgiveDebtTool,
 ]
 
 export const tools = [...readTools, ...writeTools]

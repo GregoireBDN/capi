@@ -38,5 +38,13 @@ Read the rules first: `list_rules` (with `category` to narrow it) gives each rul
 
 - **I paid for someone**: `share_expense` (half, equal parts or an amount each). The owner's spending then counts only their part; each share shows in `owed_to_me` until it is repaid. A new name becomes a contact.
 - **Someone repays me / I repay someone**: `link_repayment` on the transfer. The linked part is neither income nor an expense; the rest of the transfer keeps its category.
-- **Where things stand**: `owed_to_me` (with a contact for the detail and the ids). Offsetting (« Compenser »: the same amount settled on each side without a transfer) and letting a debt go are done in the app.
+- **Where things stand**: `owed_to_me` (with a contact for the detail and the ids). Offsetting (« Compenser »: the same amount settled on each side without a transfer) is done in the app.
+- **Letting a debt go**: `forgive_debt` on an item id, all or part of what is left, only when the owner asks for it in this conversation (« laisse tomber les 10 € de Camille »), never on your own or as a step of a review. Show the preview, wait for their yes; the client then asks them to approve the call itself. Claiming it again is done in the app (« Réclamer à nouveau »).
 - What others owe never counts in net worth: it is shown beside it.
+
+## Cancelling a subscription
+
+1. **Recap**: `subscriptions` lists what is paid every month or year, the renewals and the cancelled ones. Point out what looks unused or has gone up, and ask; never decide for the owner.
+2. **The date**: when the owner says they cancelled, or shows a cancellation email or document (read with the client's own mail or Drive connector), take the first day with no charge from it, e.g. the end of the paid period. If none is given, ask.
+3. **Cancel**: `cancel_subscription` with the name and that date, only when the owner asked for it in this conversation, never on your own or as a step of a review. Show the preview, wait for their yes; the client then asks them to approve the call itself.
+4. A charge after that date is flagged by `subscriptions`: tell the owner, the cancellation may not have gone through. Reactivating is done in the app (« Réactiver »).

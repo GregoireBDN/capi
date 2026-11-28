@@ -3664,7 +3664,7 @@
             "description": ""
           },
           "403": {
-            "description": "Access token with `endedOn`, `termMonths` or `keepRenewal`: cancelling, the prepaid term and renewals stay in the app (session only)."
+            "description": "Access token with `endedOn: null`, `termMonths` or `keepRenewal`: reactivating, the prepaid term and renewals stay in the app (session only). Cancelling (`endedOn` a date) is open to write tokens (#597): `cancel_subscription`, re-approved by the owner each time."
           },
           "404": {
             "description": "Unknown item."
@@ -5356,7 +5356,7 @@
     },
     "/api/receivables/{id}/forgive": {
       "post": {
-        "description": "« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible. Session only: Claude never lets a debt go.",
+        "description": "« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible in the app (claiming it again stays session only). Open to write tokens (#597): `forgive_debt`, re-approved by the owner each time.",
         "operationId": "ReceivablesController_forgive",
         "parameters": [
           {
