@@ -26,6 +26,7 @@ import {
   parseAccountMapping,
   parseCategoryOverrides,
 } from '#/imports/history/mapping'
+import { usersTable } from '#/user/user.schema'
 import * as schema from './schema'
 
 /**
@@ -73,6 +74,10 @@ async function main() {
   })
   try {
     const db = drizzle(client, { schema })
+    // The history's owner (#559): every row it writes is theirs, for the
+    // whole session (one connection).
+    const owner = await historyOwner(db, options.user)
+    await client`select set_config('app.user_id', ${owner}, false)`
     const result = await runHistoryImport(
       db,
       {
@@ -112,6 +117,28 @@ async function main() {
   } finally {
     await client.end()
   }
+}
+
+async function historyOwner(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  email: string | null,
+): Promise<string> {
+  const users = await db
+    .select({ id: usersTable.id, email: usersTable.email })
+    .from(usersTable)
+  if (email) {
+    const user = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase(),
+    )
+    if (!user) throw new CliUsageError('No user with this --user email')
+    return user.id
+  }
+  if (users.length !== 1) {
+    throw new CliUsageError(
+      `--user <email> is required: the instance has ${users.length} users`,
+    )
+  }
+  return users[0].id
 }
 
 function readInput(path: string, flag: string): Buffer {

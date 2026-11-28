@@ -107,6 +107,38 @@ describe.skipIf(!process.env.DATABASE_URL)('owner scope (#557)', () => {
     expect(await later).toBeNull()
   })
 
+  it('runs work that outlives the request as its owner, statement by statement (#559)', async () => {
+    await clear()
+    let later: Promise<(string | null)[]> | undefined
+    await database.asOwner(owner, async () => {
+      later = new Promise((resolve) => setTimeout(resolve, 20)).then(() =>
+        database.outsideRequest(async () => {
+          const during = await ownerSetting()
+          await insert('kept')
+          // A transaction of its own still works, on its connection.
+          await database.db
+            .transaction(async (tx) => {
+              await insert('rolled-back', tx)
+              throw new Error('refused')
+            })
+            .catch(() => undefined)
+          await insert('kept').catch(() => undefined)
+          return [during, await ownerSetting()]
+        }),
+      )
+    })
+    expect(await later).toEqual([owner, owner])
+    // Committed as it went, though a later statement failed.
+    expect(await labels()).toEqual(['kept'])
+    // Its connection went back to the pool without the owner.
+    const settings = await Promise.all(
+      Array.from({ length: 12 }, () => ownerSetting()),
+    )
+    expect(settings.every((setting) => setting === null)).toBe(true)
+    // Outside any request: the pool, no owner.
+    expect(await database.outsideRequest(ownerSetting)).toBeNull()
+  })
+
   describe('interceptor', () => {
     const interceptor = new OwnerScopeInterceptor(database, new Reflector())
     const context = (user?: { sub: string }) =>

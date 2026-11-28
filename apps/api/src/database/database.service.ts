@@ -26,6 +26,8 @@ interface Scope {
   queue: Promise<unknown>
   /** `tx`, whose `transaction(...)` opens a scoped savepoint. */
   view: Db
+  /** The user it reads and writes as, kept once it has ended (#559). */
+  owner: string
 }
 
 const scopes = new AsyncLocalStorage<Scope>()
@@ -44,8 +46,18 @@ function isWithin(scope: Scope, ancestor: Scope): boolean {
   return false
 }
 
-function openScope(tx: DatabaseTransaction, parent: Scope | null): Scope {
-  const scope = { tx, parent, open: true, queue: Promise.resolve() } as Scope
+function openScope(
+  tx: DatabaseTransaction,
+  parent: Scope | null,
+  owner: string,
+): Scope {
+  const scope = {
+    tx,
+    parent,
+    open: true,
+    queue: Promise.resolve(),
+    owner,
+  } as Scope
   const view = Object.create(tx) as Db & {
     transaction: Db['transaction']
   }
@@ -70,7 +82,7 @@ function savepoint<T>(
 ): Promise<T> {
   const run: Promise<T> = scope.queue.then(() =>
     scope.tx.transaction(async (sp) => {
-      const inner = openScope(sp, scope)
+      const inner = openScope(sp, scope, scope.owner)
       try {
         return await scopes.run(inner, () =>
           fn(inner.view as unknown as DatabaseTransaction),
@@ -82,6 +94,54 @@ function savepoint<T>(
   )
   scope.queue = run.catch(() => undefined)
   return run
+}
+
+type Client = Pick<postgres.Sql, 'unsafe'>
+
+/**
+ * `begin` and `savepoint` for a reserved connection (postgres.js has none
+ * there), as Drizzle calls them. Transactions opened side by side wait in
+ * turn: two on one connection would mix their statements.
+ */
+function transactionsOn(connection: postgres.ReservedSql) {
+  let queue: Promise<unknown> = Promise.resolve()
+  let savepoints = 0
+  const client = (): Client & { savepoint: typeof savepoint } => ({
+    unsafe: ((query: string, params?: never[]) =>
+      connection.unsafe(query, params)) as Client['unsafe'],
+    savepoint,
+  })
+  async function within<T>(
+    open: string,
+    close: string,
+    undo: string,
+    fn: (client: Client) => Promise<T>,
+  ): Promise<T> {
+    await connection.unsafe(open)
+    try {
+      const result = await fn(client())
+      await connection.unsafe(close)
+      return result
+    } catch (error) {
+      await connection.unsafe(undo)
+      throw error
+    }
+  }
+  function savepoint<T>(fn: (client: Client) => Promise<T>): Promise<T> {
+    const name = `capi_sp_${++savepoints}`
+    return within(
+      `savepoint ${name}`,
+      `release savepoint ${name}`,
+      `rollback to savepoint ${name}`,
+      fn,
+    )
+  }
+  function begin<T>(fn: (client: Client) => Promise<T>): Promise<T> {
+    const run = queue.then(() => within('begin', 'commit', 'rollback', fn))
+    queue = run.catch(() => undefined)
+    return run
+  }
+  return { begin }
 }
 
 /**
@@ -148,7 +208,7 @@ export class DatabaseService implements OnModuleDestroy {
     }
     return this.pool.transaction(async (tx) => {
       await setOwner(tx, userId)
-      const scope = openScope(tx, null)
+      const scope = openScope(tx, null, userId)
       try {
         const result = await scopes.run(scope, fn)
         // A failed query whose error was caught leaves the transaction
@@ -160,6 +220,56 @@ export class DatabaseService implements OnModuleDestroy {
         scope.open = false
       }
     })
+  }
+
+  /**
+   * Runs `fn`, which outlives the request that started it (a wallet sync,
+   * the valuation after it), as the request's user (#559) but outside its
+   * transaction: on a connection of its own with `app.user_id` set for the
+   * session, each statement committed as it goes, so its progress is kept
+   * when it fails. Outside any request (or in specs), `fn` runs on the pool.
+   */
+  outsideRequest<T>(fn: () => Promise<T>): Promise<T> {
+    const owner = scopes.getStore()?.owner
+    return outsideOwnerScope(() =>
+      owner && !this.fixed ? this.onOwnConnection(owner, fn) : fn(),
+    )
+  }
+
+  private async onOwnConnection<T>(
+    userId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    void this.pool
+    const connection = await this.client!.reserve()
+    let scope: Scope | undefined
+    try {
+      await connection`select set_config('app.user_id', ${userId}, false)`
+      // A reserved connection has no `options` nor `begin` of its own:
+      // Drizzle reads the pool's options (its type parsers, already set up),
+      // and transactions are opened by hand on the connection.
+      Object.assign(connection, {
+        options: this.client!.options,
+        ...transactionsOn(connection),
+      })
+      const db = drizzle(connection, { schema })
+      scope = {
+        tx: db as unknown as DatabaseTransaction,
+        parent: null,
+        open: true,
+        queue: Promise.resolve(),
+        view: db,
+        owner: userId,
+      }
+      return await scopes.run(scope, fn)
+    } finally {
+      if (scope) scope.open = false
+      // Back to the pool without an owner.
+      await connection`select set_config('app.user_id', '', false)`.catch(
+        () => undefined,
+      )
+      connection.release()
+    }
   }
 
   /** Lightweight round-trip used by the health check to confirm the DB answers. */

@@ -25,7 +25,7 @@ Nothing is written before « Valider l’import »: a pending import changes not
 
 ## Spreadsheet history import (one-shot)
 
-The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/2023) is imported once from its CSV exports with `pnpm --filter @capi/api import:history` (code in `apps/api/src/imports/history/`, entry `apps/api/src/database/import-history.ts`; `node dist/database/import-history.js` where `tsx` is missing).
+The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/2023) is imported once from its CSV exports with `pnpm --filter @capi/api import:history` (code in `apps/api/src/imports/history/`, entry `apps/api/src/database/import-history.ts`; `node dist/database/import-history.js` where `tsx` is missing). Its rows belong to the only user, or to `--user <email>` once the instance has several (#559): the command sets `app.user_id` for its session.
 
 - **Dry run by default**: everything runs in one DB transaction that is rolled back unless `--commit` is passed. It prints counts only; `--report <path>` writes a detailed JSON report (merchant keys, line numbers, conflicts) and refuses any path inside the repo outside `data/`.
 - **Inputs**: `Transactions` tab (`Date,Mois,Compte,Libellé,Montant (€),Catégorie,Groupe,Relevé,Ponctuel`, UTF-8, `,`-separated, `-1 234,56 €` amounts) and optionally the `Soldes` tab (`Fin de mois` + one column per account) → `balance_snapshots` on the last day of each month, upserted on (account, date). Columns are matched by name; bad rows are reported, never fatal.
