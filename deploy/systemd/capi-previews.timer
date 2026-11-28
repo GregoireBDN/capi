@@ -1,0 +1,12 @@
+# Runs capi-previews.service two minutes after the previous run ended
+# (#599, docs/runbooks/previews.md).
+[Unit]
+Description=Capi pull request previews every two minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target
