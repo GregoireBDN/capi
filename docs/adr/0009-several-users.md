@@ -1,6 +1,6 @@
 # ADR 0009 — Several users in one Capi: an owner on every row, row-level security, shared objects
 
-- **Status**: Proposed (the owner accepts it before any code of #555, #557, #558, #559)
+- **Status**: Accepted (2026-11-28)
 - **Date**: 2026-11-27
 - **Issue**: #542 (milestone M16, epic #538); implemented by #555, #557, #558, #559; used by #546, #547, #548, #560, #561, #562; public exposure stays behind #554
 
