@@ -8,7 +8,8 @@
 # environment has no required reviewer: nothing waits for the owner.
 # Production is untouched (release.yml, vX.Y.Z tags). Run it by hand to
 # redeploy main's latest commit, with `reset_demo` to wipe staging and seed
-# the demo data again.
+# the demo data again. It also installs main's pull request preview tooling
+# on the server (#599).
 name: Staging
 
 on:
@@ -195,3 +196,23 @@ jobs:
           # shellcheck disable=SC2029
           ssh "$DEPLOY_HOST" "'$release_dir/deploy/deploy.sh' --staging $reset '$VERSION' '$release_dir/docker-compose.prod.yml'"
           echo "Deployed **$VERSION** to $STAGING_URL ($data)" >>"$GITHUB_STEP_SUMMARY"
+
+      # Pull request previews (#599, docs/runbooks/previews.md): the server's
+      # timer runs preview.sh and the compose files installed here, from main
+      # only, never a pull request's. Skipped until the owner creates
+      # /srv/capi-previews. Each file is replaced atomically (mv), so a timer
+      # run never reads half a file.
+      - name: Install the preview tooling
+        env:
+          PREVIEWS_DIR: /srv/capi-previews
+        run: |
+          # shellcheck disable=SC2029
+          tar -cf - deploy/preview.sh docker-compose.prod.yml docker-compose.preview.yml |
+            ssh "$DEPLOY_HOST" "if [ -d '$PREVIEWS_DIR' ]; then
+                tmp=\$(mktemp -d '$PREVIEWS_DIR/.install.XXXXXX') && tar -xf - -C \"\$tmp\" &&
+                chmod 755 \"\$tmp/deploy/preview.sh\" && mv -f \"\$tmp/deploy/preview.sh\" '$PREVIEWS_DIR/preview.sh' &&
+                mv -f \"\$tmp/docker-compose.prod.yml\" \"\$tmp/docker-compose.preview.yml\" '$PREVIEWS_DIR/' &&
+                rm -rf \"\$tmp\" && echo installed
+              else
+                cat >/dev/null && echo 'no $PREVIEWS_DIR: previews not set up'
+              fi"
