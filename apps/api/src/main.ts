@@ -16,6 +16,8 @@ import { env } from './config/env'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { REQUEST_ID_HEADER } from './config/logger'
 import { SWAGGER_UI_PATH, setupSwagger } from './config/swagger'
+import { DatabaseService } from './database/database.service'
+import { rowSecurityProblems } from './database/row-security'
 import { registerMultipart } from './imports/upload/multipart'
 
 async function bootstrap() {
@@ -108,6 +110,23 @@ async function bootstrap() {
 
   // Swagger UI and live OpenAPI document: development only (#180).
   const swagger = setupSwagger(app)
+
+  // Fail closed (ADR 0009, #558): in production, no request is served unless
+  // Postgres keeps each user to their own rows.
+  const rowSecurity = await rowSecurityProblems(app.get(DatabaseService).db)
+  if (rowSecurity.length > 0) {
+    const logger = app.get(Logger)
+    if (env.NODE_ENV === 'production') {
+      logger.error(
+        `Refusing to start: row-level security does not hold (${rowSecurity.join('; ')})`,
+      )
+      await app.close()
+      process.exit(1)
+    }
+    logger.warn(
+      `Row-level security does not hold here, as in production it must (${rowSecurity.join('; ')})`,
+    )
+  }
 
   const port = env.PORT
   // Fastify listens on localhost unless told otherwise: the Docker image sets

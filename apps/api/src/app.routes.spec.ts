@@ -28,6 +28,8 @@ import {
 import { JwtGuard } from './auth/guards/jwt.guard'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { DatabaseService } from './database/database.service'
+import { ownedTableOf } from './database/request-scope/owned-params'
+import { WITHOUT_OWNER_SCOPE } from './database/request-scope/owner-scope.interceptor'
 import { registerMultipart } from './imports/upload/multipart'
 import * as schema from './database/schema'
 import { usersTable } from './user/user.schema'
@@ -173,6 +175,8 @@ interface DiscoveredRoute {
   guarded: boolean
   /** What a personal access token needs to call it (see `JwtGuard`). */
   tokenAccess: TokenAccessLevel
+  /** Runs as its user (`OwnerScopeInterceptor`), not an identity route. */
+  ownerScoped: boolean
 }
 
 function joinPath(...parts: string[]): string {
@@ -212,6 +216,7 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
       if (!controller) continue
       const classGuarded = hasAuthGuard(controller)
       const classTokenAccess = declaredTokenAccess(controller)
+      const classUnscoped = Reflect.getMetadata(WITHOUT_OWNER_SCOPE, controller)
       const prefixes = asArray(
         Reflect.getMetadata(PATH_METADATA, controller) as string | string[],
       )
@@ -241,6 +246,10 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
               path: full,
               guarded: classGuarded || hasAuthGuard(handler),
               tokenAccess,
+              ownerScoped: !(
+                classUnscoped ||
+                Reflect.getMetadata(WITHOUT_OWNER_SCOPE, handler)
+              ),
             })
           }
         }
@@ -404,6 +413,18 @@ describe('API route audit', () => {
         }
       },
     )
+  })
+
+  it('knows the table of every row id in a path (#558)', () => {
+    const unknown = routes
+      .filter((route) => route.guarded && route.ownerScoped)
+      .flatMap((route) =>
+        [...route.path.matchAll(/:(\w+)/g)]
+          .filter(([, param]) => ownedTableOf(route.path, param) === undefined)
+          .map(([, param]) => `${route.key} :${param}`),
+      )
+    // Name it in `database/request-scope/owned-params.ts`.
+    expect(unknown).toEqual([])
   })
 
   it('no longer routes the old /api/users CRUD', async () => {

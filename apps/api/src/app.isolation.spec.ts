@@ -15,7 +15,6 @@ import { DatabaseService } from './database/database.service'
 import { generateDemoData } from './database/demo/demo-data'
 import { setOwner } from './database/owner-scope'
 import * as schema from './database/schema'
-import { asTableOwner } from './database/testing/spec-owner'
 import { APP_ROLE } from './database/app-role'
 import { registerMultipart } from './imports/upload/multipart'
 import { usersTable } from './user/user.schema'
@@ -81,9 +80,17 @@ const OWN_MONTH_ROUTES = /\/month-close\/\{month\}/
 
 const ROLLBACK = Symbol('rollback')
 
-describe.skipIf(!process.env.DATABASE_URL)(
-  'isolation between two users (#558)',
-  () => {
+describe.skipIf(!process.env.DATABASE_URL).each([
+  {
+    lock: 'policies',
+    about: 'row-level security alone, as the API connects (#557)',
+  },
+  {
+    lock: 'services',
+    about: 'the policies switched off: the check of path ids alone',
+  },
+] as const)('isolation between two users (#558), $about', ({ lock }) => {
+  {
     let app: NestFastifyApplication
     let client: postgres.Sql
     let tx: Tx
@@ -144,7 +151,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
     }
 
     async function fingerprintB(): Promise<Record<string, string>> {
-      return asTableOwner(tx, async () => {
+      const [{ role }] = await tx.execute<{ role: string }>(
+        sql`select current_user as role`,
+      )
+      await tx.execute(sql`reset role`)
+      try {
         const tables = await tx.execute<{ table_name: string }>(sql`
           select c.table_name from information_schema.columns c
           join information_schema.tables t
@@ -163,7 +174,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
           result[table_name] = row?.digest ?? 'empty'
         }
         return result
-      })
+      } finally {
+        await tx.execute(sql.raw(`set local role "${role}"`))
+      }
     }
 
     beforeAll(async () => {
@@ -231,6 +244,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
             operation,
           })),
       )
+
+      if (lock === 'services') {
+        // Rolled back with the rest: the policies are off for this run only.
+        const tables = await tx.execute<{ table_name: string }>(sql`
+          select table_name from information_schema.columns
+          where table_schema = 'public' and column_name = 'user_id'`)
+        for (const { table_name } of tables) {
+          await tx.execute(
+            sql.raw(`alter table "${table_name}" disable row level security`),
+          )
+        }
+      }
 
       // B: the demo's whole data set, plus the identity rows it lacks.
       await generateDemoData(tx, { bcryptRounds: 4 })
@@ -572,7 +597,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
           await send('GET', url, { cookie: cookieB })
         ).statusCode
       }
-      expect(Object.keys(statuses).length).toBeGreaterThan(15)
+      if (lock === 'policies')
+        expect(Object.keys(statuses).length).toBeGreaterThan(15)
       expect(statuses).toEqual(
         Object.fromEntries(Object.keys(statuses).map((key) => [key, 200])),
       )
@@ -596,6 +622,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
     /** Routes without a path id whose body names one of B's rows. */
     function bodyRoutes() {
       return routes.filter((route) => {
+        // Bodies are the policies' and composite keys' (#555) to check.
+        if (lock === 'services') return false
         if (route.path.includes('{') || route.method === 'GET') return false
         const json = route.operation.requestBody?.content['application/json']
         if (!json) return false
@@ -606,7 +634,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('answers A for B’s ids exactly as for ids that never existed', async () => {
       const checked = [...idRoutes(), ...bodyRoutes()]
-      expect(checked.length).toBeGreaterThan(idRoutes().length + 5)
+      if (lock === 'policies')
+        expect(checked.length).toBeGreaterThan(idRoutes().length + 5)
       const answer = async (which: 'B' | 'random') => {
         ids = which
         const answers: Record<string, string> = {}
@@ -631,62 +660,76 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(await fingerprintB()).toEqual(fingerprintBefore)
     }, 120_000)
 
-    it('never shows A one of B’s rows in a list or a summary', async () => {
-      const leaks: Record<string, string> = {}
-      let shownToB = 0
-      const reads = routes.filter(
-        (route) =>
-          route.method === 'GET' &&
-          (!route.path.includes('{') || OWN_MONTH_ROUTES.test(route.path)),
-      )
-      for (const route of reads) {
-        const query = (route.operation.parameters ?? [])
-          .filter((p) => p.in === 'query' && p.required)
-          .map((p) => {
-            ids = 'random'
-            const value = sample(p.schema, p.name)
-            ids = 'B'
-            return `${p.name}=${encodeURIComponent(String(value))}`
-          })
-          .join('&')
-        const url =
-          route.path.replace('{month}', '2026-01') + (query ? `?${query}` : '')
-        for (const auth of [{ cookie: cookieA }, { bearer: tokenA }]) {
-          const res = await send('GET', url, auth)
-          const found = [...secretsB].find((secret) =>
-            res.body.includes(secret),
-          )
-          if (found) leaks[route.key] = `${res.statusCode}`
+    // Lists and summaries rely on the policies, which the API refuses to
+    // start without (`database/row-security.ts`).
+    it.skipIf(lock === 'services')(
+      'never shows A one of B’s rows in a list or a summary',
+      async () => {
+        const leaks: Record<string, string> = {}
+        let shownToB = 0
+        const reads = routes.filter(
+          (route) =>
+            route.method === 'GET' &&
+            (!route.path.includes('{') || OWN_MONTH_ROUTES.test(route.path)),
+        )
+        for (const route of reads) {
+          const query = (route.operation.parameters ?? [])
+            .filter((p) => p.in === 'query' && p.required)
+            .map((p) => {
+              ids = 'random'
+              const value = sample(p.schema, p.name)
+              ids = 'B'
+              return `${p.name}=${encodeURIComponent(String(value))}`
+            })
+            .join('&')
+          const url =
+            route.path.replace('{month}', '2026-01') +
+            (query ? `?${query}` : '')
+          for (const auth of [{ cookie: cookieA }, { bearer: tokenA }]) {
+            const res = await send('GET', url, auth)
+            const found = [...secretsB].find((secret) =>
+              res.body.includes(secret),
+            )
+            if (found) leaks[route.key] = `${res.statusCode}`
+          }
+          // Control: the same read shows B its own rows.
+          const own = await send('GET', url, { cookie: cookieB })
+          if ([...secretsB].some((secret) => own.body.includes(secret)))
+            shownToB += 1
         }
-        // Control: the same read shows B its own rows.
-        const own = await send('GET', url, { cookie: cookieB })
-        if ([...secretsB].some((secret) => own.body.includes(secret)))
-          shownToB += 1
-      }
-      expect(leaks).toEqual({})
-      expect(shownToB).toBeGreaterThan(20)
-    }, 120_000)
+        expect(leaks).toEqual({})
+        expect(shownToB).toBeGreaterThan(20)
+      },
+      120_000,
+    )
 
-    it('gives the tokens of A and B two different accounts_overview', async () => {
-      // What the MCP's accounts_overview reads (apps/mcp/src/tools/accounts.ts).
-      const overview = async (bearer: string) => {
-        const [dashboard, envelopes] = await Promise.all([
-          send('GET', '/api/dashboard/overview', { bearer }),
-          send('GET', '/api/envelopes', { bearer }),
-        ])
-        expect([dashboard.statusCode, envelopes.statusCode]).toEqual([200, 200])
-        return dashboard.body + envelopes.body
-      }
-      const accountsOfB = rowsOf('accounts')
-        .filter((row) => row.archived_at == null)
-        .map((row) => row.id as string)
-      const ofB = await overview(tokenB)
-      expect(accountsOfB.filter((id) => !ofB.includes(id))).toEqual([])
-      const ofA = await overview(tokenA)
-      expect([...secretsB].filter((secret) => ofA.includes(secret))).toEqual([])
-    })
-  },
-)
+    it.skipIf(lock === 'services')(
+      'gives the tokens of A and B two different accounts_overview',
+      async () => {
+        // What the MCP's accounts_overview reads (apps/mcp/src/tools/accounts.ts).
+        const overview = async (bearer: string) => {
+          const [dashboard, envelopes] = await Promise.all([
+            send('GET', '/api/dashboard/overview', { bearer }),
+            send('GET', '/api/envelopes', { bearer }),
+          ])
+          expect([dashboard.statusCode, envelopes.statusCode]).toEqual([
+            200, 200,
+          ])
+          return dashboard.body + envelopes.body
+        }
+        const accountsOfB = rowsOf('accounts')
+          .filter((row) => row.archived_at == null)
+          .map((row) => row.id as string)
+        const ofB = await overview(tokenB)
+        expect(accountsOfB.filter((id) => !ofB.includes(id))).toEqual([])
+        const ofA = await overview(tokenA)
+        expect([...secretsB].filter((secret) => ofA.includes(secret))).toEqual(
+          [],
+        )
+      },
+    )
+  }
+})
 
 /**
  * B's rows the demo has no use for: a passkey, a session, an OAuth grant,
