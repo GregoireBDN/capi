@@ -76,6 +76,8 @@ services() {
     grep -o -m 1 -E '(capi|finances)-mcp' docker-compose.prod.yml || true
   fi
 }
+shopt -s extglob
+[[ ${args[0]:-} != run ]] || echo "${args[3]}" >>"$FAKE_STATE/run_services"
 case "${args[*]}" in
   "config --services") services | tr ' ' '\n'; exit 0 ;;
   config)
@@ -93,10 +95,10 @@ case "${args[*]}" in
     fi ;;
   "pull api web") step=pull; listed FAKE_PULL_FAIL ;;
   "pull api web capi-mcp" | "pull api web finances-mcp") step=pull+mcp; listed FAKE_PULL_FAIL ;;
-  "run --rm -T api node dist/database/migrate.js") start_db; step=migrate; listed FAKE_MIGRATE_FAIL ;;
-  "run --rm -T api node dist/database/seed.js") start_db; step=seed ;;
-  "run --rm -T api node dist/database/seed-demo.js --if-empty") start_db; step=demo; listed FAKE_DEMO_FAIL ;;
-  "run --rm -T api node dist/database/seed-demo.js --reset") start_db; step=demo-reset; listed FAKE_DEMO_FAIL ;;
+  "run --rm -T "@(api|migrate)" node dist/database/migrate.js") start_db; step=migrate; listed FAKE_MIGRATE_FAIL ;;
+  "run --rm -T "@(api|migrate)" node dist/database/seed.js") start_db; step=seed ;;
+  "run --rm -T "@(api|migrate)" node dist/database/seed-demo.js --if-empty") start_db; step=demo; listed FAKE_DEMO_FAIL ;;
+  "run --rm -T "@(api|migrate)" node dist/database/seed-demo.js --reset") start_db; step=demo-reset; listed FAKE_DEMO_FAIL ;;
   "up -d --remove-orphans")
     start_db
     step=up
@@ -161,6 +163,9 @@ setup() {
   echo "# compose old${OLD_LEGACY:+ legacy}${OLD_MCP:+ $old_mcp}" >"$srv/docker-compose.prod.yml"
   [[ -z ${OLD_NAME:-} ]] || echo "name: $OLD_NAME" >>"$srv/docker-compose.prod.yml"
   echo "# compose new${NEW_MCP:+ capi-mcp}" >"$work/new-compose.yml"
+  if [[ -n ${NEW_MIGRATE:-} ]]; then
+    printf '  migrate:\n    # APP_DB_PASSWORD\n' >>"$work/new-compose.yml"
+  fi
   [[ -z ${NEW_NAME:-} ]] || echo "name: $NEW_NAME" >>"$work/new-compose.yml"
   printf '%s\n' "${VOLUMES:-}" >"$state/volumes"
   if [[ -n $running ]]; then
@@ -207,6 +212,7 @@ running_mcp() { read -r v _ < <(cat "$state/mcp" 2>/dev/null || echo none); echo
 running_mcp_service() { read -r _ service < <(cat "$state/mcp" 2>/dev/null || echo none); echo "${service:-none}"; }
 project() { cat "$state/project" 2>/dev/null || echo none; }
 calls() { tr '\n' ' ' <"$state/calls" | sed 's/ $//'; }
+run_services() { sort -u "$state/run_services" 2>/dev/null | tr '\n' ' ' | sed 's/ $//'; }
 eq() { [[ $1 == "$2" ]] || { echo "  expected [$2], got [$1]"; return 1; }; }
 has() { grep -qF -- "$2" "$1"; }
 
@@ -602,6 +608,27 @@ setup v1.0.0
 deploy $S1
 check "exit 2" eq "$rc" 2
 check "no docker call" eq "$(calls)" ""
+
+test_case "runs migrations and seeds as the owner, and makes the API's database password once (#557)"
+NEW_MIGRATE=1 setup v1.0.0
+deploy v1.1.0 "$work/new-compose.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @v1.1.0 pull @v1.1.0 migrate @v1.1.0 seed @v1.1.0 up @v1.1.0 health @v1.1.0"
+check "in the migrate service" eq "$(run_services)" migrate
+password=$(sed -n 's/^APP_DB_PASSWORD=//p' "$srv/.env")
+check "password written" eq "${#password}" 64
+check ".env stays private" eq "$(stat -c %a "$srv/.env")" 600
+check "other .env lines kept" eq "$(grep -c -e '^POSTGRES_USER=app$' -e '^JWT_SECRET=not-a-secret$' "$srv/.env")" 2
+deploy v1.2.0 "$work/new-compose.yml"
+check "exit 0 again" eq "$rc" 0
+check "password kept" eq "$(sed -n 's/^APP_DB_PASSWORD=//p' "$srv/.env")" "$password"
+
+test_case "keeps the api service and no password for a compose file from before #557"
+setup v1.0.0
+deploy v1.1.0 "$work/new-compose.yml"
+check "exit 0" eq "$rc" 0
+check "in the api service" eq "$(run_services)" api
+check "no password" eq "$(grep -c '^APP_DB_PASSWORD=' "$srv/.env")" 0
 
 if ((failures > 0)); then
   echo "$failures check(s) failed"

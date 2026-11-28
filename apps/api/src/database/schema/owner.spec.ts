@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { APP_ROLE } from '#/database/app-role'
 import { setOwner } from '#/database/owner-scope'
 import { asSpecOwner } from '#/database/testing/spec-owner'
 import * as schema from './index'
@@ -333,6 +334,170 @@ describe.skipIf(!process.env.DATABASE_URL)('row owners (ADR 0009)', () => {
         .from(transactionsTable)
         .where(eq(transactionsTable.id, transfer.id))
       expect(after).toEqual({ counterpart: null, userId: owner })
+    })
+  })
+
+  describe('row-level security (#557)', () => {
+    const asApp = (tx: Tx) => tx.execute(sql.raw(`set local role ${APP_ROLE}`))
+
+    it('locks every private table, the owner included, and the view reads as its reader', async () => {
+      const tables = await db.execute<{
+        table_name: string
+        enabled: boolean
+        forced: boolean
+        policies: string[] | null
+      }>(sql`
+        select c.relname as table_name,
+               c.relrowsecurity as enabled,
+               c.relforcerowsecurity as forced,
+               (select array_agg(p.polname || ':' || p.polcmd::text || ':' ||
+                                 pg_get_expr(p.polqual, p.polrelid) || ':' ||
+                                 pg_get_expr(p.polwithcheck, p.polrelid))
+                  from pg_policy p where p.polrelid = c.oid) as policies
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'public' and c.relkind = 'r'
+           and c.relname <> '__drizzle_migrations'
+         order by 1
+      `)
+      const expected = (table: string) => [
+        `${table}_owner:*:(user_id = ( SELECT app_user_id() AS app_user_id)):(user_id = ( SELECT app_user_id() AS app_user_id))`,
+      ]
+      const wrong = tables
+        .filter((t) => !WITHOUT_OWNER.has(t.table_name))
+        .filter(
+          (t) =>
+            !t.enabled ||
+            !t.forced ||
+            JSON.stringify(t.policies) !==
+              JSON.stringify(expected(t.table_name)),
+        )
+        .map((t) => t.table_name)
+      // A new private table needs, in its migration: ENABLE and FORCE ROW
+      // LEVEL SECURITY and its "<table>_owner" policy (see 0060).
+      expect(wrong).toEqual([])
+      // Global and identity tables stay readable before a user is known.
+      expect(
+        tables
+          .filter((t) => WITHOUT_OWNER.has(t.table_name) && t.enabled)
+          .map((t) => t.table_name),
+      ).toEqual([])
+
+      const views = await db.execute<{
+        name: string
+        options: string[] | null
+      }>(sql`
+        select c.relname as name, c.reloptions as options
+          from pg_class c join pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'public' and c.relkind = 'v'
+      `)
+      expect(
+        views
+          .filter((v) => !(v.options ?? []).includes('security_invoker=true'))
+          .map((v) => v.name),
+      ).toEqual([])
+    })
+
+    it('connects the API as a role the policies hold', async () => {
+      const [role] = await db.execute<{
+        super: boolean
+        bypass: boolean
+        owns: number
+        definers: number
+      }>(sql`
+        select r.rolsuper as super, r.rolbypassrls as bypass,
+               (select count(*)::int from pg_class c
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = 'public' and c.relowner = r.oid) as owns,
+               (select count(*)::int from pg_proc p
+                  join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = 'public' and p.prosecdef) as definers
+          from pg_roles r where r.rolname = ${APP_ROLE}
+      `)
+      expect(role).toEqual({
+        super: false,
+        bypass: false,
+        owns: 0,
+        definers: 0,
+      })
+    })
+
+    it("shows, changes and deletes only the user's own rows", async () => {
+      await inRollback(async (tx) => {
+        const first = await user(tx, 'premier@capi.test')
+        const second = await user(tx, 'second@capi.test')
+        await setOwner(tx, first)
+        const [mine] = await tx
+          .insert(accountsTable)
+          .values({ name: 'Compte fictif', type: 'checking' })
+          .returning({ id: accountsTable.id })
+        await tx.insert(transactionsTable).values({
+          accountId: mine.id,
+          bookingDate: '2026-10-15',
+          amountCents: -1_250,
+          rawLabel: 'PAIEMENT FICTIF',
+          kind: 'expense',
+          manual: true,
+          dedupeHash: 'manual:00000000-0000-4000-8000-000000000003',
+        })
+        await asApp(tx)
+        await setOwner(tx, second)
+
+        expect(await tx.select().from(accountsTable)).toEqual([])
+        expect(
+          await tx.execute(sql`select * from transaction_lines`),
+        ).toHaveLength(0)
+        const changed = await tx
+          .update(accountsTable)
+          .set({ name: 'Volé' })
+          .where(eq(accountsTable.id, mine.id))
+          .returning()
+        expect(changed).toEqual([])
+        const deleted = await tx
+          .delete(accountsTable)
+          .where(eq(accountsTable.id, mine.id))
+          .returning()
+        expect(deleted).toEqual([])
+        // Writing a row in someone else's name.
+        await refused(tx, '42501', (nested) =>
+          nested
+            .insert(accountsTable)
+            .values({ name: 'Compte fictif', type: 'checking', userId: first }),
+        )
+
+        await setOwner(tx, first)
+        const [own] = await tx.select().from(accountsTable)
+        expect(own).toMatchObject({ id: mine.id, name: 'Compte fictif' })
+        expect(
+          await tx.execute(sql`select * from transaction_lines`),
+        ).toHaveLength(1)
+        // Handing a row over to someone else.
+        await refused(tx, '42501', (nested) =>
+          nested
+            .update(accountsTable)
+            .set({ userId: second })
+            .where(eq(accountsTable.id, mine.id)),
+        )
+      })
+    })
+
+    it('still deletes everything a user owns with the user', async () => {
+      await inRollback(async (tx) => {
+        const owner = await user(tx, 'seul@capi.test')
+        await setOwner(tx, owner)
+        await tx
+          .insert(accountsTable)
+          .values({ name: 'Compte fictif', type: 'checking' })
+        await asApp(tx)
+        await tx.delete(usersTable).where(eq(usersTable.id, owner))
+        await tx.execute(sql`reset role`)
+        expect(
+          await tx
+            .select()
+            .from(accountsTable)
+            .where(eq(accountsTable.userId, owner)),
+        ).toEqual([])
+      })
     })
   })
 })

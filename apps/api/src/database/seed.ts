@@ -12,7 +12,9 @@ import * as schema from './schema'
  * of times, it only inserts what is missing. Run after `pnpm db:migrate`.
  */
 async function seed() {
-  const client = postgres(env.DATABASE_URL, { max: 1 })
+  const client = postgres(env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL, {
+    max: 1,
+  })
   try {
     const db = drizzle(client, { schema })
     // Every user has their own categories (ADR 0009); a new user gets them

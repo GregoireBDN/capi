@@ -82,8 +82,12 @@ services:
   api:
     image: ghcr.io/gregoirebdn/capi-api:${CAPI_VERSION:?set CAPI_VERSION in .env}
     <<: *hardening
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-finances}
+    environment: &api-environment
+      # Row-level security (#557, ADR 0009): the API connects as `capi_app`,
+      # neither superuser nor the tables' owner, so Postgres shows each request
+      # its user's rows only. The `migrate` service below creates the role
+      # with this password (deploy.sh generates it once into .env).
+      DATABASE_URL: postgres://capi_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env (deploy.sh writes one)}@db:5432/${POSTGRES_DB:-finances}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       APP_URL: ${APP_URL:?set APP_URL in .env}
       # Passkeys (WebAuthn): empty = APP_URL's host name and origin.
@@ -134,6 +138,24 @@ services:
       retries: 5
       start_period: 20s
     restart: unless-stopped
+    logging: *logging
+
+  # Migrations and seeds (#557): the API's image and settings, but as the
+  # owner role, which the running API never gets. Run by deploy.sh only
+  # (`docker compose run --rm migrate node dist/database/migrate.js`); it then
+  # creates or updates `capi_app` and its grants.
+  migrate:
+    image: ghcr.io/gregoirebdn/capi-api:${CAPI_VERSION:?set CAPI_VERSION in .env}
+    profiles: [migrate]
+    <<: *hardening
+    environment:
+      <<: *api-environment
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-finances}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env (deploy.sh writes one)}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
     logging: *logging
 
   web:

@@ -111,6 +111,7 @@ capi-pr-12 up
 capi-pr-12 exec" ]]'
 check ".env has its own secrets and the version" 'grep -q "^CAPI_VERSION=pr-12-aaaaaaa$" "$srv/pr-12/.env" && grep -q "^DB_VOLUME=capi-pr-12_db_data$" "$srv/pr-12/.env" && grep -Eq "^JWT_SECRET=[0-9a-f]{64}$" "$srv/pr-12/.env"'
 check ".env is private" '[[ $(stat -c %a "$srv/pr-12/.env") == 600 ]]'
+check ".env has the API's database password (#557)" 'grep -Eq "^APP_DB_PASSWORD=[0-9a-f]{64}$" "$srv/pr-12/.env"'
 secret=$(grep JWT_SECRET "$srv/pr-12/.env")
 
 echo "# the same commit again does nothing"

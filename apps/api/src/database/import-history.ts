@@ -67,7 +67,10 @@ async function main() {
       )
     : undefined
 
-  const client = postgres(env.DATABASE_URL, { max: 1, onnotice: () => {} })
+  const client = postgres(env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL, {
+    max: 1,
+    onnotice: () => {},
+  })
   try {
     const db = drizzle(client, { schema })
     const result = await runHistoryImport(
