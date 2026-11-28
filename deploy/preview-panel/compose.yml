@@ -1,0 +1,43 @@
+# Settings panel of the pull request previews (#608, docs/runbooks/previews.md),
+# at https://capi-previews.gbodin.cloud (tailnet only, Caddy in the infra repo).
+# Kept running by `preview.sh sync` from /srv/capi-previews/preview-panel, with
+# /srv/capi-previews/panel.env (PANEL_UID / PANEL_GID: the `deploy` user's ids).
+#
+# It only reads the index preview.sh writes (public/) and writes one request
+# file per pull request (requests/): no Docker socket, no secret, no database,
+# no other volume. preview.sh checks every request against its allow-list.
+name: capi-previews-panel
+
+services:
+  panel:
+    # The base of the app images (apps/*/Dockerfile): bump them together.
+    image: node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
+    command: ['node', '/app/server.mjs']
+    labels:
+      # Set by preview.sh from the files' hash: a new revision recreates it.
+      capi.panel-revision: ${PANEL_REVISION:-unknown}
+    restart: unless-stopped
+    user: '${PANEL_UID:?set PANEL_UID in panel.env}:${PANEL_GID:?set PANEL_GID in panel.env}'
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 96m
+    pids_limit: 64
+    environment:
+      PANEL_ORIGIN: https://capi-previews.gbodin.cloud
+      PANEL_PORT: '8080'
+    volumes:
+      - ./server.mjs:/app/server.mjs:ro
+      - ./panel.css:/app/panel.css:ro
+      - ../public:/data/public:ro
+      - ../requests:/data/requests
+    networks:
+      proxy:
+        aliases:
+          - capi-previews-panel
+
+networks:
+  proxy:
+    external: true

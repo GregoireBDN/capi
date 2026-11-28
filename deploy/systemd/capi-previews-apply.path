@@ -1,0 +1,13 @@
+# Runs capi-previews-apply.service as soon as the settings panel writes a
+# request in /srv/capi-previews/requests (#608, docs/runbooks/previews.md).
+# preview.sh never writes there itself (except removing a closed preview's
+# request), so this does not loop.
+[Unit]
+Description=Capi pull request previews: watch the panel's requests
+
+[Path]
+PathChanged=/srv/capi-previews/requests
+Unit=capi-previews-apply.service
+
+[Install]
+WantedBy=paths.target

@@ -1,7 +1,11 @@
 import { createIsomorphicFn, createServerFn } from '@tanstack/react-start'
 import { appendResponseHeader } from '@tanstack/react-start/server'
 import { createClient } from '#/api/client'
-import { authControllerMe, authControllerRegistrationStatus } from '#/api'
+import {
+  authControllerDemoSignInStatus,
+  authControllerMe,
+  authControllerRegistrationStatus,
+} from '#/api'
 import {
   getRequestCookieHeader,
   serverApiUrl,
@@ -78,5 +82,20 @@ export const getRegistrationOpen = createServerFn().handler(
       throwOnError: false,
     })
     return res.data?.open ?? false
+  },
+)
+
+/**
+ * Whether this server signs in the demo account by itself: only a pull
+ * request preview that asked for it (#608). False if the API can't be
+ * reached.
+ */
+export const getDemoSignInAvailable = createServerFn().handler(
+  async (): Promise<boolean> => {
+    const res = await authControllerDemoSignInStatus({
+      client: createServerClient(),
+      throwOnError: false,
+    })
+    return res.data?.available ?? false
   },
 )

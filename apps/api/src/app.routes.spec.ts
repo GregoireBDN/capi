@@ -60,6 +60,9 @@ const AUTH_GUARDS: Type<CanActivate>[] = [JwtGuard]
 const PUBLIC_ROUTES = [
   'GET /api/health',
   'GET /api/auth/registration-status',
+  // The previews' demo sign-in (#608): 404 outside a preview that asked for it.
+  'GET /api/auth/demo-sign-in',
+  'POST /api/auth/demo-sign-in',
   'POST /api/auth/register',
   'POST /api/auth/login',
   'POST /api/auth/refresh',

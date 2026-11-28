@@ -80,7 +80,7 @@ export const refreshTokensTable = pgTable(
      * for the sessions list (#217). Null for sessions older than #217.
      */
     signInMethod: varchar('sign_in_method', { length: 16 }).$type<
-      'password' | 'passkey' | 'sign_up'
+      'password' | 'passkey' | 'sign_up' | 'demo'
     >(),
     /**
      * Coarse device of the sign-in ("Safari · iPhone", `describeDevice`), copied

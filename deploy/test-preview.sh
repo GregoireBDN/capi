@@ -75,19 +75,19 @@ check() {
 
 reset() {
   rm -rf "$srv" "$state"
-  mkdir -p "$srv" "$state"
+  mkdir -p "$srv/public" "$srv/requests" "$state"
   cp "$here/../docker-compose.prod.yml" "$here/../docker-compose.preview.yml" "$srv/"
   : >"$state/calls"
 }
 
 sha() { printf '%040d' "$1" | tr 0 "${2:-a}"; }
 ago() { date -u -d "$1 ago" +%Y-%m-%dT%H:%M:%SZ; }
-# pulls 'number:minutes-ago[:repo[:sha letter]]' ...
+# pulls 'number:minutes-ago[:repo[:sha letter[:label]]]' ...
 pulls() {
-  local spec n min repo letter out=()
+  local spec n min repo letter label out=()
   for spec in "$@"; do
-    IFS=: read -r n min repo letter <<<"$spec"
-    out+=("{\"number\":$n,\"updated_at\":\"$(ago "$min minutes")\",\"head\":{\"sha\":\"$(sha "$n" "${letter:-a}")\",\"repo\":{\"full_name\":\"${repo:-GregoireBDN/capi}\"}}}")
+    IFS=: read -r n min repo letter label <<<"$spec"
+    out+=("{\"number\":$n,\"title\":\"Title $n\",\"labels\":[${label:+{\"name\":\"$label\"\}}],\"updated_at\":\"$(ago "$min minutes")\",\"head\":{\"sha\":\"$(sha "$n" "${letter:-a}")\",\"repo\":{\"full_name\":\"${repo:-GregoireBDN/capi}\"}}}")
   done
   local joined
   joined=$(printf '%s,' "${out[@]}")
@@ -182,6 +182,59 @@ image 50
 sed -i 's/- capi-pr-${PREVIEW_NUMBER}-web/- capi-web/' "$srv/docker-compose.preview.yml"
 run sync && rc=0 || rc=$?
 check "refused before any pull" '[[ $rc -ne 0 ]] && ! grep -q pull "$state/calls" && grep -q "web would answer as capi-web" "$work/out"'
+
+echo "# pull requests labelled visuel take the slots first"
+reset
+pulls 71:5 72:40:::visuel 73:10 74:20
+for n in 71 72 73 74; do image $n; done
+run sync
+check "72 (visuel), 71, 73 deployed, not 74" '[[ -d $srv/pr-71 && -d $srv/pr-72 && -d $srv/pr-73 && ! -e $srv/pr-74 ]]'
+index() { python3 -I -c "import json,sys; d=json.load(open('$srv/public/index.json')); print($1)"; }
+check "index lists the three, visual first" '[[ $(index "[p[\"number\"] for p in d[\"previews\"]]") == "[72, 73, 71]" ]]'
+check "index: visual list, title, address, settings" '[[ $(index "[(p[\"number\"], p[\"title\"], p[\"url\"], p[\"look\"], p[\"autoSignIn\"]) for p in d[\"visual\"]]") == "[(72, '"'"'Title 72'"'"', '"'"'https://capi-pr-72.gbodin.cloud'"'"', '"'"'staging'"'"', True)]" ]]'
+check "new previews: staging look, demo sign-in on" 'grep -qx PREVIEW_APP_ENVIRONMENT=staging "$srv/pr-72/.env" && grep -qx PREVIEW_AUTO_SIGN_IN=true "$srv/pr-72/.env"'
+
+echo "# settings from the panel: allow-list only"
+cp "$srv/pr-72/.env" "$work/env-before"
+cat >"$srv/requests/pr-72.json" <<'JSON'
+{"look": "production", "autoSignIn": false, "DATABASE_URL": "postgres://x@capi-db/finances", "look2": "x"}
+JSON
+: >"$state/calls"
+run apply && rc=0 || rc=$?
+check "apply succeeds" '[[ $rc -eq 0 ]]'
+check "look and sign-in written" 'grep -qx PREVIEW_APP_ENVIRONMENT=production "$srv/pr-72/.env" && grep -qx PREVIEW_AUTO_SIGN_IN=false "$srv/pr-72/.env"'
+check "nothing else in .env changed" '[[ "$(grep -v ^PREVIEW_ "$srv/pr-72/.env")" == "$(grep -v ^PREVIEW_ "$work/env-before")" ]]'
+check "api and web recreated, nothing else" '[[ "$(calls)" == "capi-pr-72 up" ]]'
+check "unknown keys logged as a count only" 'grep -q "pr-72: ignored 2 setting(s)" "$work/out" && ! grep -q finances "$work/out"'
+check "index shows the applied settings" '[[ $(index "[(p[\"look\"], p[\"autoSignIn\"]) for p in d[\"visual\"]]") == "[('"'"'production'"'"', False)]" ]]'
+: >"$state/calls"
+run apply
+check "same settings again: no call" '[[ -z "$(calls)" ]]'
+
+echo "# a value outside the allow-list keeps the default"
+echo '{"look": "prod-data", "autoSignIn": "yes"}' >"$srv/requests/pr-73.json"
+: >"$state/calls"
+run apply
+check "pr-73 untouched" '[[ -z "$(calls)" ]] && grep -qx PREVIEW_APP_ENVIRONMENT=staging "$srv/pr-73/.env"'
+echo '[1, 2]' >"$srv/requests/pr-73.json"
+run apply && rc=0 || rc=$?
+check "a request that is not an object changes nothing" '[[ $rc -eq 0 ]] && grep -qx PREVIEW_AUTO_SIGN_IN=true "$srv/pr-73/.env"'
+
+echo "# fresh demo data, once per request"
+echo '{"reset": "a1b2c3"}' >"$srv/requests/pr-71.json"
+: >"$state/calls"
+run apply
+check "seed-demo --reset run" '[[ "$(calls)" == "capi-pr-71 run --reset" ]]'
+: >"$state/calls"
+run apply
+check "not run again" '[[ -z "$(calls)" ]]'
+echo '{"reset": "../../x"}' >"$srv/requests/pr-71.json"
+run apply
+check "an invalid reset id is ignored" '[[ -z "$(calls)" ]]'
+
+echo "# a removed preview loses its request"
+run remove 71
+check "request and index entry gone" '[[ ! -e $srv/requests/pr-71.json ]] && [[ $(index "[p[\"number\"] for p in d[\"previews\"]]") == "[72, 73]" ]]'
 
 echo "# the GitHub API failing changes nothing"
 reset

@@ -80,3 +80,12 @@ export class RegistrationStatusDto {
   })
   open!: boolean
 }
+
+export class DemoSignInStatusDto {
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'True on a pull request preview that signs in the demo account by itself (#608).',
+  })
+  available!: boolean
+}

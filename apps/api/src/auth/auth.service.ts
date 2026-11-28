@@ -1,3 +1,4 @@
+import { DEMO_EMAIL } from '#/database/demo/demo-data'
 import { seedDefaultCategories } from '#/categories/seed-default-categories'
 import { setOwner } from '#/database/owner-scope'
 import {
@@ -42,7 +43,8 @@ import type {
 } from './dto/auth.dto'
 
 /** How a session (refresh-token family) started; shown in the sessions list. */
-export type SessionSignInMethod = 'password' | 'passkey' | 'sign_up'
+/** `demo`: the previews' demo sign-in (#608, `demo-sign-in.ts`). */
+export type SessionSignInMethod = 'password' | 'passkey' | 'sign_up' | 'demo'
 
 /** What a sign-in records about its session (#217). */
 export interface SessionSignIn {
@@ -225,6 +227,20 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS)
 
     return this.createSession(user.id, { method: 'password', userAgent })
+  }
+
+  /**
+   * The previews' demo sign-in (#608): a new session of the demo account,
+   * `null` when the database has none. The caller checks
+   * `demoSignInAllowed` first; nothing here reads a password.
+   */
+  async signInDemo(userAgent?: string): Promise<SessionTokens | null> {
+    const [user] = await this.db.db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, DEMO_EMAIL))
+    if (!user) return null
+    return this.createSession(user.id, { method: 'demo', userAgent })
   }
 
   private hashToken(token: string): string {

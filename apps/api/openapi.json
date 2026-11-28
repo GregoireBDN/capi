@@ -208,6 +208,51 @@
         ]
       }
     },
+    "/api/auth/demo-sign-in": {
+      "get": {
+        "operationId": "AuthController_demoSignInStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSignInStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "operationId": "AuthController_demoSignIn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": true
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No demo sign-in on this server."
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "operationId": "AuthController_logout",
@@ -10453,6 +10498,18 @@
           "password"
         ]
       },
+      "DemoSignInStatusDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "True on a pull request preview that signs in the demo account by itself (#608)."
+          }
+        },
+        "required": [
+          "available"
+        ]
+      },
       "ForgotPasswordDto": {
         "type": "object",
         "properties": {
@@ -10807,6 +10864,7 @@
           "password",
           "passkey",
           "sign_up",
+          "demo",
           "unknown"
         ],
         "description": "`unknown` for sessions started before the list existed."
